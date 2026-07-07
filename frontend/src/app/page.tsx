@@ -6,13 +6,24 @@ import { useSocket } from '@/lib/useSocket';
 
 export default function Home() {
   const router = useRouter();
-  const { createRoom, joinRoom } = useSocket();
+  const { createRoom, joinRoom, session, isHost } = useSocket();
   
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to active session if restored
+  useEffect(() => {
+    if (session) {
+      if (isHost) {
+        router.push('/host');
+      } else {
+        router.push('/play');
+      }
+    }
+  }, [session, isHost, router]);
 
   // Load previous player name and check URL query params for room code on mount
   useEffect(() => {

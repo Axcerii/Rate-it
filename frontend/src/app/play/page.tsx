@@ -8,13 +8,13 @@ export default function PlayView() {
   const router = useRouter();
   const { session, isConnected, playerId, leaveRoom, submitVote } = useSocket();
 
-  // If session or connection is lost, redirect back to home after a few seconds
+  // Redirect back to home only if there is no session to restore and connection is established
   useEffect(() => {
-    if (!session && !isConnected) {
-      const timer = setTimeout(() => {
+    if (typeof window !== 'undefined') {
+      const playerSessionId = localStorage.getItem('rate_it_player_session_id');
+      if (!session && isConnected && !playerSessionId) {
         router.push('/');
-      }, 5000);
-      return () => clearTimeout(timer);
+      }
     }
   }, [session, isConnected, router]);
 

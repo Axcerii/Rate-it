@@ -18,13 +18,13 @@ export default function HostLobby() {
     }
   }, [session?.sessionId]);
 
-  // If session or connection is lost, redirect back to home after a few seconds
+  // Redirect back to home only if there is no session to restore and connection is established
   useEffect(() => {
-    if (!session && !isConnected) {
-      const timer = setTimeout(() => {
+    if (typeof window !== 'undefined') {
+      const hostSessionId = localStorage.getItem('rate_it_host_session_id');
+      if (!session && isConnected && !hostSessionId) {
         router.push('/');
-      }, 5000);
-      return () => clearTimeout(timer);
+      }
     }
   }, [session, isConnected, router]);
 

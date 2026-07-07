@@ -8,6 +8,7 @@ interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   session: GameSession | null;
+  isHost: boolean;
   playerId: string;
   createRoom: () => Promise<GameSession>;
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
@@ -27,6 +28,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<GameSession | null>(null);
   const [playerId, setPlayerId] = useState<string>('');
+  const [isHost, setIsHost] = useState(false);
 
   // Generate or retrieve player ID on mount
   useEffect(() => {
@@ -36,6 +38,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('rate_it_player_id', id);
     }
     setPlayerId(id);
+
+    // Sync isHostRef if active session exists in localStorage
+    const hostSessionId = localStorage.getItem('rate_it_host_session_id');
+    if (hostSessionId) {
+      isHostRef.current = true;
+      setIsHost(true);
+    }
   }, []);
 
   const sessionRef = useRef<GameSession | null>(null);
@@ -63,28 +72,41 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsConnected(true);
       console.log('Connected to socket server');
       
-      const currentSession = sessionRef.current;
-      if (currentSession) {
-        if (isHostRef.current) {
-          console.log(`Auto re-associating host for session ${currentSession.sessionId}`);
-          socketInstance.emit('room:reconnect_host', { sessionId: currentSession.sessionId }, (response: any) => {
-            if (response.success) {
-              setSession(response.session);
-            }
-          });
-        } else {
-          const name = playerNameRef.current || localStorage.getItem('rate_it_player_name') || 'Player';
-          console.log(`Auto re-joining session ${currentSession.sessionId} as ${name}`);
-          socketInstance.emit('room:join', {
-            sessionId: currentSession.sessionId,
-            playerName: name,
-            playerId: playerIdRef.current
-          }, (response: any) => {
-            if (response.success) {
-              setSession(response.session);
-            }
-          });
-        }
+      const hostSessionId = localStorage.getItem('rate_it_host_session_id');
+      const playerSessionId = localStorage.getItem('rate_it_player_session_id');
+      const name = playerNameRef.current || localStorage.getItem('rate_it_player_name');
+      const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
+
+      if (hostSessionId) {
+        console.log(`Auto-restoring Host session: ${hostSessionId}`);
+        isHostRef.current = true;
+        setIsHost(true);
+        socketInstance.emit('room:reconnect_host', { sessionId: hostSessionId }, (response: any) => {
+          if (response.success) {
+            setSession(response.session);
+          } else {
+            console.log('Failed to restore Host session, clearing storage');
+            localStorage.removeItem('rate_it_host_session_id');
+            isHostRef.current = false;
+            setIsHost(false);
+          }
+        });
+      } else if (playerSessionId && name && id) {
+        console.log(`Auto-restoring Player session: ${playerSessionId} as ${name}`);
+        isHostRef.current = false;
+        setIsHost(false);
+        socketInstance.emit('room:join', {
+          sessionId: playerSessionId,
+          playerName: name,
+          playerId: id
+        }, (response: any) => {
+          if (response.success) {
+            setSession(response.session);
+          } else {
+            console.log('Failed to restore Player session, clearing storage');
+            localStorage.removeItem('rate_it_player_session_id');
+          }
+        });
       }
     };
 
@@ -114,12 +136,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       isHostRef.current = true;
+      setIsHost(true);
       socket.emit('room:create', {}, (response: any) => {
         if (response.success) {
+          localStorage.setItem('rate_it_host_session_id', response.session.sessionId);
+          localStorage.removeItem('rate_it_player_session_id');
           setSession(response.session);
           resolve(response.session);
         } else {
           isHostRef.current = false;
+          setIsHost(false);
           reject(new Error(response.error || 'Failed to create room'));
         }
       });
@@ -131,9 +157,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!socket) return reject(new Error('Socket not initialized'));
       if (!playerId) return reject(new Error('Player ID not ready'));
       isHostRef.current = false;
+      setIsHost(false);
       playerNameRef.current = playerName;
       socket.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
         if (response.success) {
+          localStorage.setItem('rate_it_player_session_id', response.session.sessionId);
+          localStorage.removeItem('rate_it_host_session_id');
           setSession(response.session);
           resolve(response.session);
         } else {
@@ -147,7 +176,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const leaveRoom = () => {
     if (socket && session) {
       isHostRef.current = false;
+      setIsHost(false);
       playerNameRef.current = '';
+      localStorage.removeItem('rate_it_host_session_id');
+      localStorage.removeItem('rate_it_player_session_id');
       socket.disconnect();
       socket.connect();
       setSession(null);
@@ -216,6 +248,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isConnected,
         session,
         playerId,
+        isHost,
         createRoom,
         joinRoom,
         leaveRoom,
