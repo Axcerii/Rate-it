@@ -6,7 +6,7 @@ import { useSocket } from '@/lib/useSocket';
 
 export default function PlayView() {
   const router = useRouter();
-  const { session, isConnected, playerId, leaveRoom } = useSocket();
+  const { session, isConnected, playerId, leaveRoom, submitVote } = useSocket();
 
   // If session or connection is lost, redirect back to home after a few seconds
   useEffect(() => {
@@ -21,6 +21,14 @@ export default function PlayView() {
   const handleLeave = () => {
     leaveRoom();
     router.push('/');
+  };
+
+  const handleVote = async (voteValue: number) => {
+    try {
+      await submitVote(voteValue);
+    } catch (error) {
+      console.error('Failed to submit vote:', error);
+    }
   };
 
   if (!session) {
@@ -94,6 +102,7 @@ export default function PlayView() {
   // 2. PLAYING VIEW
   if (session.status === 'PLAYING') {
     const currentVideo = session.videos?.[session.currentVideoIndex];
+    const currentVote = currentPlayer?.vote;
 
     return (
       <div className="relative flex flex-col flex-1 bg-slate-950 px-4 py-8 font-sans overflow-hidden justify-center items-center">
@@ -126,12 +135,60 @@ export default function PlayView() {
                 </p>
               </div>
 
-              {/* Placeholder message for Step 4 voting interface */}
-              <div className="mt-8 p-6 rounded-2xl bg-cyan-500/5 border border-cyan-500/10 text-cyan-300 text-xs font-semibold leading-relaxed">
-                <div className="animate-pulse flex flex-col items-center gap-3">
-                  <div className="h-6 w-6 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
-                  <span>Waiting for Voting system initialization...</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Voting buttons (1-5) will appear in Étape 4.</span>
+              {/* Rating buttons */}
+              <div className="mt-8 flex flex-col gap-6">
+                <div className="flex justify-between items-center px-1 gap-2">
+                  {[
+                    { value: 1, label: 'Awful 🤢' },
+                    { value: 2, label: 'Meh 🥱' },
+                    { value: 3, label: 'Good 🙂' },
+                    { value: 4, label: 'Great! 😎' },
+                    { value: 5, label: 'Masterpiece! 👑' }
+                  ].map((item) => {
+                    const isSelected = currentVote === item.value;
+                    const isAnySelected = currentVote !== undefined;
+                    
+                    let btnStyle = "";
+                    if (isSelected) {
+                      if (item.value === 1) btnStyle = "border-red-500 bg-red-500/20 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.5)]";
+                      else if (item.value === 2) btnStyle = "border-orange-500 bg-orange-500/20 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.5)]";
+                      else if (item.value === 3) btnStyle = "border-yellow-500 bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]";
+                      else if (item.value === 4) btnStyle = "border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.5)]";
+                      else if (item.value === 5) btnStyle = "border-cyan-500 bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)]";
+                    } else if (isAnySelected) {
+                      btnStyle = "border-white/5 bg-slate-950/20 text-slate-600 opacity-40";
+                    } else {
+                      if (item.value === 1) btnStyle = "border-white/10 hover:border-red-500/50 hover:bg-red-500/5 text-slate-300 hover:text-red-400";
+                      else if (item.value === 2) btnStyle = "border-white/10 hover:border-orange-500/50 hover:bg-orange-500/5 text-slate-300 hover:text-orange-400";
+                      else if (item.value === 3) btnStyle = "border-white/10 hover:border-yellow-500/50 hover:bg-yellow-500/5 text-slate-300 hover:text-yellow-400";
+                      else if (item.value === 4) btnStyle = "border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-emerald-400";
+                      else if (item.value === 5) btnStyle = "border-white/10 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-slate-300 hover:text-cyan-400";
+                    }
+
+                    return (
+                      <button
+                        key={item.value}
+                        onClick={() => handleVote(item.value)}
+                        className={`h-14 w-14 rounded-full border text-xl font-black transition-all duration-300 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 ${btnStyle}`}
+                      >
+                        {item.value}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="h-6 flex items-center justify-center">
+                  <span className="text-sm font-bold text-slate-400 transition-all duration-300 uppercase tracking-wider">
+                    {currentVote !== undefined 
+                      ? [
+                          { value: 1, label: 'Awful 🤢' },
+                          { value: 2, label: 'Meh 🥱' },
+                          { value: 3, label: 'Good 🙂' },
+                          { value: 4, label: 'Great! 😎' },
+                          { value: 5, label: 'Masterpiece! 👑' }
+                        ].find(r => r.value === currentVote)?.label 
+                      : 'Select your rating'}
+                  </span>
                 </div>
               </div>
             </div>

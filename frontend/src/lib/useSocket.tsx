@@ -15,6 +15,7 @@ interface SocketContextType {
   startGame: () => Promise<GameSession>;
   nextVideo: () => Promise<GameSession>;
   previousVideo: () => Promise<GameSession>;
+  submitVote: (voteValue: number) => Promise<number>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -37,6 +38,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPlayerId(id);
   }, []);
 
+  const sessionRef = useRef<GameSession | null>(null);
+  const playerNameRef = useRef<string>('');
+  const playerIdRef = useRef<string>('');
+  const isHostRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
+
   useEffect(() => {
     const socketInstance = io(SOCKET_URL, {
       autoConnect: true,
@@ -48,6 +62,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const onConnect = () => {
       setIsConnected(true);
       console.log('Connected to socket server');
+      
+      const currentSession = sessionRef.current;
+      if (currentSession) {
+        if (isHostRef.current) {
+          console.log(`Auto re-associating host for session ${currentSession.sessionId}`);
+          socketInstance.emit('room:reconnect_host', { sessionId: currentSession.sessionId }, (response: any) => {
+            if (response.success) {
+              setSession(response.session);
+            }
+          });
+        } else {
+          const name = playerNameRef.current || localStorage.getItem('rate_it_player_name') || 'Player';
+          console.log(`Auto re-joining session ${currentSession.sessionId} as ${name}`);
+          socketInstance.emit('room:join', {
+            sessionId: currentSession.sessionId,
+            playerName: name,
+            playerId: playerIdRef.current
+          }, (response: any) => {
+            if (response.success) {
+              setSession(response.session);
+            }
+          });
+        }
+      }
     };
 
     const onDisconnect = () => {
@@ -75,11 +113,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const createRoom = (): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
+      isHostRef.current = true;
       socket.emit('room:create', {}, (response: any) => {
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
         } else {
+          isHostRef.current = false;
           reject(new Error(response.error || 'Failed to create room'));
         }
       });
@@ -90,11 +130,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       if (!playerId) return reject(new Error('Player ID not ready'));
+      isHostRef.current = false;
+      playerNameRef.current = playerName;
       socket.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
         } else {
+          playerNameRef.current = '';
           reject(new Error(response.error || 'Failed to join room'));
         }
       });
@@ -103,6 +146,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const leaveRoom = () => {
     if (socket && session) {
+      isHostRef.current = false;
+      playerNameRef.current = '';
       socket.disconnect();
       socket.connect();
       setSession(null);
@@ -151,6 +196,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const submitVote = (voteValue: number): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:vote', { voteValue }, (response: any) => {
+        if (response.success) {
+          resolve(response.vote);
+        } else {
+          reject(new Error(response.error || 'Failed to submit vote'));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -164,6 +222,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         startGame,
         nextVideo,
         previousVideo,
+        submitVote,
       }}
     >
       {children}

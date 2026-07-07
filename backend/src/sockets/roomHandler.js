@@ -57,6 +57,42 @@ export function registerRoomHandlers(io, socket) {
     }
   });
 
+  // Host reconnects to room
+  socket.on('room:reconnect_host', async ({ sessionId }, callback) => {
+    try {
+      if (!sessionId) {
+        throw new Error('Missing room code');
+      }
+
+      const formattedCode = sessionId.trim().toUpperCase();
+      const session = await getSession(formattedCode);
+
+      if (!session) {
+        throw new Error('Room not found');
+      }
+
+      session.hostSocketId = socket.id;
+      await saveSession(session);
+
+      socket.data.sessionId = formattedCode;
+      socket.data.isHost = true;
+      socket.join(`session:${formattedCode}`);
+
+      console.log(`Host ${socket.id} reconnected to room ${formattedCode}`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, session });
+      }
+
+      io.to(`session:${formattedCode}`).emit('room:update', session);
+    } catch (error) {
+      console.error('Error reconnecting host:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
   // Player joins a room
   socket.on('room:join', async ({ sessionId, playerName, playerId }, callback) => {
     try {

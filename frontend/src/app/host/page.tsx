@@ -325,16 +325,26 @@ export default function HostLobby() {
                   Players Status
                 </h3>
                 <div className="mt-4 flex flex-col gap-3 overflow-y-auto max-h-[300px]">
-                  {playersList.map((player) => (
-                    <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-white/5">
-                      <span className="font-bold text-slate-300 text-sm truncate max-w-[120px]">
-                        {player.name}
-                      </span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                        {player.isConnected ? 'Connected' : 'Offline'}
-                      </span>
-                    </div>
-                  ))}
+                  {playersList.map((player) => {
+                    const hasVoted = session.votes?.[player.id] !== undefined;
+                    return (
+                      <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-white/5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-300 text-sm truncate max-w-[120px]">
+                            {player.name}
+                          </span>
+                          {hasVoted && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider animate-pulse">
+                              Voted ✅
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                          {player.isConnected ? 'Online' : 'Offline'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -346,24 +356,96 @@ export default function HostLobby() {
 
   // 3. LEADERBOARD VIEW
   if (session.status === 'LEADERBOARD') {
-    return (
-      <div className="relative flex flex-col flex-1 bg-slate-950 px-6 py-12 font-sans overflow-hidden justify-center items-center text-center">
-        <div className="absolute top-[-30%] right-[-10%] h-[700px] w-[700px] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
-        
-        <div className="z-10 w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-md">
-          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-fuchsia-400 to-violet-400 bg-clip-text text-transparent">
-            Game Finished!
-          </h1>
-          <p className="text-slate-400 mt-4 text-sm max-w-xs mx-auto leading-relaxed">
-            All intros have been played! Next we will build the final leaderboard statistics calculating averages.
-          </p>
+    const sortedResults = Object.values(session.results || {}).sort((a, b) => a.average - b.average);
 
-          <button
-            onClick={handleBackToHome}
-            className="w-full mt-8 py-4 px-6 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white font-bold shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Back to Homepage
-          </button>
+    return (
+      <div className="relative flex flex-col flex-1 bg-slate-950 px-6 py-12 font-sans overflow-hidden">
+        <div className="absolute top-[-30%] right-[-10%] h-[700px] w-[700px] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] h-[600px] w-[600px] rounded-full bg-fuchsia-500/10 blur-[120px] pointer-events-none" />
+
+        <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-8 justify-center">
+          <div className="text-center">
+            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-fuchsia-400 via-violet-400 to-cyan-400 bg-clip-text text-transparent sm:text-5xl drop-shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+              FINAL LEADERBOARD
+            </h1>
+            <p className="text-sm text-slate-400 mt-2">Ranked from the worst anime opening to the best</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-8 shadow-2xl backdrop-blur-md flex flex-col gap-6">
+            {sortedResults.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                No votes were recorded during this session.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {sortedResults.map((result, idx) => {
+                  const percent = (result.average / 5) * 100;
+                  // Color based on rank/index
+                  let rankColor = "text-slate-400 border-slate-500/20 bg-slate-500/10";
+                  let bgBarColor = "bg-gradient-to-r from-violet-600 to-cyan-500";
+                  
+                  if (idx === sortedResults.length - 1) {
+                    // Winner (the highest score, since it's worst to best)
+                    rankColor = "text-yellow-400 border-yellow-500/30 bg-yellow-500/10 animate-pulse";
+                    bgBarColor = "bg-gradient-to-r from-yellow-500 via-amber-500 to-fuchsia-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]";
+                  } else if (idx === 0) {
+                    // Worst rating
+                    rankColor = "text-red-400 border-red-500/30 bg-red-500/10";
+                  }
+
+                  return (
+                    <div
+                      key={result.id}
+                      className="relative p-5 rounded-2xl border border-white/5 bg-slate-950/40 hover:border-white/10 transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Rank indicator */}
+                        <div className={`h-12 w-12 rounded-xl border flex items-center justify-center font-black text-lg ${rankColor}`}>
+                          #{sortedResults.length - idx}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-white text-base leading-snug">
+                            {result.animeName}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {result.type} — {result.title}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Score Bar & Average rating */}
+                      <div className="flex items-center gap-6 sm:w-1/2 justify-between">
+                        <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-3.5 overflow-hidden border border-white/5">
+                          <div className={`h-full rounded-full transition-all duration-1000 ${bgBarColor}`} style={{ width: `${percent}%` }} />
+                        </div>
+                        
+                        <div className="text-right flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="text-2xl font-black text-white font-mono leading-none">
+                              {result.average.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">
+                              {result.votesCount} {result.votesCount === 1 ? 'vote' : 'votes'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-slate-500">/ 5</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-center border-t border-white/5 pt-6 mt-2">
+              <button
+                onClick={handleBackToHome}
+                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-bold text-white shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Back to Homepage
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );

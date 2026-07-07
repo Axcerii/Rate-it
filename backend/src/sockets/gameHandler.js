@@ -83,6 +83,26 @@ export function registerGameHandlers(io, socket) {
         throw new Error('No videos found in session');
       }
 
+      // Accumulate votes for the current video before advancing
+      const currentVideo = session.videos[session.currentVideoIndex];
+      if (currentVideo) {
+        const votesList = Object.values(session.votes || {});
+        const sum = votesList.reduce((sum, v) => sum + v, 0);
+        const count = votesList.length;
+        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
+
+        session.results = session.results || {};
+        session.results[currentVideo.id] = {
+          id: currentVideo.id,
+          title: currentVideo.title,
+          youtubeId: currentVideo.youtubeId,
+          animeName: currentVideo.animeName,
+          type: currentVideo.type,
+          average,
+          votesCount: count,
+        };
+      }
+
       session.currentVideoIndex++;
 
       // Reset votes for the next round

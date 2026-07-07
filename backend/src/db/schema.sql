@@ -22,17 +22,17 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Seed Videos if not exists
 INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
-SELECT 'anime-classics', 'A Cruel Angel''s Thesis', 't-QSmNReDyI', 'Neon Genesis Evangelion', 'OP', 0
-WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = 't-QSmNReDyI');
+SELECT 'anime-classics', 'A Cruel Angel''s Thesis', 'nU21rCWkuJw', 'Neon Genesis Evangelion', 'OP', 0
+WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = 'nU21rCWkuJw');
 
 INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
-SELECT 'anime-classics', 'Guren no Yumiya', '8OkpRKvqdLA', 'Attack on Titan', 'OP', 1
-WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = '8OkpRKvqdLA');
+SELECT 'anime-classics', 'Guren no Yumiya', '8OkpRK2_gVs', 'Attack on Titan', 'OP', 1
+WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = '8OkpRK2_gVs');
 
 INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
-SELECT 'anime-classics', 'Silhouette', 'dlFA0Zq1k2A', 'Naruto Shippuden', 'OP', 2
-WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = 'dlFA0Zq1k2A');
+SELECT 'anime-classics', 'Silhouette', 'zVgKnfN9i34', 'Naruto Shippuden', 'OP', 2
+WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = 'zVgKnfN9i34');
 
 INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
-SELECT 'anime-classics', 'Unravel', 'uMeR2W19wT0', 'Tokyo Ghoul', 'OP', 3
-WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = 'uMeR2W19wT0');
+SELECT 'anime-classics', 'Unravel', '7aMOurgDB-o', 'Tokyo Ghoul', 'OP', 3
+WHERE NOT EXISTS (SELECT 1 FROM videos WHERE playlist_id = 'anime-classics' AND youtube_id = '7aMOurgDB-o');

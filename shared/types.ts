@@ -21,6 +21,16 @@ export interface Playlist {
   isCustom: boolean;
 }
 
+export interface VideoResult {
+  id: string;
+  title: string;
+  youtubeId: string;
+  animeName: string;
+  type: string;
+  average: number;
+  votesCount: number;
+}
+
 export interface GameSession {
   sessionId: string;
   hostSocketId?: string;
@@ -30,6 +40,7 @@ export interface GameSession {
   videos?: Video[]; // List of videos loaded in active session
   players: Record<string, Player>; // Map of playerId -> Player
   votes: Record<string, number>; // Map of playerId -> voteValue
+  results?: Record<string, VideoResult>; // Map of videoId -> VideoResult accumulated
 }
 
 export interface VotePayload {
