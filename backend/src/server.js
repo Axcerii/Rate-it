@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { checkDbConnection } from './db/db.js';
 import { connectRedis } from './store/redis.js';
 
+import { onConnection } from './sockets/index.js';
+
 dotenv.config();
 
 const app = express();
@@ -35,10 +37,7 @@ const io = new Server(httpServer, {
 
 io.on('connection', (socket) => {
   console.log(`New socket connection: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`Socket disconnected: ${socket.id}`);
-  });
+  onConnection(io, socket);
 });
 
 async function startServer() {
