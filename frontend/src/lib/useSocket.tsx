@@ -13,10 +13,12 @@ interface SocketContextType {
   createRoom: () => Promise<GameSession>;
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
   leaveRoom: () => void;
-  startGame: () => Promise<GameSession>;
+  startGame: (malUsername?: string) => Promise<GameSession>;
   nextVideo: () => Promise<GameSession>;
   previousVideo: () => Promise<GameSession>;
   submitVote: (voteValue: number) => Promise<number>;
+  connectTwitch: (channelName: string) => Promise<string>;
+  disconnectTwitch: () => Promise<void>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -186,15 +188,41 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const startGame = (): Promise<GameSession> => {
+  const startGame = (malUsername?: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('game:start', {}, (response: any) => {
+      socket.emit('game:start', { malUsername }, (response: any) => {
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
         } else {
           reject(new Error(response.error || 'Failed to start game'));
+        }
+      });
+    });
+  };
+
+  const connectTwitch = (channelName: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('twitch:connect', { channelName }, (response: any) => {
+        if (response.success) {
+          resolve(response.channelName);
+        } else {
+          reject(new Error(response.error || 'Failed to connect Twitch'));
+        }
+      });
+    });
+  };
+
+  const disconnectTwitch = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('twitch:disconnect', {}, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to disconnect Twitch'));
         }
       });
     });
@@ -256,6 +284,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         nextVideo,
         previousVideo,
         submitVote,
+        connectTwitch,
+        disconnectTwitch,
       }}
     >
       {children}

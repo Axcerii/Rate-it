@@ -7,8 +7,21 @@ import { QRCodeSVG } from 'qrcode.react';
 
 export default function HostLobby() {
   const router = useRouter();
-  const { session, isConnected, leaveRoom, startGame, nextVideo, previousVideo } = useSocket();
+  const { 
+    session, 
+    isConnected, 
+    leaveRoom, 
+    startGame, 
+    nextVideo, 
+    previousVideo,
+    connectTwitch,
+    disconnectTwitch
+  } = useSocket();
   const [joinUrl, setJoinUrl] = useState('');
+  const [malUsername, setMalUsername] = useState('');
+  const [twitchChannel, setTwitchChannel] = useState('');
+  const [isTwitchConnecting, setIsTwitchConnecting] = useState(false);
+  const [twitchError, setTwitchError] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
 
   // Generate QR Code join URL once we have window.location
@@ -103,9 +116,31 @@ export default function HostLobby() {
 
   const handleStartGame = async () => {
     try {
-      await startGame();
+      await startGame(malUsername);
     } catch (error) {
       console.error('Failed to start game:', error);
+    }
+  };
+
+  const handleConnectTwitch = async () => {
+    if (!twitchChannel.trim()) return;
+    setIsTwitchConnecting(true);
+    setTwitchError(null);
+    try {
+      await connectTwitch(twitchChannel.trim());
+    } catch (err: any) {
+      setTwitchError(err.message || 'Failed to connect Twitch');
+    } finally {
+      setIsTwitchConnecting(false);
+    }
+  };
+
+  const handleDisconnectTwitch = async () => {
+    setTwitchError(null);
+    try {
+      await disconnectTwitch();
+    } catch (err: any) {
+      setTwitchError(err.message || 'Failed to disconnect Twitch');
     }
   };
 
@@ -192,6 +227,69 @@ export default function HostLobby() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* MyAnimeList Quiz Filter */}
+              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>MyAnimeList Quiz</span>
+                  <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded font-normal lowercase">optional</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Filter the quiz themes using your MAL completed list.
+                </p>
+                <input
+                  type="text"
+                  value={malUsername}
+                  onChange={(e) => setMalUsername(e.target.value)}
+                  placeholder="Enter MAL Username"
+                  className="w-full px-4 py-3 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-cyan-500 transition font-medium"
+                />
+              </div>
+
+              {/* Twitch Chat Integration */}
+              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>Twitch Chat Votes</span>
+                  <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-normal lowercase">optional</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Connect to Twitch chat to count live ratings (1-5) from viewers.
+                </p>
+                {session.twitchChannel ? (
+                  <div className="flex flex-col gap-2 bg-purple-500/10 p-4 border border-purple-500/20 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-purple-300 font-bold flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]" />
+                        Connected to #{session.twitchChannel}
+                      </span>
+                      <button
+                        onClick={handleDisconnectTwitch}
+                        className="text-xs text-red-400 hover:text-red-300 font-bold"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={twitchChannel}
+                      onChange={(e) => setTwitchChannel(e.target.value)}
+                      placeholder="Twitch Channel"
+                      className="flex-1 px-4 py-3 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-purple-500 transition font-medium"
+                    />
+                    <button
+                      onClick={handleConnectTwitch}
+                      disabled={isTwitchConnecting}
+                      className="px-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition"
+                    >
+                      {isTwitchConnecting ? '...' : 'Connect'}
+                    </button>
+                  </div>
+                )}
+                {twitchError && <p className="text-xs text-red-400 font-bold">{twitchError}</p>}
               </div>
             </div>
 
@@ -319,6 +417,35 @@ export default function HostLobby() {
                 </p>
               </div>
 
+              {/* Twitch Chat live voting status */}
+              {session.twitchChannel && (
+                <div className="rounded-3xl border border-purple-500/20 bg-purple-500/5 p-6 backdrop-blur-md shadow-2xl flex flex-col gap-3">
+                  <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-purple-500/10 pb-3">
+                    <span className="h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7] animate-pulse" />
+                    Twitch Chat Votes
+                  </h3>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-slate-400">Votes received:</span>
+                    <span className="text-lg font-black text-white font-mono">
+                      {Object.keys(session.twitchVotes || {}).length}
+                    </span>
+                  </div>
+                  {Object.keys(session.twitchVotes || {}).length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">Current average:</span>
+                      <span className="text-lg font-black text-purple-400 font-mono">
+                        {(
+                          Object.values(session.twitchVotes || {}).reduce(
+                            (sum: number, v: any) => sum + v,
+                            0
+                          ) / Object.keys(session.twitchVotes || {}).length
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Players live voting list status */}
               <div className="flex-1 rounded-3xl border border-white/10 bg-slate-900/40 p-6 backdrop-blur-md shadow-2xl flex flex-col">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-3">
@@ -414,22 +541,46 @@ export default function HostLobby() {
                       </div>
 
                       {/* Score Bar & Average rating */}
-                      <div className="flex items-center gap-6 sm:w-1/2 justify-between">
-                        <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-3.5 overflow-hidden border border-white/5">
-                          <div className={`h-full rounded-full transition-all duration-1000 ${bgBarColor}`} style={{ width: `${percent}%` }} />
-                        </div>
-                        
-                        <div className="text-right flex items-center gap-3">
-                          <div className="flex flex-col">
-                            <span className="text-2xl font-black text-white font-mono leading-none">
-                              {result.average.toFixed(2)}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">
-                              {result.votesCount} {result.votesCount === 1 ? 'vote' : 'votes'}
-                            </span>
+                      <div className="flex flex-col gap-2 sm:w-1/2 justify-center">
+                        <div className="flex items-center gap-6 justify-between">
+                          {/* Players Score */}
+                          <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
+                            <div className={`h-full rounded-full transition-all duration-1000 ${bgBarColor}`} style={{ width: `${percent}%` }} />
                           </div>
-                          <span className="text-sm text-slate-500">/ 5</span>
+                          
+                          <div className="text-right flex items-center gap-2 min-w-[90px]">
+                            <div className="flex flex-col items-end">
+                              <span className="text-lg font-black text-white font-mono leading-none font-bold">
+                                {result.average.toFixed(2)}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                                {result.votesCount} {result.votesCount === 1 ? 'player' : 'players'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-600">/5</span>
+                          </div>
                         </div>
+
+                        {/* Twitch Score (if active) */}
+                        {result.twitchVotesCount > 0 && (
+                          <div className="flex items-center gap-6 justify-between border-t border-white/5 pt-1.5">
+                            <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
+                              <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-500 transition-all duration-1000 shadow-[0_0_8px_rgba(168,85,247,0.2)]" style={{ width: `${(result.twitchAverage / 5) * 100}%` }} />
+                            </div>
+                            
+                            <div className="text-right flex items-center gap-2 min-w-[90px]">
+                              <div className="flex flex-col items-end">
+                                <span className="text-lg font-black text-purple-400 font-mono leading-none">
+                                  {result.twitchAverage.toFixed(2)}
+                                </span>
+                                <span className="text-[9px] font-bold text-purple-500/80 uppercase tracking-wider mt-0.5">
+                                  {result.twitchVotesCount} {result.twitchVotesCount === 1 ? 'chat vote' : 'chat votes'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-600">/5</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

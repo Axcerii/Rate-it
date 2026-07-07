@@ -1,4 +1,5 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
+import { disconnectFromTwitchChat } from '../services/twitchService.js';
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -157,6 +158,7 @@ export function registerRoomHandlers(io, socket) {
         console.log(`Host ${socket.id} disconnected from room ${sessionId}`);
         session.hostSocketId = null;
         await saveSession(session);
+        disconnectFromTwitchChat(sessionId);
         io.to(`session:${sessionId}`).emit('room:update', session);
       } else if (playerId && session.players[playerId]) {
         console.log(`Player ${playerId} disconnected from room ${sessionId}`);
