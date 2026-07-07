@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { checkDbConnection } from './db/db.js';
+import { checkDbConnection, initializeDatabase } from './db/db.js';
 import { connectRedis } from './store/redis.js';
 
 import { onConnection } from './sockets/index.js';
@@ -44,6 +44,7 @@ async function startServer() {
   try {
     console.log('Connecting to databases...');
     await checkDbConnection();
+    await initializeDatabase();
     await connectRedis();
 
     httpServer.listen(PORT, () => {

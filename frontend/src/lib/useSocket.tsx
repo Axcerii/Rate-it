@@ -12,6 +12,9 @@ interface SocketContextType {
   createRoom: () => Promise<GameSession>;
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
   leaveRoom: () => void;
+  startGame: () => Promise<GameSession>;
+  nextVideo: () => Promise<GameSession>;
+  previousVideo: () => Promise<GameSession>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -106,6 +109,48 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const startGame = (): Promise<GameSession> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:start', {}, (response: any) => {
+        if (response.success) {
+          setSession(response.session);
+          resolve(response.session);
+        } else {
+          reject(new Error(response.error || 'Failed to start game'));
+        }
+      });
+    });
+  };
+
+  const nextVideo = (): Promise<GameSession> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:next', {}, (response: any) => {
+        if (response.success) {
+          setSession(response.session);
+          resolve(response.session);
+        } else {
+          reject(new Error(response.error || 'Failed to advance video'));
+        }
+      });
+    });
+  };
+
+  const previousVideo = (): Promise<GameSession> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:previous', {}, (response: any) => {
+        if (response.success) {
+          setSession(response.session);
+          resolve(response.session);
+        } else {
+          reject(new Error(response.error || 'Failed to go to previous video'));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -116,6 +161,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createRoom,
         joinRoom,
         leaveRoom,
+        startGame,
+        nextVideo,
+        previousVideo,
       }}
     >
       {children}

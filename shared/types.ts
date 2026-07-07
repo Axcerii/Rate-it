@@ -27,6 +27,7 @@ export interface GameSession {
   status: 'LOBBY' | 'PLAYING' | 'LEADERBOARD';
   playlistId: string;
   currentVideoIndex: number;
+  videos?: Video[]; // List of videos loaded in active session
   players: Record<string, Player>; // Map of playerId -> Player
   votes: Record<string, number>; // Map of playerId -> voteValue
 }
