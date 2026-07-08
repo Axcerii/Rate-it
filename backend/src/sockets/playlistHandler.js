@@ -1,5 +1,6 @@
 import pool from '../db/db.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
+import { fetchUserCompletedAnime } from '../services/malService.js';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
@@ -273,6 +274,64 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error cleaning stale playlists:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 9. Match and return MAL videos for lobby preview
+  socket.on('playlist:get_mal_videos', async ({ username }, callback) => {
+    try {
+      if (!username || !username.trim()) {
+        throw new Error('Username is required');
+      }
+
+      console.log(`Lobby fetching MAL list for user: ${username}`);
+      const malTitles = await fetchUserCompletedAnime(username.trim());
+      
+      if (malTitles.length === 0) {
+        throw new Error('No completed anime found on this MyAnimeList profile.');
+      }
+
+      // Fetch all videos from the database
+      const allVideosResult = await pool.query(
+        `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
+         FROM videos
+         ORDER BY order_index ASC`
+      );
+
+      const ANIME_SYNONYMS = {
+        'neon genesis evangelion': ['neon genesis evangelion', 'evangelion', 'shinseiki evangelion'],
+        'attack on titan': ['attack on titan', 'shingeki no kyojin', 'snk'],
+        'naruto shippuden': ['naruto shippuden', 'naruto shippuuden', 'naruto: shippuuden', 'naruto'],
+        'tokyo ghoul': ['tokyo ghoul', 'tokyo kushushu']
+      };
+
+      // Filter videos whose anime name matches (substring match, case insensitive, with synonyms)
+      const matchedVideos = allVideosResult.rows.filter(video => {
+        const videoAnimeNameLower = video.animeName.toLowerCase().trim();
+        const synonyms = ANIME_SYNONYMS[videoAnimeNameLower] || [videoAnimeNameLower];
+        
+        return malTitles.some(entry => {
+          const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
+          const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
+          
+          return synonyms.some(syn => 
+            (titleLower && (titleLower.includes(syn) || syn.includes(titleLower))) ||
+            (engTitleLower && (engTitleLower.includes(syn) || syn.includes(engTitleLower)))
+          );
+        });
+      });
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          videos: matchedVideos
+        });
+      }
+    } catch (error) {
+      console.error('Error matching MAL videos:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

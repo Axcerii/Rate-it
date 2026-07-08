@@ -18,7 +18,8 @@ export default function HostLobby() {
     disconnectTwitch,
     getPlaylists,
     getPlaylistDetails,
-    toggleLobbyVideo
+    toggleLobbyVideo,
+    getMalVideos
   } = useSocket();
 
   const [joinUrl, setJoinUrl] = useState('');
@@ -36,6 +37,10 @@ export default function HostLobby() {
   const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
+  const [malTracks, setMalTracks] = useState<any[]>([]);
+  const [isLoadingMalTracks, setIsLoadingMalTracks] = useState(false);
+  const [malLoadError, setMalLoadError] = useState<string | null>(null);
+  const [malConnectedUser, setMalConnectedUser] = useState<string | null>(null);
 
   // Reveal Modal State
   const [revealData, setRevealData] = useState<{
@@ -236,6 +241,26 @@ export default function HostLobby() {
     }
   };
 
+  const handleLoadMalTracks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMalLoadError(null);
+    const username = malUsername.trim();
+    if (!username) return;
+
+    setIsLoadingMalTracks(true);
+    try {
+      const videos = await getMalVideos(username);
+      setMalTracks(videos);
+      setMalConnectedUser(username);
+    } catch (err: any) {
+      setMalLoadError(err.message || 'Failed to match MAL videos');
+      setMalConnectedUser(null);
+      setMalTracks([]);
+    } finally {
+      setIsLoadingMalTracks(false);
+    }
+  };
+
   const handleToggleTrack = async (videoId: string) => {
     try {
       await toggleLobbyVideo(videoId);
@@ -400,18 +425,81 @@ export default function HostLobby() {
               <div className={`bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3 transition-opacity duration-200 ${quizMode !== 'mal' ? 'opacity-35 pointer-events-none' : ''}`}>
                 <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
                   <span>MyAnimeList Quiz</span>
-                  <span className="text-[9px] bg-[#002fa7]/10 text-[#002fa7] px-2 py-0.5 rounded font-black uppercase">optional</span>
+                  <span className="text-[9px] bg-[#002fa7]/10 text-[#002fa7] px-2 py-0.5 rounded font-black uppercase">Active</span>
                 </h3>
                 <p className="text-[10px] text-slate-700 font-bold">
                   Filters themes using your completed MAL profile.
                 </p>
-                <input
-                  type="text"
-                  value={malUsername}
-                  onChange={(e) => setMalUsername(e.target.value)}
-                  placeholder="MAL Username"
-                  className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs font-bold"
-                />
+
+                <form onSubmit={handleLoadMalTracks} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={malUsername}
+                    onChange={(e) => setMalUsername(e.target.value)}
+                    placeholder="MAL Username (e.g. Ryrry)..."
+                    className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs font-bold"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoadingMalTracks}
+                    className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
+                  >
+                    {isLoadingMalTracks ? '...' : 'Load'}
+                  </button>
+                </form>
+
+                {malLoadError && (
+                  <p className="text-[10px] text-[#990000] font-black">
+                    ⚠️ {malLoadError}
+                  </p>
+                )}
+
+                {malConnectedUser && (
+                  <div className="flex flex-col gap-2">
+                    <div className="bg-emerald-50 p-2.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
+                      <span className="text-[10px] text-emerald-950 font-black flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        Connected: {malConnectedUser}'s Profile ({malTracks.length} matched openings)
+                      </span>
+                    </div>
+
+                    {/* Matched MAL Tracks checklist */}
+                    <div className="border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mt-1">
+                      <p className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
+                        MAL Matched Openings (Uncheck to skip)
+                      </p>
+                      {malTracks.length === 0 ? (
+                        <p className="text-[9px] text-slate-400 py-3 text-center">No matching database anime found in list.</p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {malTracks.map((track) => {
+                            const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                            return (
+                              <div key={track.id} className="flex items-center justify-between text-[11px] font-bold py-1 border-b border-slate-100 last:border-b-0">
+                                <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-xs">
+                                  <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[7px] font-mono font-black uppercase">
+                                    {track.type}
+                                  </span>
+                                  <span className="truncate text-black text-[10px]">
+                                    {track.animeName}
+                                  </span>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!isDisabled}
+                                    onChange={() => handleToggleTrack(track.id)}
+                                    className="h-4 w-4 accent-[#002fa7] cursor-pointer"
+                                  />
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Twitch Votes */}
