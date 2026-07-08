@@ -30,6 +30,8 @@ export default function HostLobby() {
 
   // Custom playlist states
   const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
+  const [quizMode, setQuizMode] = useState<'playlist' | 'mal'>('playlist');
+  const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('anime-classics');
   const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
@@ -154,7 +156,14 @@ export default function HostLobby() {
 
   const handleStartGame = async () => {
     setSearchPlaylistError(null);
-    if (malUsername.trim()) {
+    
+    if (quizMode === 'mal') {
+      const username = malUsername.trim();
+      if (!username) {
+        alert('Please enter your MyAnimeList username to start.');
+        return;
+      }
+
       setLoadingMessage('Fetching MyAnimeList completed list...');
       const t1 = setTimeout(() => {
         setLoadingMessage('Matching anime titles with database...');
@@ -164,7 +173,7 @@ export default function HostLobby() {
       }, 3000);
 
       try {
-        await startGame(malUsername.trim(), selectedPlaylistId);
+        await startGame(username, undefined);
       } catch (error: any) {
         clearTimeout(t1);
         clearTimeout(t2);
@@ -340,6 +349,30 @@ export default function HostLobby() {
             </button>
           </div>
 
+          {/* Quiz Mode Selector (Goofy Wario style) */}
+          <div className="flex border-4 border-black rounded-2xl overflow-hidden shadow-[4px_4px_0px_0px_#000] font-black text-sm uppercase shrink-0">
+            <button
+              onClick={() => setQuizMode('playlist')}
+              className={`flex-1 py-4 text-center transition-all ${
+                quizMode === 'playlist' 
+                  ? 'bg-[#002fa7] text-white' 
+                  : 'bg-white text-black hover:bg-slate-100'
+              }`}
+            >
+              💿 Play a Playlist (Pre-made or Custom)
+            </button>
+            <button
+              onClick={() => setQuizMode('mal')}
+              className={`flex-1 py-4 text-center transition-all ${
+                quizMode === 'mal' 
+                  ? 'bg-[#990000] text-white' 
+                  : 'bg-white text-black hover:bg-slate-100'
+              }`}
+            >
+              ⭐ Play MyAnimeList Completed Quiz
+            </button>
+          </div>
+
           <div className="grid gap-8 lg:grid-cols-5 flex-1 items-start">
             {/* Left side parameters (2/5) */}
             <div className="lg:col-span-2 flex flex-col gap-6">
@@ -364,7 +397,7 @@ export default function HostLobby() {
               </div>
 
               {/* MAL Custom Quiz */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3">
+              <div className={`bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3 transition-opacity duration-200 ${quizMode !== 'mal' ? 'opacity-35 pointer-events-none' : ''}`}>
                 <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
                   <span>MyAnimeList Quiz</span>
                   <span className="text-[9px] bg-[#002fa7]/10 text-[#002fa7] px-2 py-0.5 rounded font-black uppercase">optional</span>
@@ -430,7 +463,7 @@ export default function HostLobby() {
             {/* Right side parameters (3/5) */}
             <div className="lg:col-span-3 flex flex-col gap-6">
               {/* Playlists selector and toggles */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[300px]">
+              <div className={`bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px] transition-opacity duration-200 ${quizMode !== 'playlist' ? 'opacity-35 pointer-events-none' : ''}`}>
                 <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
                   Playlist Selection & Skip Toggles
                 </h3>
@@ -457,29 +490,83 @@ export default function HostLobby() {
                   </p>
                 )}
 
-                {/* Select list dropdown */}
-                <div className="mb-4">
-                  <label className="block text-[10px] font-black uppercase mb-1">Choose Playlist</label>
-                  <select
-                    value={selectedPlaylistId}
-                    onChange={(e) => setSelectedPlaylistId(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold focus:outline-none"
+                {/* Playlist Tabs (Validated vs Community) */}
+                <div className="flex border-b-2 border-black pb-2 mb-4 gap-2">
+                  <button
+                    onClick={() => setPlaylistTab('validated')}
+                    className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
+                      playlistTab === 'validated' 
+                        ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
+                        : 'bg-white hover:bg-slate-100'
+                    }`}
                   >
-                    <optgroup label="Validated Playlists">
-                      {playlists.validated.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (played {p.played_count || 0} times)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Community Playlists">
-                      {playlists.community.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} — ID: {p.id} (played {p.played_count || 0} times)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                    Validated ({playlists.validated.length})
+                  </button>
+                  <button
+                    onClick={() => setPlaylistTab('community')}
+                    className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
+                      playlistTab === 'community' 
+                        ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
+                        : 'bg-white hover:bg-slate-100'
+                    }`}
+                  >
+                    Community ({playlists.community.length})
+                  </button>
+                </div>
+
+                {/* Playlist Cards List (Scrollable box) */}
+                <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-48 overflow-y-auto mb-4 flex flex-col gap-3">
+                  {(() => {
+                    const activeLists = playlistTab === 'validated' ? playlists.validated : playlists.community;
+                    if (activeLists.length === 0) {
+                      return <p className="text-xs text-slate-500 font-bold text-center py-6">No playlists in this category.</p>;
+                    }
+                    return activeLists.map((p) => {
+                      const isSelected = p.id === selectedPlaylistId;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => setSelectedPlaylistId(p.id)}
+                          className={`p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-4 ${
+                            isSelected 
+                              ? 'border-4 border-black bg-yellow-100 shadow-[2px_2px_0px_#000]' 
+                              : 'border-black bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="text-left truncate">
+                            <div className="flex items-center gap-1.5">
+                              {isSelected && <span className="text-yellow-500 text-sm">★</span>}
+                              <span className="font-black text-xs text-black truncate block max-w-[150px] sm:max-w-xs">
+                                {p.name}
+                              </span>
+                            </div>
+                            {p.description && (
+                              <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[150px] sm:max-w-xs">
+                                {p.description}
+                              </p>
+                            )}
+                            <span className="text-[8px] font-mono text-slate-400 block mt-1 uppercase">
+                              ID: {p.id}
+                            </span>
+                          </div>
+                          <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                            <span className="text-[8px] bg-slate-100 border border-slate-300 text-slate-700 px-1 py-0.5 rounded font-black uppercase">
+                              🕹️ {p.played_count || 0} plays
+                            </span>
+                            {isSelected ? (
+                              <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded border border-black font-black uppercase">
+                                Selected
+                              </span>
+                            ) : (
+                              <span className="text-[8px] bg-white text-slate-500 hover:text-black px-1.5 py-0.5 rounded border border-black font-black uppercase">
+                                Select
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Tracks list inside selected playlist with toggles */}
