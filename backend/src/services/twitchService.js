@@ -20,7 +20,6 @@ export function connectToTwitchChat(io, sessionId, channelName) {
 
     ws.onopen = () => {
       console.log(`Twitch WS connected for session ${sessionId}`);
-      ws.send('CAP REQ :twitch.tv/commands twitch.tv/tags\r\n');
       ws.send(`PASS oauth:anonymous\r\n`);
       ws.send(`NICK ${username}\r\n`);
       ws.send(`JOIN #${channel}\r\n`);
@@ -39,9 +38,8 @@ export function connectToTwitchChat(io, sessionId, channelName) {
           continue;
         }
 
-        // Parse Twitch PRIVMSG
-        // Format: :username!username@username.tmi.twitch.tv PRIVMSG #channel :message
-        const match = line.match(/^:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);
+        // Parse Twitch PRIVMSG (supports standard IRC and tag-prefixed IRC formats)
+        const match = line.match(/^(?:@[^ ]+ )?:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);
         if (match) {
           const user = match[1];
           const text = match[2].trim();
