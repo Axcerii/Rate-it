@@ -27,6 +27,7 @@ export function registerTwitchHandlers(io, socket) {
         // Reset twitchVotes for safety
         session.twitchVotes = {};
         await saveSession(session);
+        io.to(`session:${sessionId}`).emit('room:update', session);
       }
 
       console.log(`Socket ${socket.id} requested Twitch connection to #${channelName}`);

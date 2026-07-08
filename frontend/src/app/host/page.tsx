@@ -22,6 +22,13 @@ export default function HostLobby() {
   const [twitchChannel, setTwitchChannel] = useState('');
   const [isTwitchConnecting, setIsTwitchConnecting] = useState(false);
   const [twitchError, setTwitchError] = useState<string | null>(null);
+  const [revealData, setRevealData] = useState<{
+    show: boolean;
+    playersAvg: number;
+    playersCount: number;
+    twitchAvg: number;
+    twitchCount: number;
+  } | null>(null);
   const playerRef = useRef<any>(null);
 
   // Generate QR Code join URL once we have window.location
@@ -144,7 +151,30 @@ export default function HostLobby() {
     }
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
+    if (!session) return;
+    
+    const playerVotesList = Object.values(session.votes || {});
+    const pCount = playerVotesList.length;
+    const pSum = playerVotesList.reduce((sum: number, v: any) => sum + v, 0);
+    const pAvg = pCount > 0 ? parseFloat((pSum / pCount).toFixed(2)) : 0;
+
+    const twitchVotesList = Object.values(session.twitchVotes || {});
+    const tCount = twitchVotesList.length;
+    const tSum = twitchVotesList.reduce((sum: number, v: any) => sum + v, 0);
+    const tAvg = tCount > 0 ? parseFloat((tSum / tCount).toFixed(2)) : 0;
+
+    setRevealData({
+      show: true,
+      playersAvg: pAvg,
+      playersCount: pCount,
+      twitchAvg: tAvg,
+      twitchCount: tCount
+    });
+  };
+
+  const handleProceedAfterReveal = async () => {
+    setRevealData(null);
     try {
       await nextVideo();
     } catch (error) {
@@ -430,19 +460,6 @@ export default function HostLobby() {
                       {Object.keys(session.twitchVotes || {}).length}
                     </span>
                   </div>
-                  {Object.keys(session.twitchVotes || {}).length > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">Current average:</span>
-                      <span className="text-lg font-black text-purple-400 font-mono">
-                        {(
-                          Object.values(session.twitchVotes || {}).reduce(
-                            (sum: number, v: any) => sum + v,
-                            0
-                          ) / Object.keys(session.twitchVotes || {}).length
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -477,6 +494,73 @@ export default function HostLobby() {
             </div>
           </div>
         </div>
+
+        {/* Reveal Scores Modal */}
+        {revealData?.show && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all duration-300">
+            <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-900/60 p-8 shadow-[0_0_50px_rgba(168,85,247,0.15)] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
+              {/* Accent glow */}
+              <div className="absolute top-[-20%] left-[-20%] h-[200px] w-[200px] rounded-full bg-fuchsia-500/20 blur-[50px] pointer-events-none" />
+              <div className="absolute bottom-[-20%] right-[-20%] h-[200px] w-[200px] rounded-full bg-cyan-500/20 blur-[50px] pointer-events-none" />
+
+              <div className="flex flex-col gap-1 z-10">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Round Results</span>
+                <h2 className="text-3xl font-black text-white leading-tight">
+                  {currentVideo.animeName}
+                </h2>
+                <p className="text-sm font-semibold text-fuchsia-400">
+                  {currentVideo.type} — {currentVideo.title}
+                </p>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2 mt-4 z-10">
+                {/* Players Rating Card */}
+                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-6 flex flex-col items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+                  <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">Players Average</span>
+                  <span className="text-5xl font-black text-white font-mono leading-none">
+                    {revealData.playersAvg.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    from {revealData.playersCount} {revealData.playersCount === 1 ? 'player' : 'players'}
+                  </span>
+                </div>
+
+                {/* Twitch Rating Card */}
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-6 flex flex-col items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.05)]">
+                  <span className="text-[10px] uppercase font-bold text-purple-400 tracking-wider">Twitch Chat Average</span>
+                  {revealData.twitchCount > 0 ? (
+                    <>
+                      <span className="text-5xl font-black text-white font-mono leading-none">
+                        {revealData.twitchAvg.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium">
+                        from {revealData.twitchCount} {revealData.twitchCount === 1 ? 'chat vote' : 'chat votes'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-black text-slate-500 font-mono py-3">
+                        N/A
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        No Twitch chat votes
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-center z-10">
+                <button
+                  onClick={handleProceedAfterReveal}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-bold text-white text-sm shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard →' : 'Continue to Next Track →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
