@@ -2,7 +2,11 @@ CREATE TABLE IF NOT EXISTS playlists (
   id VARCHAR(50) PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   description TEXT,
-  is_custom BOOLEAN DEFAULT FALSE
+  is_custom BOOLEAN DEFAULT FALSE,
+  played_count INTEGER DEFAULT 0,
+  last_played TIMESTAMP WITH TIME ZONE,
+  is_validated BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS videos (
@@ -15,9 +19,26 @@ CREATE TABLE IF NOT EXISTS videos (
   order_index INTEGER NOT NULL
 );
 
+-- Migration block to update existing database structures
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='playlists' AND column_name='played_count') THEN
+    ALTER TABLE playlists ADD COLUMN played_count INTEGER DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='playlists' AND column_name='last_played') THEN
+    ALTER TABLE playlists ADD COLUMN last_played TIMESTAMP WITH TIME ZONE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='playlists' AND column_name='is_validated') THEN
+    ALTER TABLE playlists ADD COLUMN is_validated BOOLEAN DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='playlists' AND column_name='created_at') THEN
+    ALTER TABLE playlists ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+  END IF;
+END $$;
+
 -- Seed Default Playlist if not exists
-INSERT INTO playlists (id, name, description, is_custom)
-VALUES ('anime-classics', 'Anime Classics', 'The most iconic Anime openings and endings of all time.', FALSE)
+INSERT INTO playlists (id, name, description, is_custom, is_validated)
+VALUES ('anime-classics', 'Anime Classics', 'The most iconic Anime openings and endings of all time.', FALSE, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed Videos if not exists

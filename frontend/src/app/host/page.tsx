@@ -15,13 +15,28 @@ export default function HostLobby() {
     nextVideo, 
     previousVideo,
     connectTwitch,
-    disconnectTwitch
+    disconnectTwitch,
+    getPlaylists,
+    getPlaylistDetails,
+    toggleLobbyVideo
   } = useSocket();
+
   const [joinUrl, setJoinUrl] = useState('');
   const [malUsername, setMalUsername] = useState('');
   const [twitchChannel, setTwitchChannel] = useState('');
   const [isTwitchConnecting, setIsTwitchConnecting] = useState(false);
   const [twitchError, setTwitchError] = useState<string | null>(null);
+  const playerRef = useRef<any>(null);
+
+  // Custom playlist states
+  const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState('anime-classics');
+  const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
+  const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
+  const [searchPlaylistId, setSearchPlaylistId] = useState('');
+  const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
+
+  // Reveal Modal State
   const [revealData, setRevealData] = useState<{
     show: boolean;
     playersAvg: number;
@@ -29,7 +44,6 @@ export default function HostLobby() {
     twitchAvg: number;
     twitchCount: number;
   } | null>(null);
-  const playerRef = useRef<any>(null);
 
   // Generate QR Code join URL once we have window.location
   useEffect(() => {
@@ -48,6 +62,24 @@ export default function HostLobby() {
     }
   }, [session, isConnected, router]);
 
+  // Load playlists on mount when lobby is active
+  useEffect(() => {
+    if (session?.status === 'LOBBY') {
+      getPlaylists().then(res => {
+        setPlaylists(res);
+      }).catch(err => console.error(err));
+    }
+  }, [session?.status, getPlaylists]);
+
+  // Fetch selected playlist details
+  useEffect(() => {
+    if (session?.status === 'LOBBY' && selectedPlaylistId) {
+      getPlaylistDetails(selectedPlaylistId).then(res => {
+        setSelectedPlaylistTracks(res.videos);
+      }).catch(err => console.error(err));
+    }
+  }, [session?.status, selectedPlaylistId, getPlaylistDetails]);
+
   // YouTube API Player setup
   useEffect(() => {
     if (!session || session.status !== 'PLAYING') return;
@@ -58,7 +90,6 @@ export default function HostLobby() {
     let ytPlayer: any = null;
 
     const initializePlayer = () => {
-      // Clear container first to avoid iframe duplication
       const container = document.getElementById('youtube-player-container');
       if (container) {
         container.innerHTML = '<div id="youtube-player"></div>';
@@ -123,9 +154,9 @@ export default function HostLobby() {
 
   const handleStartGame = async () => {
     try {
-      await startGame(malUsername);
-    } catch (error) {
-      console.error('Failed to start game:', error);
+      await startGame(malUsername.trim() || undefined, selectedPlaylistId);
+    } catch (error: any) {
+      alert(error.message || 'Failed to start game');
     }
   };
 
@@ -148,6 +179,36 @@ export default function HostLobby() {
       await disconnectTwitch();
     } catch (err: any) {
       setTwitchError(err.message || 'Failed to disconnect Twitch');
+    }
+  };
+
+  const handleSearchPlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchPlaylistError(null);
+    if (!searchPlaylistId.trim()) return;
+    
+    try {
+      const res = await getPlaylistDetails(searchPlaylistId.trim().toUpperCase());
+      const alreadyPresent = playlists.community.some(p => p.id === res.playlist.id) || playlists.validated.some(p => p.id === res.playlist.id);
+      if (!alreadyPresent) {
+        setPlaylists(prev => ({
+          ...prev,
+          community: [res.playlist, ...prev.community]
+        }));
+      }
+      setSelectedPlaylistId(res.playlist.id);
+      setPlaylistTab('community');
+      setSearchPlaylistId('');
+    } catch (err: any) {
+      setSearchPlaylistError(err.message || 'Playlist not found');
+    }
+  };
+
+  const handleToggleTrack = async (videoId: string) => {
+    try {
+      await toggleLobbyVideo(videoId);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -182,11 +243,11 @@ export default function HostLobby() {
     }
   };
 
-  const handlePrevious = async () => {
+  const handlePrev = async () => {
     try {
       await previousVideo();
     } catch (error) {
-      console.error('Failed to go back:', error);
+      console.error('Failed to retreat:', error);
     }
   };
 
@@ -197,14 +258,14 @@ export default function HostLobby() {
 
   if (!session) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-slate-950 p-6">
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#faf6eb] p-6 font-mono">
         <div className="text-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-fuchsia-500 border-t-transparent mx-auto" />
-          <h2 className="mt-6 text-xl font-semibold text-slate-300">Loading Session...</h2>
-          <p className="mt-2 text-sm text-slate-500">Redirecting to home if offline.</p>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent mx-auto" />
+          <h2 className="mt-6 text-xl font-black uppercase text-black">Loading Session...</h2>
+          <p className="mt-2 text-xs font-bold text-slate-600">Redirecting to home if offline.</p>
           <button
             onClick={handleBackToHome}
-            className="mt-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition"
+            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition"
           >
             Go Back Home
           </button>
@@ -218,84 +279,83 @@ export default function HostLobby() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-slate-950 px-6 py-12 font-sans overflow-hidden">
-        <div className="absolute top-[-30%] right-[-10%] h-[700px] w-[700px] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] h-[600px] w-[600px] rounded-full bg-fuchsia-500/10 blur-[120px] pointer-events-none" />
-
-        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-10">
-          <div className="flex items-center justify-between border-b border-white/5 pb-6">
+      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-6 py-12 font-mono">
+        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b-4 border-black pb-6 gap-4">
             <div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-fuchsia-400 to-violet-400 bg-clip-text text-transparent tracking-wider">
-                RATE IT — LOBBY
+              <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
+                ★ RATE IT — LOBBY ★
               </h1>
-              <p className="text-sm text-slate-400 mt-1">Waiting for players to join before starting</p>
+              <p className="text-xs font-bold text-slate-700 mt-1">Configure your room settings and wait for players</p>
             </div>
             <button
               onClick={handleBackToHome}
-              className="px-4 py-2 border border-white/10 bg-slate-900/40 hover:bg-slate-800 text-slate-300 font-semibold text-sm rounded-xl transition backdrop-blur-sm"
+              className="px-4 py-2 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
             >
-              End Session
+              Close Session ❌
             </button>
           </div>
 
-          <div className="grid gap-10 lg:grid-cols-5 flex-1 items-start">
+          <div className="grid gap-8 lg:grid-cols-5 flex-1 items-start">
+            {/* Left side parameters (2/5) */}
             <div className="lg:col-span-2 flex flex-col gap-6">
-              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-8 text-center shadow-2xl backdrop-blur-md">
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Join Room Code</h3>
-                <div className="mt-4 text-6xl font-black tracking-widest text-white font-mono bg-slate-950/60 py-4 rounded-2xl border border-white/5 shadow-inner select-all">
+              {/* Room Code Card */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 text-center rounded-2xl shadow-[4px_4px_0px_0px_#000]">
+                <h3 className="text-xs font-black uppercase text-slate-600">Room Code</h3>
+                <div className="mt-3 text-5xl font-black tracking-widest text-black bg-white py-3 rounded-xl border-2 border-black shadow-inner select-all">
                   {session.sessionId}
                 </div>
                 {joinUrl && (
-                  <div className="mt-8 flex flex-col items-center gap-4">
-                    <div className="p-4 bg-white rounded-2xl shadow-lg shadow-fuchsia-500/5">
-                      <QRCodeSVG value={joinUrl} size={180} level="H" includeMargin={false} />
+                  <div className="mt-6 flex flex-col items-center gap-4">
+                    <div className="p-3 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_#000]">
+                      <QRCodeSVG value={joinUrl} size={150} level="H" includeMargin={false} />
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed max-w-xs mt-2">
-                      Scan to join on mobile, or type this link:
+                    <p className="text-[10px] text-slate-700 font-bold leading-relaxed max-w-xs mt-1">
+                      Scan or open this link to rate:
                       <br />
-                      <span className="font-mono text-fuchsia-400 mt-1 inline-block break-all">{joinUrl}</span>
+                      <span className="text-[#002fa7] break-all select-all font-mono">{joinUrl}</span>
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* MyAnimeList Quiz Filter */}
-              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              {/* MAL Custom Quiz */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3">
+                <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
                   <span>MyAnimeList Quiz</span>
-                  <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded font-normal lowercase">optional</span>
+                  <span className="text-[9px] bg-[#002fa7]/10 text-[#002fa7] px-2 py-0.5 rounded font-black uppercase">optional</span>
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Filter the quiz themes using your MAL completed list.
+                <p className="text-[10px] text-slate-700 font-bold">
+                  Filters themes using your completed MAL profile.
                 </p>
                 <input
                   type="text"
                   value={malUsername}
                   onChange={(e) => setMalUsername(e.target.value)}
-                  placeholder="Enter MAL Username"
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-cyan-500 transition font-medium"
+                  placeholder="MAL Username"
+                  className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs font-bold"
                 />
               </div>
 
-              {/* Twitch Chat Integration */}
-              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              {/* Twitch Votes */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3">
+                <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
                   <span>Twitch Chat Votes</span>
-                  <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-normal lowercase">optional</span>
+                  <span className="text-[9px] bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded font-black uppercase">optional</span>
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Connect to Twitch chat to count live ratings (1-5) from viewers.
+                <p className="text-[10px] text-slate-700 font-bold">
+                  Connect chat to aggregate rating numbers (1 to 5) from viewers.
                 </p>
                 {session.twitchChannel ? (
-                  <div className="flex flex-col gap-2 bg-purple-500/10 p-4 border border-purple-500/20 rounded-xl">
+                  <div className="flex flex-col gap-2 bg-purple-50 p-3 border-2 border-purple-300 rounded-xl">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-purple-300 font-bold flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]" />
+                      <span className="text-xs text-purple-900 font-black flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
                         Connected to #{session.twitchChannel}
                       </span>
                       <button
                         onClick={handleDisconnectTwitch}
-                        className="text-xs text-red-400 hover:text-red-300 font-bold"
+                        className="text-xs text-[#990000] hover:text-red-500 font-black"
                       >
                         Disconnect
                       </button>
@@ -307,65 +367,169 @@ export default function HostLobby() {
                       type="text"
                       value={twitchChannel}
                       onChange={(e) => setTwitchChannel(e.target.value)}
-                      placeholder="Twitch Channel"
-                      className="flex-1 px-4 py-3 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-purple-500 transition font-medium"
+                      placeholder="Channel name..."
+                      className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none text-xs font-bold"
                     />
                     <button
                       onClick={handleConnectTwitch}
                       disabled={isTwitchConnecting}
-                      className="px-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition"
+                      className="px-4 py-2 bg-[#002fa7] text-white border-2 border-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-y-0.5 active:translate-x-0.5 disabled:opacity-50"
                     >
                       {isTwitchConnecting ? '...' : 'Connect'}
                     </button>
                   </div>
                 )}
-                {twitchError && <p className="text-xs text-red-400 font-bold">{twitchError}</p>}
+                {twitchError && <p className="text-[10px] text-[#990000] font-black">{twitchError}</p>}
               </div>
             </div>
 
-            <div className="lg:col-span-3 flex flex-col h-full">
-              <div className="flex-1 rounded-3xl border border-white/10 bg-slate-900/40 p-8 shadow-2xl backdrop-blur-md flex flex-col min-h-[400px]">
-                <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2.5">
-                    Players Connected
-                    <span className="px-2.5 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-400 text-xs font-semibold">
+            {/* Right side parameters (3/5) */}
+            <div className="lg:col-span-3 flex flex-col gap-6">
+              {/* Playlists selector and toggles */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[300px]">
+                <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
+                  Playlist Selection & Skip Toggles
+                </h3>
+
+                {/* Search Playlist ID */}
+                <form onSubmit={handleSearchPlaylist} className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={searchPlaylistId}
+                    onChange={(e) => setSearchPlaylistId(e.target.value)}
+                    placeholder="Enter Share Playlist ID (e.g. PL-A1B2C3)..."
+                    className="flex-1 px-3 py-2 border-2 border-black bg-white text-xs font-bold focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+                  >
+                    Load
+                  </button>
+                </form>
+                {searchPlaylistError && (
+                  <p className="text-[10px] text-[#990000] font-black mb-3">
+                    ⚠️ {searchPlaylistError}
+                  </p>
+                )}
+
+                {/* Playlist Tabs */}
+                <div className="flex border-b border-black pb-2 mb-3 gap-2">
+                  <button
+                    onClick={() => setPlaylistTab('validated')}
+                    className={`px-3 py-1 border border-black font-black text-[10px] uppercase rounded ${playlistTab === 'validated' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
+                  >
+                    Validated ({playlists.validated.length})
+                  </button>
+                  <button
+                    onClick={() => setPlaylistTab('community')}
+                    className={`px-3 py-1 border border-black font-black text-[10px] uppercase rounded ${playlistTab === 'community' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
+                  >
+                    Community ({playlists.community.length})
+                  </button>
+                </div>
+
+                {/* Select list dropdown */}
+                <div className="mb-4">
+                  <label className="block text-[10px] font-black uppercase mb-1">Choose Playlist</label>
+                  <select
+                    value={selectedPlaylistId}
+                    onChange={(e) => setSelectedPlaylistId(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold focus:outline-none"
+                  >
+                    {playlistTab === 'validated'
+                      ? playlists.validated.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (played {p.played_count || 0} times)
+                          </option>
+                        ))
+                      : playlists.community.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — ID: {p.id} (played {p.played_count || 0} times)
+                          </option>
+                        ))
+                    }
+                  </select>
+                </div>
+
+                {/* Tracks list inside selected playlist with toggles */}
+                <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
+                    Lobby Tracks Checklists (Uncheck to skip)
+                  </p>
+                  {selectedPlaylistTracks.length === 0 ? (
+                    <p className="text-[10px] text-slate-400 py-3 text-center">Loading playlist tracks...</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {selectedPlaylistTracks.map((track) => {
+                        const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                        return (
+                          <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-100 last:border-b-0">
+                            <div className="flex items-center gap-2 truncate max-w-[280px]">
+                              <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
+                                {track.type}
+                              </span>
+                              <span className="truncate text-black">
+                                {track.animeName} — {track.title}
+                              </span>
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!isDisabled}
+                                onChange={() => handleToggleTrack(track.id)}
+                                className="h-4.5 w-4.5 accent-[#002fa7] cursor-pointer"
+                              />
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Connected players list */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[220px]">
+                <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
+                  <h3 className="text-sm font-black text-black uppercase flex items-center gap-2">
+                    Players Joined
+                    <span className="bg-black text-[#faf6eb] px-2 py-0.5 rounded text-xs font-mono">
                       {playersList.length}
                     </span>
                   </h3>
                 </div>
 
                 {playersList.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
-                    <div className="h-8 w-8 rounded-full border border-dashed border-slate-600 animate-pulse flex items-center justify-center text-xs font-semibold">
-                      ?
-                    </div>
-                    <p className="mt-4 text-sm">Waiting for players to connect...</p>
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-6 text-center">
+                    <span className="text-2xl animate-bounce">💤</span>
+                    <p className="mt-2 text-xs font-bold text-slate-600">Waiting for players to connect...</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 max-h-[450px] overflow-y-auto pr-2">
+                  <div className="grid gap-3 sm:grid-cols-2 max-h-40 overflow-y-auto pr-1">
                     {playersList.map((player) => (
                       <div
                         key={player.id}
-                        className={`relative flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 bg-slate-950/40 ${
-                          player.isConnected ? 'border-emerald-500/20' : 'border-white/5 opacity-50'
+                        className={`flex items-center justify-between p-3 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_#000] ${
+                          player.isConnected ? 'opacity-100' : 'opacity-50 bg-slate-100'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`h-2.5 w-2.5 rounded-full ${player.isConnected ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'}`} />
-                          <span className="font-bold text-slate-200 text-sm truncate max-w-[120px]">{player.name}</span>
+                        <div className="flex items-center gap-2 truncate">
+                          <span className={`h-2.5 w-2.5 rounded-full ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
+                          <span className="font-black text-xs text-black truncate max-w-[140px]">{player.name}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="mt-auto pt-6 border-t border-white/5 flex justify-end">
+                <div className="mt-auto pt-4 border-t border-black flex justify-end">
                   <button
                     onClick={handleStartGame}
                     disabled={playersList.length === 0}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:hover:scale-100"
+                    className="px-6 py-3 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-40"
                   >
-                    Start Quiz ({playersList.length} players)
+                    Start Quiz ({playersList.length} players) 🚀
                   </button>
                 </div>
               </div>
@@ -376,116 +540,117 @@ export default function HostLobby() {
     );
   }
 
-  const currentVideo = session.videos?.[session.currentVideoIndex];
-
   // 2. PLAYING VIEW
-  if (session.status === 'PLAYING' && currentVideo) {
-    return (
-      <div className="relative flex flex-col flex-1 bg-slate-950 px-6 py-8 font-sans overflow-hidden">
-        <div className="absolute top-[-30%] right-[-10%] h-[700px] w-[700px] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
+  if (session.status === 'PLAYING') {
+    const currentVideo = session.videos?.[session.currentVideoIndex];
+    if (!currentVideo) return null;
 
+    return (
+      <div className="relative flex flex-col flex-1 bg-[#faf6eb] p-6 font-mono">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          {/* Top Panel bar */}
+          <div className="flex items-center justify-between border-b-2 border-black pb-4">
             <div>
-              <span className="text-xs font-bold text-fuchsia-400 uppercase tracking-widest bg-fuchsia-500/10 px-3 py-1 rounded-full border border-fuchsia-500/20">
-                Playing {session.currentVideoIndex + 1} / {session.videos?.length || 0}
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                Lobby Code: {session.sessionId}
               </span>
-              <h1 className="text-xl font-bold text-white mt-2 font-mono tracking-wide">
-                ROOM: {session.sessionId}
-              </h1>
             </div>
             <button
               onClick={handleBackToHome}
-              className="px-4 py-2 border border-white/10 bg-slate-900/40 hover:bg-slate-800 text-slate-300 font-semibold text-xs rounded-xl transition"
+              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
             >
-              Exit Game
+              Quit Game 🚪
             </button>
           </div>
 
-          {/* Main Grid: YouTube video & Track Metadata */}
-          <div className="grid gap-8 lg:grid-cols-4 flex-1 items-stretch">
-            {/* YouTube Player Column */}
-            <div className="lg:col-span-3 flex flex-col gap-4">
-              <div className="flex-1 min-h-[450px] aspect-video w-full rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl relative" id="youtube-player-container">
-                <div id="youtube-player" className="w-full h-full" />
+          <div className="grid gap-6 lg:grid-cols-3 flex-1 items-stretch">
+            {/* Video Player Box (2/3) */}
+            <div className="lg:col-span-2 flex flex-col gap-4">
+              <div className="aspect-video w-full rounded-2xl border-4 border-black bg-black shadow-[6px_6px_0px_0px_#000] overflow-hidden relative">
+                <div id="youtube-player-container" className="w-full h-full" />
               </div>
 
-              {/* Navigation Controls */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/40 border border-white/5 backdrop-blur-sm">
+              {/* Navigation controls */}
+              <div className="flex justify-between items-center bg-[#f0ead8] border-4 border-black p-4 rounded-2xl shadow-[4px_4px_0px_#000]">
                 <button
-                  onClick={handlePrevious}
+                  onClick={handlePrev}
                   disabled={session.currentVideoIndex === 0}
-                  className="px-5 py-2.5 rounded-xl border border-white/10 bg-slate-950/40 hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent text-slate-300 text-xs font-bold transition"
+                  className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl transition disabled:opacity-40"
                 >
-                  ← Previous Theme
+                  ← Prev
                 </button>
                 
-                <span className="text-sm font-semibold text-slate-400 font-mono">
-                  Track {session.currentVideoIndex + 1}
+                <span className="text-xs font-black text-black">
+                  Track {session.currentVideoIndex + 1} / {session.videos?.length}
                 </span>
 
                 <button
                   onClick={handleNext}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white text-xs font-bold transition hover:scale-[1.02] active:scale-[0.98]"
+                  className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
                 >
                   {session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results →' : 'Next Theme →'}
                 </button>
               </div>
             </div>
 
-            {/* Song details & Connected players list */}
+            {/* Side info & live votes status (1/3) */}
             <div className="lg:col-span-1 flex flex-col gap-6">
-              {/* Song details */}
-              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 backdrop-blur-md shadow-2xl">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Currently Playing</span>
-                <h2 className="mt-2 text-2xl font-black text-white leading-tight">
+              {/* Currently Playing details */}
+              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000]">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Currently playing</span>
+                <h2 className="mt-2 text-2xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
                   {currentVideo.animeName}
                 </h2>
-                <p className="text-sm text-fuchsia-400 font-bold mt-1">
+                <p className="text-xs font-bold text-[#990000] uppercase">
                   {currentVideo.type} — {currentVideo.title}
                 </p>
               </div>
 
-              {/* Twitch Chat live voting status */}
+              {/* Twitch Live votes tracking */}
               {session.twitchChannel && (
-                <div className="rounded-3xl border border-purple-500/20 bg-purple-500/5 p-6 backdrop-blur-md shadow-2xl flex flex-col gap-3">
-                  <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-purple-500/10 pb-3">
-                    <span className="h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7] animate-pulse" />
+                <div className="bg-[#f0ead8] border-4 border-black p-5 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col gap-2">
+                  <h3 className="text-xs font-black uppercase text-purple-700 flex items-center gap-1.5 border-b border-purple-200 pb-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse border border-black" />
                     Twitch Chat Votes
                   </h3>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-slate-400">Votes received:</span>
-                    <span className="text-lg font-black text-white font-mono">
+                    <span className="text-xs text-slate-700 font-bold">Votes received:</span>
+                    <span className="text-lg font-black text-black font-mono">
                       {Object.keys(session.twitchVotes || {}).length}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Players live voting list status */}
-              <div className="flex-1 rounded-3xl border border-white/10 bg-slate-900/40 p-6 backdrop-blur-md shadow-2xl flex flex-col">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-3">
-                  Players Status
+              {/* Live Players Voting details */}
+              <div className="flex-1 bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col">
+                <h3 className="text-xs font-black uppercase text-black border-b border-black pb-2 mb-4">
+                  Active Votes ({Object.keys(session.votes || {}).length} / {playersList.length})
                 </h3>
-                <div className="mt-4 flex flex-col gap-3 overflow-y-auto max-h-[300px]">
+
+                <div className="flex-1 overflow-y-auto max-h-48 flex flex-col gap-2 pr-1">
                   {playersList.map((player) => {
                     const hasVoted = session.votes?.[player.id] !== undefined;
                     return (
-                      <div key={player.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-white/5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-300 text-sm truncate max-w-[120px]">
+                      <div
+                        key={player.id}
+                        className="flex items-center justify-between p-2.5 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_#000]"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className={`h-2.5 w-2.5 rounded-full ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
+                          <span className="font-black text-xs text-black truncate max-w-[120px]">
                             {player.name}
                           </span>
-                          {hasVoted && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider animate-pulse">
-                              Voted ✅
-                            </span>
-                          )}
                         </div>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                          {player.isConnected ? 'Online' : 'Offline'}
-                        </span>
+                        {hasVoted ? (
+                          <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse">
+                            Voted ✅
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 border border-black rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase">
+                            Voting...
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -495,54 +660,50 @@ export default function HostLobby() {
           </div>
         </div>
 
-        {/* Reveal Scores Modal */}
+        {/* WarioWare-styled Reveal Modal */}
         {revealData?.show && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all duration-300">
-            <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-900/60 p-8 shadow-[0_0_50px_rgba(168,85,247,0.15)] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
-              {/* Accent glow */}
-              <div className="absolute top-[-20%] left-[-20%] h-[200px] w-[200px] rounded-full bg-fuchsia-500/20 blur-[50px] pointer-events-none" />
-              <div className="absolute bottom-[-20%] right-[-20%] h-[200px] w-[200px] rounded-full bg-cyan-500/20 blur-[50px] pointer-events-none" />
-
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300">
+            <div className="w-full max-w-2xl bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[8px_8px_0px_#000] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
               <div className="flex flex-col gap-1 z-10">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Round Results</span>
-                <h2 className="text-3xl font-black text-white leading-tight">
+                <span className="text-[10px] uppercase font-black text-slate-600 tracking-wider">Round Results</span>
+                <h2 className="text-3xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
                   {currentVideo.animeName}
                 </h2>
-                <p className="text-sm font-semibold text-fuchsia-400">
+                <p className="text-sm font-black text-[#990000] uppercase">
                   {currentVideo.type} — {currentVideo.title}
                 </p>
               </div>
 
-              <div className="grid gap-6 sm:grid-cols-2 mt-4 z-10">
+              <div className="grid gap-6 sm:grid-cols-2 mt-2 z-10">
                 {/* Players Rating Card */}
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-6 flex flex-col items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
-                  <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">Players Average</span>
-                  <span className="text-5xl font-black text-white font-mono leading-none">
+                <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
+                  <span className="text-[10px] uppercase font-black text-[#002fa7] tracking-wider">Players Average</span>
+                  <span className="text-5xl font-black text-black font-mono leading-none">
                     {revealData.playersAvg.toFixed(2)}
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-slate-500 font-bold mt-1">
                     from {revealData.playersCount} {revealData.playersCount === 1 ? 'player' : 'players'}
                   </span>
                 </div>
 
                 {/* Twitch Rating Card */}
-                <div className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-6 flex flex-col items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.05)]">
-                  <span className="text-[10px] uppercase font-bold text-purple-400 tracking-wider">Twitch Chat Average</span>
+                <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
+                  <span className="text-[10px] uppercase font-black text-purple-700 tracking-wider">Twitch Chat Average</span>
                   {revealData.twitchCount > 0 ? (
                     <>
-                      <span className="text-5xl font-black text-white font-mono leading-none">
+                      <span className="text-5xl font-black text-black font-mono leading-none">
                         {revealData.twitchAvg.toFixed(2)}
                       </span>
-                      <span className="text-xs text-slate-400 font-medium">
+                      <span className="text-xs text-slate-500 font-bold mt-1">
                         from {revealData.twitchCount} {revealData.twitchCount === 1 ? 'chat vote' : 'chat votes'}
                       </span>
                     </>
                   ) : (
                     <>
-                      <span className="text-2xl font-black text-slate-500 font-mono py-3">
+                      <span className="text-2xl font-black text-slate-400 font-mono py-2 mt-1">
                         N/A
                       </span>
-                      <span className="text-xs text-slate-500 font-medium">
+                      <span className="text-xs text-slate-400 font-bold">
                         No Twitch chat votes
                       </span>
                     </>
@@ -553,7 +714,7 @@ export default function HostLobby() {
               <div className="mt-4 flex justify-center z-10">
                 <button
                   onClick={handleProceedAfterReveal}
-                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-bold text-white text-sm shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                  className="px-8 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
                 >
                   {session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard →' : 'Continue to Next Track →'}
                 </button>
@@ -570,98 +731,96 @@ export default function HostLobby() {
     const sortedResults = Object.values(session.results || {}).sort((a, b) => a.average - b.average);
 
     return (
-      <div className="relative flex flex-col flex-1 bg-slate-950 px-6 py-12 font-sans overflow-hidden">
-        <div className="absolute top-[-30%] right-[-10%] h-[700px] w-[700px] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] h-[600px] w-[600px] rounded-full bg-fuchsia-500/10 blur-[120px] pointer-events-none" />
-
+      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-6 py-12 font-mono">
         <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-8 justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-fuchsia-400 via-violet-400 to-cyan-400 bg-clip-text text-transparent sm:text-5xl drop-shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-              FINAL LEADERBOARD
+          <div className="text-center border-b-4 border-black pb-4">
+            <h1 className="text-4xl font-black uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000]">
+              ★ FINAL LEADERBOARD ★
             </h1>
-            <p className="text-sm text-slate-400 mt-2">Ranked from the worst anime opening to the best</p>
+            <p className="text-xs font-bold text-slate-700 mt-2">Ranked from the worst average score to the best</p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-8 shadow-2xl backdrop-blur-md flex flex-col gap-6">
+          <div className="bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
             {sortedResults.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-slate-500 font-bold text-xs">
                 No votes were recorded during this session.
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 {sortedResults.map((result, idx) => {
                   const percent = (result.average / 5) * 100;
-                  // Color based on rank/index
-                  let rankColor = "text-slate-400 border-slate-500/20 bg-slate-500/10";
-                  let bgBarColor = "bg-gradient-to-r from-violet-600 to-cyan-500";
+                  
+                  // Color highlights based on rankings
+                  let cardBg = "bg-white";
+                  let borderStyle = "border-2 border-black shadow-[3px_3px_0px_#000]";
                   
                   if (idx === sortedResults.length - 1) {
-                    // Winner (the highest score, since it's worst to best)
-                    rankColor = "text-yellow-400 border-yellow-500/30 bg-yellow-500/10 animate-pulse";
-                    bgBarColor = "bg-gradient-to-r from-yellow-500 via-amber-500 to-fuchsia-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]";
+                    // Winner gets the highlighted bright Wario yellow card
+                    cardBg = "bg-[#facc15]";
+                    borderStyle = "border-4 border-black shadow-[4px_4px_0px_#000] transform rotate-[1deg]";
                   } else if (idx === 0) {
-                    // Worst rating
-                    rankColor = "text-red-400 border-red-500/30 bg-red-500/10";
+                    // Worst rating gets a red tint card
+                    cardBg = "bg-red-50";
                   }
 
                   return (
                     <div
                       key={result.id}
-                      className="relative p-5 rounded-2xl border border-white/5 bg-slate-950/40 hover:border-white/10 transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className={`relative p-5 rounded-2xl ${cardBg} ${borderStyle} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
                     >
                       <div className="flex items-center gap-4">
-                        {/* Rank indicator */}
-                        <div className={`h-12 w-12 rounded-xl border flex items-center justify-center font-black text-lg ${rankColor}`}>
+                        <div className="h-12 w-12 rounded-xl border-2 border-black bg-black text-[#faf6eb] flex items-center justify-center font-black text-lg">
                           #{sortedResults.length - idx}
                         </div>
                         <div>
-                          <h3 className="font-bold text-white text-base leading-snug">
+                          <h3 className="font-black text-black text-sm sm:text-base leading-snug">
                             {result.animeName}
                           </h3>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-[10px] font-bold text-slate-600 mt-0.5">
                             {result.type} — {result.title}
                           </p>
                         </div>
                       </div>
 
-                      {/* Score Bar & Average rating */}
+                      {/* Score metrics & fills */}
                       <div className="flex flex-col gap-2 sm:w-1/2 justify-center">
-                        <div className="flex items-center gap-6 justify-between">
-                          {/* Players Score */}
-                          <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
-                            <div className={`h-full rounded-full transition-all duration-1000 ${bgBarColor}`} style={{ width: `${percent}%` }} />
+                        <div className="flex items-center gap-4 justify-between">
+                          {/* Players Flat Score Bar */}
+                          <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                            <div className="h-full bg-[#002fa7] border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${percent}%` }} />
                           </div>
                           
                           <div className="text-right flex items-center gap-2 min-w-[90px]">
                             <div className="flex flex-col items-end">
-                              <span className="text-lg font-black text-white font-mono leading-none font-bold">
+                              <span className="text-lg font-black text-black font-mono leading-none">
                                 {result.average.toFixed(2)}
                               </span>
-                              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-0.5">
                                 {result.votesCount} {result.votesCount === 1 ? 'player' : 'players'}
                               </span>
                             </div>
-                            <span className="text-xs text-slate-600">/5</span>
+                            <span className="text-xs text-slate-500 font-bold">/5</span>
                           </div>
                         </div>
 
-                        {/* Twitch Score (if active) */}
-                        {result.twitchVotesCount > 0 && (
-                          <div className="flex items-center gap-6 justify-between border-t border-white/5 pt-1.5">
-                            <div className="hidden sm:block flex-1 bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
-                              <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-500 transition-all duration-1000 shadow-[0_0_8px_rgba(168,85,247,0.2)]" style={{ width: `${(result.twitchAverage / 5) * 100}%` }} />
+                        {/* Twitch Chat metrics */}
+                        {result.twitchVotesCount !== undefined && result.twitchVotesCount > 0 && (
+                          <div className="flex items-center gap-4 justify-between border-t border-black/10 pt-2">
+                            {/* Twitch Flat Score Bar */}
+                            <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                              <div className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }} />
                             </div>
                             
                             <div className="text-right flex items-center gap-2 min-w-[90px]">
                               <div className="flex flex-col items-end">
-                                <span className="text-lg font-black text-purple-400 font-mono leading-none">
-                                  {result.twitchAverage.toFixed(2)}
+                                <span className="text-lg font-black text-purple-700 font-mono leading-none">
+                                  {(result.twitchAverage ?? 0).toFixed(2)}
                                 </span>
-                                <span className="text-[9px] font-bold text-purple-500/80 uppercase tracking-wider mt-0.5">
+                                <span className="text-[8px] font-black text-purple-600 uppercase tracking-wider mt-0.5">
                                   {result.twitchVotesCount} {result.twitchVotesCount === 1 ? 'chat vote' : 'chat votes'}
                                 </span>
                               </div>
-                              <span className="text-xs text-slate-600">/5</span>
+                              <span className="text-xs text-slate-500 font-bold">/5</span>
                             </div>
                           </div>
                         )}
@@ -672,12 +831,12 @@ export default function HostLobby() {
               </div>
             )}
 
-            <div className="flex justify-center border-t border-white/5 pt-6 mt-2">
+            <div className="flex justify-center border-t-2 border-black pt-6 mt-2">
               <button
                 onClick={handleBackToHome}
-                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-bold text-white shadow-lg shadow-fuchsia-500/20 transition hover:scale-[1.02] active:scale-[0.98]"
+                className="px-8 py-3.5 bg-[#002fa7] border-2 border-black text-white font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
               >
-                Back to Homepage
+                Back to Homepage 🏠
               </button>
             </div>
           </div>

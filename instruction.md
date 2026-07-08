@@ -71,3 +71,19 @@ rate-it/
 4. **Étape 4 :** Développer l'interface de vote mobile et gérer l'accumulation des scores dans Redis.
 5. **Étape 5 :** Implémenter le système de résilience (Local Storage + vérification d'état Redis à la reconexion).
 6. **Étape 6 :** Ajouter les intégrations externes (Twitch & MyAnimeList).
+
+## 6. Direcrtives Fronted
+Utilise des couleurs pastels beiges en couleur principal avec des teintes un peu flashy comme du rouge foncé ou du bleu electrique pour amené des accents et du contraste. Le but étant d'avoir un site internet un peu "Goofy" dans le style des jeux Wariowares.
+
+
+# Nouvelles directives
+
+Possibilité de créer des listes personnalisées.
+Les utilisateurs créées la liste, ajoute des vidéos soit via un lien, soit via l'API de YouTube si possible. De plus ils peuvent chercher des vidéos déjà existante (comme l'Opening d'Evangelion par exemple).
+Quand on choisit une room, on peut choisir une liste proposée par les utilisateurs qui sont rangées par lesquelles sont les plus jouées. Donc on doit avoir un compteur de fois où la liste a été jouée.
+Accessoirement, chaque liste possède un id unique (en plus de son nom) pour pouvoir être partagées.
+Il faut aussi une catégorie de liste qui sont "validées" par un admin, et donc un réseau Administrateur pour pouvoir gérer, créer et valider ces listes.
+J'ai aussi besoin d'une last played, pour pouvoir supprimer les listes qui ne sont jouées qu'une fois.
+Quand on prend une liste, on doit pouvoir désactiver des musiques, toujours depuis la room afin de pouvoir delete si besoin. Et cela doit être stockées quelques part pour qu'en cas de refresh, ceux désactivées le soit. Mais uniquement pour une room bien sûr.
+
+Ajoute aussi des caractères supplémentaires pour le code la room. Au lieu de 4 caractères, passe à 6.

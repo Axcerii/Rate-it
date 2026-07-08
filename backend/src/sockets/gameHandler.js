@@ -20,13 +20,14 @@ export function registerGameHandlers(io, socket) {
         throw new Error('Session not found');
       }
 
-      const { malUsername } = payload || {};
+      const { malUsername, playlistId } = payload || {};
       let videos = [];
-      let playlistId = 'anime-classics';
+      let activePlaylistId = playlistId || 'anime-classics';
 
       if (malUsername && malUsername.trim()) {
         const username = malUsername.trim();
         console.log(`Filtering playlist using MyAnimeList completed list of: ${username}`);
+        activePlaylistId = 'mal-custom';
         try {
           const malTitles = await fetchUserCompletedAnime(username);
           if (malTitles.length > 0) {
@@ -62,30 +63,47 @@ export function registerGameHandlers(io, socket) {
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
         } catch (err) {
-          console.error(`Failed to filter with MAL list for user ${username}, falling back to full playlist:`, err);
+          console.error(`Failed to filter with MAL list for user ${username}, falling back to default:`, err);
         }
       }
 
-      // Fallback if no MAL username or no matches found
+      // If not MAL, or if MAL query returned 0 matches, fetch from selected playlistId
       if (videos.length === 0) {
+        if (activePlaylistId === 'mal-custom') {
+          activePlaylistId = 'anime-classics';
+        }
         const result = await pool.query(
           `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
            FROM videos 
            WHERE playlist_id = $1 
            ORDER BY order_index ASC`,
-          [playlistId]
+          [activePlaylistId]
         );
         videos = result.rows;
-      } else {
-        playlistId = 'mal-custom';
       }
 
+      // Filter out any disabled videos
+      const disabledIds = session.disabledVideoIds || {};
+      videos = videos.filter(video => !disabledIds[video.id]);
+
       if (videos.length === 0) {
-        throw new Error('No videos found in the selected playlist');
+        throw new Error('No active videos left (all videos in the playlist are disabled).');
+      }
+
+      // Increment played_count and set last_played for the selected playlist
+      try {
+        await pool.query(
+          `UPDATE playlists 
+           SET played_count = COALESCE(played_count, 0) + 1, last_played = NOW() 
+           WHERE id = $1`,
+          [activePlaylistId]
+        );
+      } catch (err) {
+        console.error(`Failed to update play metrics for playlist ${activePlaylistId}:`, err);
       }
 
       session.status = 'PLAYING';
-      session.playlistId = playlistId;
+      session.playlistId = activePlaylistId;
       session.currentVideoIndex = 0;
       session.videos = videos;
       session.votes = {};

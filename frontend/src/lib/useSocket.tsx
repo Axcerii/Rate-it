@@ -13,12 +13,20 @@ interface SocketContextType {
   createRoom: () => Promise<GameSession>;
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
   leaveRoom: () => void;
-  startGame: (malUsername?: string) => Promise<GameSession>;
+  startGame: (malUsername?: string, playlistId?: string) => Promise<GameSession>;
   nextVideo: () => Promise<GameSession>;
   previousVideo: () => Promise<GameSession>;
   submitVote: (voteValue: number) => Promise<number>;
   connectTwitch: (channelName: string) => Promise<string>;
   disconnectTwitch: () => Promise<void>;
+  getPlaylists: () => Promise<{ validated: any[]; community: any[] }>;
+  createPlaylist: (name: string, description: string, videos: any[]) => Promise<string>;
+  getPlaylistDetails: (id: string) => Promise<{ playlist: any; videos: any[] }>;
+  searchVideos: (query: string) => Promise<any[]>;
+  toggleLobbyVideo: (videoId: string) => Promise<any>;
+  validatePlaylist: (id: string, isValidated: boolean, password?: string) => Promise<void>;
+  deletePlaylist: (id: string, password?: string) => Promise<void>;
+  cleanStalePlaylists: (password?: string) => Promise<number>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -188,10 +196,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const startGame = (malUsername?: string): Promise<GameSession> => {
+  const startGame = (malUsername?: string, playlistId?: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('game:start', { malUsername }, (response: any) => {
+      socket.emit('game:start', { malUsername, playlistId }, (response: any) => {
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
@@ -269,6 +277,110 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const getPlaylists = (): Promise<{ validated: any[]; community: any[] }> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:list', {}, (response: any) => {
+        if (response.success) {
+          resolve({ validated: response.validated, community: response.community });
+        } else {
+          reject(new Error(response.error || 'Failed to fetch playlists'));
+        }
+      });
+    });
+  };
+
+  const createPlaylist = (name: string, description: string, videos: any[]): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:create', { name, description, videos }, (response: any) => {
+        if (response.success) {
+          resolve(response.playlistId);
+        } else {
+          reject(new Error(response.error || 'Failed to create playlist'));
+        }
+      });
+    });
+  };
+
+  const getPlaylistDetails = (id: string): Promise<{ playlist: any; videos: any[] }> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:get', { id }, (response: any) => {
+        if (response.success) {
+          resolve({ playlist: response.playlist, videos: response.videos });
+        } else {
+          reject(new Error(response.error || 'Failed to get playlist details'));
+        }
+      });
+    });
+  };
+
+  const searchVideos = (query: string): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:search_videos', { query }, (response: any) => {
+        if (response.success) {
+          resolve(response.results);
+        } else {
+          reject(new Error(response.error || 'Failed to search videos'));
+        }
+      });
+    });
+  };
+
+  const toggleLobbyVideo = (videoId: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:toggle_video', { videoId }, (response: any) => {
+        if (response.success) {
+          resolve(response.disabledVideoIds);
+        } else {
+          reject(new Error(response.error || 'Failed to toggle video status'));
+        }
+      });
+    });
+  };
+
+  const validatePlaylist = (id: string, isValidated: boolean, password?: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:validate', { id, isValidated, password }, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to validate playlist'));
+        }
+      });
+    });
+  };
+
+  const deletePlaylist = (id: string, password?: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:delete', { id, password }, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to delete playlist'));
+        }
+      });
+    });
+  };
+
+  const cleanStalePlaylists = (password?: string): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:clean_stale', { password }, (response: any) => {
+        if (response.success) {
+          resolve(response.count);
+        } else {
+          reject(new Error(response.error || 'Failed to clean stale playlists'));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -286,6 +398,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         submitVote,
         connectTwitch,
         disconnectTwitch,
+        getPlaylists,
+        createPlaylist,
+        getPlaylistDetails,
+        searchVideos,
+        toggleLobbyVideo,
+        validatePlaylist,
+        deletePlaylist,
+        cleanStalePlaylists,
       }}
     >
       {children}

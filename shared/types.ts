@@ -29,6 +29,8 @@ export interface VideoResult {
   type: string;
   average: number;
   votesCount: number;
+  twitchAverage?: number;
+  twitchVotesCount?: number;
 }
 
 export interface GameSession {
@@ -41,6 +43,9 @@ export interface GameSession {
   players: Record<string, Player>; // Map of playerId -> Player
   votes: Record<string, number>; // Map of playerId -> voteValue
   results?: Record<string, VideoResult>; // Map of videoId -> VideoResult accumulated
+  twitchChannel?: string | null;
+  twitchVotes?: Record<string, number>; // Map of username -> voteValue
+  disabledVideoIds?: Record<string, boolean>; // Map of videoId -> isDisabled
 }
 
 export interface VotePayload {
