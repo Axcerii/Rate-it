@@ -32,7 +32,6 @@ export default function HostLobby() {
   const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('anime-classics');
   const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
-  const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
 
@@ -44,6 +43,7 @@ export default function HostLobby() {
     twitchAvg: number;
     twitchCount: number;
   } | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   // Generate QR Code join URL once we have window.location
   useEffect(() => {
@@ -153,10 +153,34 @@ export default function HostLobby() {
   }, [session?.status, session?.currentVideoIndex]);
 
   const handleStartGame = async () => {
-    try {
-      await startGame(malUsername.trim() || undefined, selectedPlaylistId);
-    } catch (error: any) {
-      alert(error.message || 'Failed to start game');
+    setSearchPlaylistError(null);
+    if (malUsername.trim()) {
+      setLoadingMessage('Fetching MyAnimeList completed list...');
+      const t1 = setTimeout(() => {
+        setLoadingMessage('Matching anime titles with database...');
+      }, 1500);
+      const t2 = setTimeout(() => {
+        setLoadingMessage('Assembling custom quiz...');
+      }, 3000);
+
+      try {
+        await startGame(malUsername.trim(), selectedPlaylistId);
+      } catch (error: any) {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        alert(error.message || 'Failed to start game');
+      } finally {
+        setLoadingMessage(null);
+      }
+    } else {
+      setLoadingMessage('Loading playlist tracks...');
+      try {
+        await startGame(undefined, selectedPlaylistId);
+      } catch (error: any) {
+        alert(error.message || 'Failed to start game');
+      } finally {
+        setLoadingMessage(null);
+      }
     }
   };
 
@@ -197,7 +221,6 @@ export default function HostLobby() {
         }));
       }
       setSelectedPlaylistId(res.playlist.id);
-      setPlaylistTab('community');
       setSearchPlaylistId('');
     } catch (err: any) {
       setSearchPlaylistError(err.message || 'Playlist not found');
@@ -255,6 +278,27 @@ export default function HostLobby() {
     leaveRoom();
     router.push('/');
   };
+
+  if (loadingMessage) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#faf6eb] p-6 font-mono text-center min-h-screen">
+        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
+          <div className="text-4xl animate-bounce">⏳</div>
+          <h2 className="text-2xl font-black text-black uppercase transform rotate-[-1deg]">
+            Setting up Quiz
+          </h2>
+          <div className="py-4 border-t-2 border-b-2 border-black bg-white rounded-xl">
+            <p className="text-sm font-black text-[#002fa7] uppercase tracking-wide animate-pulse">
+              {loadingMessage}
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-500 font-bold">
+            Please wait while the server prepares your playlist themes...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -413,22 +457,6 @@ export default function HostLobby() {
                   </p>
                 )}
 
-                {/* Playlist Tabs */}
-                <div className="flex border-b border-black pb-2 mb-3 gap-2">
-                  <button
-                    onClick={() => setPlaylistTab('validated')}
-                    className={`px-3 py-1 border border-black font-black text-[10px] uppercase rounded ${playlistTab === 'validated' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
-                  >
-                    Validated ({playlists.validated.length})
-                  </button>
-                  <button
-                    onClick={() => setPlaylistTab('community')}
-                    className={`px-3 py-1 border border-black font-black text-[10px] uppercase rounded ${playlistTab === 'community' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
-                  >
-                    Community ({playlists.community.length})
-                  </button>
-                </div>
-
                 {/* Select list dropdown */}
                 <div className="mb-4">
                   <label className="block text-[10px] font-black uppercase mb-1">Choose Playlist</label>
@@ -437,18 +465,20 @@ export default function HostLobby() {
                     onChange={(e) => setSelectedPlaylistId(e.target.value)}
                     className="w-full px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold focus:outline-none"
                   >
-                    {playlistTab === 'validated'
-                      ? playlists.validated.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} (played {p.played_count || 0} times)
-                          </option>
-                        ))
-                      : playlists.community.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} — ID: {p.id} (played {p.played_count || 0} times)
-                          </option>
-                        ))
-                    }
+                    <optgroup label="Validated Playlists">
+                      {playlists.validated.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (played {p.played_count || 0} times)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Community Playlists">
+                      {playlists.community.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — ID: {p.id} (played {p.played_count || 0} times)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 
