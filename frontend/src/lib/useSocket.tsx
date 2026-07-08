@@ -28,6 +28,8 @@ interface SocketContextType {
   deletePlaylist: (id: string, password?: string) => Promise<void>;
   cleanStalePlaylists: (password?: string) => Promise<number>;
   getMalVideos: (username: string) => Promise<any[]>;
+  adminAddVideo: (playlistId: string, title: string, youtubeId: string, animeName: string, type: string, password?: string) => Promise<string>;
+  adminDeleteVideo: (playlistId: string, videoId: string, password?: string) => Promise<void>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -407,6 +409,32 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const adminAddVideo = (playlistId: string, title: string, youtubeId: string, animeName: string, type: string, password?: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:admin_add_video', { playlistId, title, youtubeId, animeName, type, password }, (response: any) => {
+        if (response.success) {
+          resolve(response.videoId);
+        } else {
+          reject(new Error(response.error || 'Failed to add video as admin'));
+        }
+      });
+    });
+  };
+
+  const adminDeleteVideo = (playlistId: string, videoId: string, password?: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:admin_delete_video', { playlistId, videoId, password }, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to delete video as admin'));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -433,6 +461,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deletePlaylist,
         cleanStalePlaylists,
         getMalVideos,
+        adminAddVideo,
+        adminDeleteVideo,
       }}
     >
       {children}

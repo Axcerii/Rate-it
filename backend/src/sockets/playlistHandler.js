@@ -347,4 +347,77 @@ export function registerPlaylistHandlers(io, socket) {
       }
     }
   });
+
+  // Admin: Add video to playlist
+  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, animeName, type, password }, callback) => {
+    try {
+      if (password !== ADMIN_PASSWORD) {
+        throw new Error('Invalid admin password');
+      }
+      if (!playlistId || !title || !youtubeId) {
+        throw new Error('Playlist ID, Title, and YouTube ID are required');
+      }
+
+      // Check order_index max
+      const maxIndexRes = await pool.query(
+        'SELECT COALESCE(MAX(order_index), 0) as max FROM videos WHERE playlist_id = $1',
+        [playlistId]
+      );
+      const nextIndex = maxIndexRes.rows[0].max + 1;
+
+      // Insert video
+      const insertRes = await pool.query(
+        `INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id::text`,
+        [
+          playlistId,
+          title.trim(),
+          youtubeId.trim(),
+          animeName ? animeName.trim() : 'Unknown Anime',
+          type ? type.trim() : 'OP',
+          nextIndex
+        ]
+      );
+
+      console.log(`Admin added video ${insertRes.rows[0].id} to playlist ${playlistId}`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, videoId: insertRes.rows[0].id });
+      }
+    } catch (error) {
+      console.error('Error adding video as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Admin: Delete video from playlist
+  socket.on('playlist:admin_delete_video', async ({ playlistId, videoId, password }, callback) => {
+    try {
+      if (password !== ADMIN_PASSWORD) {
+        throw new Error('Invalid admin password');
+      }
+      if (!playlistId || !videoId) {
+        throw new Error('Playlist ID and Video ID are required');
+      }
+
+      await pool.query(
+        'DELETE FROM videos WHERE playlist_id = $1 AND id = $2',
+        [playlistId, parseInt(videoId, 10)]
+      );
+
+      console.log(`Admin deleted video ${videoId} from playlist ${playlistId}`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error('Error deleting video as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
 }

@@ -13,7 +13,7 @@ interface VideoInput {
 
 export default function NewPlaylist() {
   const router = useRouter();
-  const { createPlaylist, searchVideos, isConnected } = useSocket();
+  const { createPlaylist, searchVideos, getMalVideos, getPlaylistDetails, isConnected } = useSocket();
 
   const [playlistName, setPlaylistName] = useState('');
   const [description, setDescription] = useState('');
@@ -21,6 +21,14 @@ export default function NewPlaylist() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // MAL Import state
+  const [malUsernameInput, setMalUsernameInput] = useState('');
+  const [isImportingMal, setIsImportingMal] = useState(false);
+
+  // Playlist Clone state
+  const [clonePlaylistIdInput, setClonePlaylistIdInput] = useState('');
+  const [isCloningPlaylist, setIsCloningPlaylist] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,6 +145,73 @@ export default function NewPlaylist() {
     }
   };
 
+  const handleImportMal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const username = malUsernameInput.trim();
+    if (!username) return;
+
+    setIsImportingMal(true);
+    try {
+      const matched = await getMalVideos(username);
+      if (matched.length === 0) {
+        throw new Error('No matched openings found for this MAL account in the database.');
+      }
+      
+      let addedCount = 0;
+      setVideos(prev => {
+        const updated = [...prev];
+        matched.forEach(item => {
+          const exists = updated.some(v => v.youtubeId === item.youtubeId);
+          if (!exists) {
+            updated.push({
+              animeName: item.animeName,
+              title: item.title,
+              youtubeId: item.youtubeId,
+              type: item.type || 'OP'
+            });
+            addedCount++;
+          }
+        });
+        return updated;
+      });
+      setMalUsernameInput('');
+      alert(`Imported ${addedCount} unique openings from MAL account: ${username}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to import MAL matched tracks');
+    } finally {
+      setIsImportingMal(false);
+    }
+  };
+
+  const handleClonePlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const targetId = clonePlaylistIdInput.trim().toUpperCase();
+    if (!targetId) return;
+
+    setIsCloningPlaylist(true);
+    try {
+      const res = await getPlaylistDetails(targetId);
+      setPlaylistName(`${res.playlist.name} (Copy)`);
+      setDescription(res.playlist.description || '');
+      
+      const mappedVideos = res.videos.map(v => ({
+        animeName: v.animeName,
+        title: v.title,
+        youtubeId: v.youtubeId,
+        type: v.type || 'OP'
+      }));
+      setVideos(mappedVideos);
+      setClonePlaylistIdInput('');
+      alert(`Loaded ${mappedVideos.length} tracks from playlist: ${res.playlist.name}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load playlist details');
+    } finally {
+      setIsCloningPlaylist(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#faf6eb] text-black font-mono p-6 sm:p-12 flex flex-col items-center">
       {/* Title */}
@@ -178,6 +253,61 @@ export default function NewPlaylist() {
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold resize-none"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Quick Setup Tools Card */}
+          <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-4">
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-2 text-[#002fa7]">
+              ★ Quick Setup Tools
+            </h2>
+            
+            {/* Import MAL */}
+            <div className="border-b-2 border-dashed border-black pb-4">
+              <label className="block text-xs font-black uppercase mb-1">Import from MAL Profile</label>
+              <p className="text-[10px] text-slate-600 font-bold mb-2">
+                Instantly import matched openings based on a MAL username.
+              </p>
+              <form onSubmit={handleImportMal} className="flex gap-2">
+                <input
+                  type="text"
+                  value={malUsernameInput}
+                  onChange={(e) => setMalUsernameInput(e.target.value)}
+                  placeholder="MAL username (e.g. Ryrry)..."
+                  className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
+                />
+                <button
+                  type="submit"
+                  disabled={isImportingMal}
+                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
+                >
+                  {isImportingMal ? '...' : 'Import'}
+                </button>
+              </form>
+            </div>
+
+            {/* Copy existing playlist */}
+            <div>
+              <label className="block text-xs font-black uppercase mb-1">Clone Existing Playlist</label>
+              <p className="text-[10px] text-slate-600 font-bold mb-2">
+                Copy name, desc, and tracks from an existing playlist ID.
+              </p>
+              <form onSubmit={handleClonePlaylist} className="flex gap-2">
+                <input
+                  type="text"
+                  value={clonePlaylistIdInput}
+                  onChange={(e) => setClonePlaylistIdInput(e.target.value)}
+                  placeholder="Playlist ID (e.g. PL-A1B2C3)..."
+                  className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
+                />
+                <button
+                  type="submit"
+                  disabled={isCloningPlaylist}
+                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
+                >
+                  {isCloningPlaylist ? '...' : 'Clone'}
+                </button>
+              </form>
             </div>
           </div>
 
