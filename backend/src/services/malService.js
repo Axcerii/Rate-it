@@ -27,8 +27,11 @@ export async function fetchUserCompletedAnime(username) {
       throw new Error('Invalid response format from MyAnimeList (possibly private profile)');
     }
 
-    // Extract titles and normalize to lowercase for easy matching
-    return data.map((entry) => entry.anime_title.toLowerCase().trim());
+    // Extract titles (both original romaji and English title if present)
+    return data.map((entry) => ({
+      title: entry.anime_title,
+      englishTitle: entry.anime_title_eng,
+    }));
   } catch (error) {
     console.error(`Error fetching MAL list for user ${username}:`, error);
     throw new Error(error.message || 'Failed to fetch MyAnimeList profile');

@@ -37,12 +37,27 @@ export function registerGameHandlers(io, socket) {
                ORDER BY order_index ASC`
             );
 
-            // Filter videos whose anime name matches (substring match, case insensitive)
+            const ANIME_SYNONYMS = {
+              'neon genesis evangelion': ['neon genesis evangelion', 'evangelion', 'shinseiki evangelion'],
+              'attack on titan': ['attack on titan', 'shingeki no kyojin', 'snk'],
+              'naruto shippuden': ['naruto shippuden', 'naruto shippuuden', 'naruto: shippuuden', 'naruto'],
+              'tokyo ghoul': ['tokyo ghoul', 'tokyo kushushu']
+            };
+
+            // Filter videos whose anime name matches (substring match, case insensitive, with synonyms)
             videos = allVideosResult.rows.filter(video => {
-              const videoAnimeNameLower = video.animeName.toLowerCase();
-              return malTitles.some(title => 
-                videoAnimeNameLower.includes(title) || title.includes(videoAnimeNameLower)
-              );
+              const videoAnimeNameLower = video.animeName.toLowerCase().trim();
+              const synonyms = ANIME_SYNONYMS[videoAnimeNameLower] || [videoAnimeNameLower];
+              
+              return malTitles.some(entry => {
+                const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
+                const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
+                
+                return synonyms.some(syn => 
+                  (titleLower && (titleLower.includes(syn) || syn.includes(titleLower))) ||
+                  (engTitleLower && (engTitleLower.includes(syn) || syn.includes(engTitleLower)))
+                );
+              });
             });
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
