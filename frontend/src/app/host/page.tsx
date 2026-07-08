@@ -455,49 +455,11 @@ export default function HostLobby() {
                 )}
 
                 {malConnectedUser && (
-                  <div className="flex flex-col gap-2">
-                    <div className="bg-emerald-50 p-2.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
-                      <span className="text-[10px] text-emerald-950 font-black flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                        Connected: {malConnectedUser}'s Profile ({malTracks.length} matched openings)
-                      </span>
-                    </div>
-
-                    {/* Matched MAL Tracks checklist */}
-                    <div className="border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mt-1">
-                      <p className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
-                        MAL Matched Openings (Uncheck to skip)
-                      </p>
-                      {malTracks.length === 0 ? (
-                        <p className="text-[9px] text-slate-400 py-3 text-center">No matching database anime found in list.</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {malTracks.map((track) => {
-                            const isDisabled = session.disabledVideoIds?.[track.id] || false;
-                            return (
-                              <div key={track.id} className="flex items-center justify-between text-[11px] font-bold py-1 border-b border-slate-100 last:border-b-0">
-                                <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-xs">
-                                  <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[7px] font-mono font-black uppercase">
-                                    {track.type}
-                                  </span>
-                                  <span className="truncate text-black text-[10px]">
-                                    {track.animeName}
-                                  </span>
-                                </div>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={!isDisabled}
-                                    onChange={() => handleToggleTrack(track.id)}
-                                    className="h-4 w-4 accent-[#002fa7] cursor-pointer"
-                                  />
-                                </label>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                  <div className="bg-emerald-50 p-2.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
+                    <span className="text-[10px] text-emerald-950 font-black flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      Connected: {malConnectedUser}'s Profile ({malTracks.length} matched openings)
+                    </span>
                   </div>
                 )}
               </div>
@@ -550,149 +512,211 @@ export default function HostLobby() {
 
             {/* Right side parameters (3/5) */}
             <div className="lg:col-span-3 flex flex-col gap-6">
-              {/* Playlists selector and toggles */}
-              <div className={`bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px] transition-opacity duration-200 ${quizMode !== 'playlist' ? 'opacity-35 pointer-events-none' : ''}`}>
-                <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
-                  Playlist Selection & Skip Toggles
-                </h3>
+              {quizMode === 'playlist' ? (
+                /* PLAYLIST SELECTION CARD */
+                <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px]">
+                  <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
+                    Playlist Selection & Skip Toggles
+                  </h3>
 
-                {/* Search Playlist ID */}
-                <form onSubmit={handleSearchPlaylist} className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    value={searchPlaylistId}
-                    onChange={(e) => setSearchPlaylistId(e.target.value)}
-                    placeholder="Enter Share Playlist ID (e.g. PL-A1B2C3)..."
-                    className="flex-1 px-3 py-2 border-2 border-black bg-white text-xs font-bold focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
-                  >
-                    Load
-                  </button>
-                </form>
-                {searchPlaylistError && (
-                  <p className="text-[10px] text-[#990000] font-black mb-3">
-                    ⚠️ {searchPlaylistError}
-                  </p>
-                )}
+                  {/* Search Playlist ID */}
+                  <form onSubmit={handleSearchPlaylist} className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={searchPlaylistId}
+                      onChange={(e) => setSearchPlaylistId(e.target.value)}
+                      placeholder="Enter Share Playlist ID (e.g. PL-A1B2C3)..."
+                      className="flex-1 px-3 py-2 border-2 border-black bg-white text-xs font-bold focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+                    >
+                      Load
+                    </button>
+                  </form>
+                  {searchPlaylistError && (
+                    <p className="text-[10px] text-[#990000] font-black mb-3">
+                      ⚠️ {searchPlaylistError}
+                    </p>
+                  )}
 
-                {/* Playlist Tabs (Validated vs Community) */}
-                <div className="flex border-b-2 border-black pb-2 mb-4 gap-2">
-                  <button
-                    onClick={() => setPlaylistTab('validated')}
-                    className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
-                      playlistTab === 'validated' 
-                        ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
-                        : 'bg-white hover:bg-slate-100'
-                    }`}
-                  >
-                    Validated ({playlists.validated.length})
-                  </button>
-                  <button
-                    onClick={() => setPlaylistTab('community')}
-                    className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
-                      playlistTab === 'community' 
-                        ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
-                        : 'bg-white hover:bg-slate-100'
-                    }`}
-                  >
-                    Community ({playlists.community.length})
-                  </button>
-                </div>
+                  {/* Playlist Tabs (Validated vs Community) */}
+                  <div className="flex border-b-2 border-black pb-2 mb-4 gap-2">
+                    <button
+                      onClick={() => setPlaylistTab('validated')}
+                      className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
+                        playlistTab === 'validated' 
+                          ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
+                          : 'bg-white hover:bg-slate-100'
+                      }`}
+                    >
+                      Validated ({playlists.validated.length})
+                    </button>
+                    <button
+                      onClick={() => setPlaylistTab('community')}
+                      className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
+                        playlistTab === 'community' 
+                          ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
+                          : 'bg-white hover:bg-slate-100'
+                      }`}
+                    >
+                      Community ({playlists.community.length})
+                    </button>
+                  </div>
 
-                {/* Playlist Cards List (Scrollable box) */}
-                <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-48 overflow-y-auto mb-4 flex flex-col gap-3">
-                  {(() => {
-                    const activeLists = playlistTab === 'validated' ? playlists.validated : playlists.community;
-                    if (activeLists.length === 0) {
-                      return <p className="text-xs text-slate-500 font-bold text-center py-6">No playlists in this category.</p>;
-                    }
-                    return activeLists.map((p) => {
-                      const isSelected = p.id === selectedPlaylistId;
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => setSelectedPlaylistId(p.id)}
-                          className={`p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-4 ${
-                            isSelected 
-                              ? 'border-4 border-black bg-yellow-100 shadow-[2px_2px_0px_#000]' 
-                              : 'border-black bg-white hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="text-left truncate">
-                            <div className="flex items-center gap-1.5">
-                              {isSelected && <span className="text-yellow-500 text-sm">★</span>}
-                              <span className="font-black text-xs text-black truncate block max-w-[150px] sm:max-w-xs">
-                                {p.name}
-                              </span>
-                            </div>
-                            {p.description && (
-                              <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[150px] sm:max-w-xs">
-                                {p.description}
-                              </p>
-                            )}
-                            <span className="text-[8px] font-mono text-slate-400 block mt-1 uppercase">
-                              ID: {p.id}
-                            </span>
-                          </div>
-                          <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
-                            <span className="text-[8px] bg-slate-100 border border-slate-300 text-slate-700 px-1 py-0.5 rounded font-black uppercase">
-                              🕹️ {p.played_count || 0} plays
-                            </span>
-                            {isSelected ? (
-                              <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded border border-black font-black uppercase">
-                                Selected
-                              </span>
-                            ) : (
-                              <span className="text-[8px] bg-white text-slate-500 hover:text-black px-1.5 py-0.5 rounded border border-black font-black uppercase">
-                                Select
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-
-                {/* Tracks list inside selected playlist with toggles */}
-                <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
-                  <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
-                    Lobby Tracks Checklists (Uncheck to skip)
-                  </p>
-                  {selectedPlaylistTracks.length === 0 ? (
-                    <p className="text-[10px] text-slate-400 py-3 text-center">Loading playlist tracks...</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {selectedPlaylistTracks.map((track) => {
-                        const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                  {/* Playlist Cards List (Scrollable box) */}
+                  <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-48 overflow-y-auto mb-4 flex flex-col gap-3">
+                    {(() => {
+                      const activeLists = playlistTab === 'validated' ? playlists.validated : playlists.community;
+                      if (activeLists.length === 0) {
+                        return <p className="text-xs text-slate-500 font-bold text-center py-6">No playlists in this category.</p>;
+                      }
+                      return activeLists.map((p) => {
+                        const isSelected = p.id === selectedPlaylistId;
                         return (
-                          <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-100 last:border-b-0">
-                            <div className="flex items-center gap-2 truncate max-w-[280px]">
-                              <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
-                                {track.type}
-                              </span>
-                              <span className="truncate text-black">
-                                {track.animeName} — {track.title}
+                          <div
+                            key={p.id}
+                            onClick={() => setSelectedPlaylistId(p.id)}
+                            className={`p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-4 ${
+                              isSelected 
+                                ? 'border-4 border-black bg-yellow-100 shadow-[2px_2px_0px_#000]' 
+                                : 'border-black bg-white hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="text-left truncate">
+                              <div className="flex items-center gap-1.5">
+                                {isSelected && <span className="text-yellow-500 text-sm">★</span>}
+                                <span className="font-black text-xs text-black truncate block max-w-[150px] sm:max-w-xs">
+                                  {p.name}
+                                </span>
+                              </div>
+                              {p.description && (
+                                <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[150px] sm:max-w-xs">
+                                  {p.description}
+                                </p>
+                              )}
+                              <span className="text-[8px] font-mono text-slate-400 block mt-1 uppercase">
+                                ID: {p.id}
                               </span>
                             </div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!isDisabled}
-                                onChange={() => handleToggleTrack(track.id)}
-                                className="h-4.5 w-4.5 accent-[#002fa7] cursor-pointer"
-                              />
-                            </label>
+                            <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                              <span className="text-[8px] bg-slate-100 border border-slate-300 text-slate-700 px-1 py-0.5 rounded font-black uppercase">
+                                🕹️ {p.played_count || 0} plays
+                              </span>
+                              {isSelected ? (
+                                <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded border border-black font-black uppercase">
+                                  Selected
+                                </span>
+                              ) : (
+                                <span className="text-[8px] bg-white text-slate-500 hover:text-black px-1.5 py-0.5 rounded border border-black font-black uppercase">
+                                  Select
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
-                      })}
+                      });
+                    })()}
+                  </div>
+
+                  {/* Tracks list inside selected playlist with toggles */}
+                  <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
+                      Lobby Tracks Checklists (Uncheck to skip)
+                    </p>
+                    {selectedPlaylistTracks.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 py-3 text-center">Loading playlist tracks...</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {selectedPlaylistTracks.map((track) => {
+                          const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                          return (
+                            <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-100 last:border-b-0">
+                              <div className="flex items-center gap-2 truncate max-w-[280px]">
+                                <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
+                                  {track.type}
+                                </span>
+                                <span className="truncate text-black">
+                                  {track.animeName} — {track.title}
+                                </span>
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!isDisabled}
+                                  onChange={() => handleToggleTrack(track.id)}
+                                  className="h-4.5 w-4.5 accent-[#002fa7] cursor-pointer"
+                                />
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* MYANIMELIST SELECTION CARD */
+                <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px]">
+                  <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#990000]">
+                    MyAnimeList Openings & Skip Toggles
+                  </h3>
+
+                  {malConnectedUser ? (
+                    <div className="flex-1 flex flex-col gap-4">
+                      <div className="bg-emerald-50 p-3 border-2 border-emerald-500 rounded-xl text-left shrink-0">
+                        <p className="text-xs text-emerald-950 font-black">
+                          Displaying matched openings list for account: <span className="underline">{malConnectedUser}</span> ({malTracks.length} total tracks found)
+                        </p>
+                      </div>
+
+                      {/* Tracks list checklist with toggles */}
+                      <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-[300px] overflow-y-auto mb-4">
+                        <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
+                          MAL Matched Openings (Uncheck to skip)
+                        </p>
+                        {malTracks.length === 0 ? (
+                          <p className="text-xs text-slate-400 py-6 text-center">No matching database anime found in list.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {malTracks.map((track) => {
+                              const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                              return (
+                                <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1.5 border-b border-slate-100 last:border-b-0">
+                                  <div className="flex items-center gap-2 truncate max-w-[280px]">
+                                    <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
+                                      {track.type}
+                                    </span>
+                                    <span className="truncate text-black">
+                                      {track.animeName} — {track.title}
+                                    </span>
+                                  </div>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={!isDisabled}
+                                      onChange={() => handleToggleTrack(track.id)}
+                                      className="h-4.5 w-4.5 accent-[#990000] cursor-pointer"
+                                    />
+                                  </label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12 text-center">
+                      <span className="text-3xl animate-pulse">👉</span>
+                      <p className="mt-4 text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
+                        Enter your MyAnimeList Username and click <span className="text-[#990000] font-black">Load</span> on the left panel to configure matched openings skip checklist.
+                      </p>
                     </div>
                   )}
                 </div>
-              </div>
+              )}
 
               {/* Connected players list */}
               <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[220px]">

@@ -8,11 +8,16 @@ export async function fetchUserCompletedAnime(username) {
   const url = `https://myanimelist.net/animelist/${encodeURIComponent(username)}/load.json?status=2`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       if (response.status === 404) {

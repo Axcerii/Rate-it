@@ -200,7 +200,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const startGame = (malUsername?: string, playlistId?: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
+      
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Start game request timed out. Please try again.'));
+      }, 7000);
+
       socket.emit('game:start', { malUsername, playlistId }, (response: any) => {
+        clearTimeout(timeoutId);
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
@@ -385,7 +391,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const getMalVideos = (username: string): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
+
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Failed to fetch matched MAL openings: Request timed out.'));
+      }, 10000);
+
       socket.emit('playlist:get_mal_videos', { username }, (response: any) => {
+        clearTimeout(timeoutId);
         if (response.success) {
           resolve(response.videos);
         } else {
