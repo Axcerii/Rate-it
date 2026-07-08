@@ -324,10 +324,20 @@ export function registerPlaylistHandlers(io, socket) {
         });
       });
 
+      // Remove duplicate tracks by youtubeId
+      const seenYoutubeIds = new Set();
+      const uniqueMatchedVideos = matchedVideos.filter(video => {
+        if (seenYoutubeIds.has(video.youtubeId)) {
+          return false;
+        }
+        seenYoutubeIds.add(video.youtubeId);
+        return true;
+      });
+
       if (typeof callback === 'function') {
         callback({
           success: true,
-          videos: matchedVideos
+          videos: uniqueMatchedVideos
         });
       }
     } catch (error) {

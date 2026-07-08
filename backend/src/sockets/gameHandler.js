@@ -46,7 +46,7 @@ export function registerGameHandlers(io, socket) {
             };
 
             // Filter videos whose anime name matches (substring match, case insensitive, with synonyms)
-            videos = allVideosResult.rows.filter(video => {
+            const matchedVideos = allVideosResult.rows.filter(video => {
               const videoAnimeNameLower = video.animeName.toLowerCase().trim();
               const synonyms = ANIME_SYNONYMS[videoAnimeNameLower] || [videoAnimeNameLower];
               
@@ -60,6 +60,17 @@ export function registerGameHandlers(io, socket) {
                 );
               });
             });
+
+            // Remove duplicate tracks by youtubeId
+            const seenYoutubeIds = new Set();
+            videos = matchedVideos.filter(video => {
+              if (seenYoutubeIds.has(video.youtubeId)) {
+                return false;
+              }
+              seenYoutubeIds.add(video.youtubeId);
+              return true;
+            });
+
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
         } catch (err) {
