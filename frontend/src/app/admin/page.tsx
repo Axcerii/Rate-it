@@ -219,9 +219,9 @@ export default function AdminConsole() {
   // Render Login view
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#faf6eb] text-black font-mono p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-transparent text-black font-sans p-6 flex items-center justify-center">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center">
-          <h1 className="text-3xl font-black text-[#990000] uppercase tracking-wider mb-6">
+          <h1 className="text-3xl font-black font-title text-[#990000] uppercase tracking-wider mb-6">
             ★ ADMIN LOGIN ★
           </h1>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -265,11 +265,11 @@ export default function AdminConsole() {
   const allLists = [...validatedLists, ...communityLists];
 
   return (
-    <div className="min-h-screen bg-[#faf6eb] text-black font-mono p-6 sm:p-12 flex flex-col items-center">
+    <div className="min-h-screen bg-transparent text-black font-sans p-6 sm:p-12 flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-black pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
+          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
             ★ ADMIN CONSOLE ★
           </h1>
           <p className="text-sm font-bold text-slate-700 mt-1">

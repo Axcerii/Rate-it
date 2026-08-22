@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Exo, DynaPuff } from "next/font/google";
 import "./globals.css";
 import { SocketProvider } from "@/lib/useSocket";
+import DynamicBackground from "@/components/DynamicBackground";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const exo = Exo({
+  variable: "--font-exo",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const dynapuff = DynaPuff({
+  variable: "--font-dynapuff",
   subsets: ["latin"],
 });
 
@@ -26,13 +27,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${exo.variable} ${dynapuff.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
+      <body className="min-h-full flex flex-col text-black">
         <SocketProvider>
-          {children}
+          <DynamicBackground>
+            {children}
+          </DynamicBackground>
         </SocketProvider>
       </body>
     </html>
   );
 }
+

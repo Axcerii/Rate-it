@@ -1,26 +1,63 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* Section Background Palette */
+  --bg-menu: #FEEC66;
+  --bg-host: #24B3F1;
+  --bg-play: #DD4DCC;
+  --bg-playlist: #4BD66F;
+  --bg-admin: #BF1539;
+  --bg-main-color: var(--bg-menu);
+
+  /* Shared UI Tokens */
+  --card-bg: #f0ead8;
+  --card-border: #000000;
+  --accent-blue: #002fa7;
+  --accent-red: #990000;
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  --color-menu: var(--bg-menu);
+  --color-host: var(--bg-host);
+  --color-play: var(--bg-play);
+  --color-playlist: var(--bg-playlist);
+  --color-admin: var(--bg-admin);
+  --color-card-bg: var(--card-bg);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Typography Design Tokens */
+  --font-sans: var(--font-exo), sans-serif;
+  --font-title: var(--font-dynapuff), cursive;
+  --font-mono: var(--font-exo), monospace;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--bg-main-color);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-exo), sans-serif;
+  overflow-x: hidden;
+}
+
+/* Utility classes for typography */
+.font-title {
+  font-family: var(--font-dynapuff), cursive;
+}
+
+.font-sans {
+  font-family: var(--font-exo), sans-serif;
+}
+
+@keyframes movePatternTopRight {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 1920px -1080px;
+  }
+}
+
+.background-pattern {
+  background-image: url('/BackgroundPatternTransparent.png');
+  background-repeat: repeat;
+  animation: movePatternTopRight 60s linear infinite;
 }

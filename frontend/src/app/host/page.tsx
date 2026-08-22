@@ -315,10 +315,10 @@ export default function HostLobby() {
 
   if (loadingMessage) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-[#faf6eb] p-6 font-mono text-center min-h-screen">
+      <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
           <div className="text-4xl animate-bounce">⏳</div>
-          <h2 className="text-2xl font-black text-black uppercase transform rotate-[-1deg]">
+          <h2 className="text-2xl font-black text-black font-title uppercase transform rotate-[-1deg]">
             Setting up Quiz
           </h2>
           <div className="py-4 border-t-2 border-b-2 border-black bg-white rounded-xl">
@@ -336,10 +336,10 @@ export default function HostLobby() {
 
   if (!session) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-[#faf6eb] p-6 font-mono">
+      <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans">
         <div className="text-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent mx-auto" />
-          <h2 className="mt-6 text-xl font-black uppercase text-black">Loading Session...</h2>
+          <h2 className="mt-6 text-xl font-black uppercase text-black font-title">Loading Session...</h2>
           <p className="mt-2 text-xs font-bold text-slate-600">Redirecting to home if offline.</p>
           <button
             onClick={handleBackToHome}
@@ -357,13 +357,15 @@ export default function HostLobby() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-6 py-12 font-mono">
+      <div className="relative flex flex-col flex-1 bg-transparent px-6 py-12 font-sans">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b-4 border-black pb-6 gap-4">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
-                ★ RATE IT — LOBBY ★
-              </h1>
+              <img
+                src="/HostText.png"
+                alt="Host Lobby"
+                className="h-14 sm:h-20 w-auto object-contain max-w-full"
+              />
               <p className="text-xs font-bold text-slate-700 mt-1">Configure your room settings and wait for players</p>
             </div>
             <button
@@ -775,7 +777,7 @@ export default function HostLobby() {
     if (!currentVideo) return null;
 
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] p-6 font-mono">
+      <div className="relative flex flex-col flex-1 bg-transparent p-6 font-sans">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6">
           {/* Top Panel bar */}
           <div className="flex items-center justify-between border-b-2 border-black pb-4">
@@ -960,10 +962,10 @@ export default function HostLobby() {
     const sortedResults = Object.values(session.results || {}).sort((a, b) => a.average - b.average);
 
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-6 py-12 font-mono">
+      <div className="relative flex flex-col flex-1 bg-transparent px-6 py-12 font-sans">
         <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-8 justify-center">
           <div className="text-center border-b-4 border-black pb-4">
-            <h1 className="text-4xl font-black uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000]">
+            <h1 className="text-4xl font-black font-title uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000]">
               ★ FINAL LEADERBOARD ★
             </h1>
             <p className="text-xs font-bold text-slate-700 mt-2">Ranked from the worst average score to the best</p>

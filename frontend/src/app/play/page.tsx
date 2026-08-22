@@ -33,10 +33,10 @@ export default function PlayView() {
 
   if (!session) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-[#faf6eb] p-6 font-mono">
+      <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans">
         <div className="text-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent mx-auto" />
-          <h2 className="mt-6 text-xl font-black uppercase text-black">Connecting to Lobby...</h2>
+          <h2 className="mt-6 text-xl font-black font-title uppercase text-black">Connecting to Lobby...</h2>
           <p className="mt-2 text-xs font-bold text-slate-600">Redirecting to home if offline.</p>
           <button
             onClick={handleLeave}
@@ -54,15 +54,17 @@ export default function PlayView() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-4 py-8 font-mono justify-center items-center">
+      <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
             <div className="px-3 py-1 border-2 border-black bg-emerald-400 text-black text-xs font-black uppercase rounded-lg">
               CONNECTED ✅
             </div>
-            <h2 className="text-3xl font-black text-black uppercase mt-2 transform rotate-[-1deg]">
-              You are in!
-            </h2>
+            <img
+              src="/JoinText.png"
+              alt="Join"
+              className="h-14 sm:h-20 w-auto object-contain max-w-full my-2"
+            />
             <p className="text-xs font-bold text-slate-700">
               Room Code: <span className="font-mono font-black text-[#002fa7] tracking-wider">{session.sessionId}</span>
             </p>
@@ -77,7 +79,7 @@ export default function PlayView() {
 
           <div className="py-4 flex flex-col items-center justify-center">
             <span className="text-4xl animate-bounce mb-2">🎮</span>
-            <h4 className="text-lg font-black text-black uppercase">Waiting for Host</h4>
+            <h4 className="text-lg font-black font-title text-black uppercase">Waiting for Host</h4>
             <p className="mt-2 text-xs font-bold text-slate-600 max-w-[240px] leading-relaxed mx-auto">
               The game will start as soon as the host launches the session. Get ready!
             </p>
@@ -100,7 +102,7 @@ export default function PlayView() {
     const currentVote = currentPlayer?.vote;
 
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-4 py-8 font-mono justify-center items-center">
+      <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
           {/* Header */}
           <div className="flex justify-between items-center border-b-2 border-black pb-3">
@@ -119,7 +121,7 @@ export default function PlayView() {
               </span>
               
               <div className="flex flex-col gap-1.5 mt-2">
-                <h2 className="text-2xl font-black text-black leading-tight border-b-2 border-black pb-2">
+                <h2 className="text-2xl font-black font-title text-black leading-tight border-b-2 border-black pb-2">
                   {currentVideo.animeName}
                 </h2>
                 <p className="text-xs font-bold text-[#990000] uppercase mt-1">
@@ -202,10 +204,10 @@ export default function PlayView() {
   // 3. LEADERBOARD VIEW
   if (session.status === 'LEADERBOARD') {
     return (
-      <div className="relative flex flex-col flex-1 bg-[#faf6eb] px-4 py-8 font-mono justify-center items-center">
+      <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
           <span className="text-4xl animate-bounce">🏆</span>
-          <h2 className="text-3xl font-black text-black uppercase transform rotate-[-1deg]">Game Finished!</h2>
+          <h2 className="text-3xl font-black font-title text-black uppercase transform rotate-[-1deg]">Game Finished!</h2>
           <p className="text-xs font-bold text-slate-700 leading-relaxed max-w-xs mx-auto">
             All themes have been rated! Look at the Host screen to see who won and what the final rankings are.
           </p>

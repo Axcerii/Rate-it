@@ -213,12 +213,14 @@ export default function NewPlaylist() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf6eb] text-black font-mono p-6 sm:p-12 flex flex-col items-center">
+    <div className="min-h-screen bg-transparent text-black font-sans p-6 sm:p-12 flex flex-col items-center">
       {/* Title */}
-      <div className="w-full max-w-4xl text-center mb-8 border-b-4 border-black pb-6">
-        <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
-          ★ PLAYLIST BUILDER ★
-        </h1>
+      <div className="w-full max-w-4xl text-center mb-8 border-b-4 border-black pb-6 flex flex-col items-center justify-center">
+        <img
+          src="/Cr%C3%A9erText.png"
+          alt="Créer une Playlist"
+          className="h-16 sm:h-24 w-auto object-contain max-w-full"
+        />
         <p className="text-sm font-bold text-slate-700 mt-2">
           Create your custom theme deck in Wario-style!
         </p>
