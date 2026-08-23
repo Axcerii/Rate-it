@@ -4,6 +4,33 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import { QRCodeSVG } from 'qrcode.react';
+import { 
+  Eye, 
+  EyeOff, 
+  Copy, 
+  QrCode, 
+  Check, 
+  X, 
+  Disc, 
+  Star, 
+  AlertTriangle, 
+  Gamepad2, 
+  ArrowRight, 
+  ArrowLeft, 
+  UserX, 
+  LogOut, 
+  BarChart2, 
+  SkipForward, 
+  Users, 
+  Trophy, 
+  Home,
+  Loader2,
+  Frown,
+  Meh as MehIcon,
+  Smile,
+  Sparkles,
+  Crown
+} from 'lucide-react';
 
 export default function HostLobby() {
   const router = useRouter();
@@ -310,7 +337,7 @@ export default function HostLobby() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
-          <div className="text-4xl animate-bounce">⏳</div>
+          <Loader2 className="w-10 h-10 animate-spin text-[#002fa7] mx-auto" />
           <h2 className="text-2xl font-black text-black font-title uppercase transform rotate-[-1deg]">
             Setting up Quiz
           </h2>
@@ -336,9 +363,10 @@ export default function HostLobby() {
           <p className="mt-2 text-xs font-bold text-slate-600">Redirecting to home if offline.</p>
           <button
             onClick={handleBackToHome}
-            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition"
+            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition inline-flex items-center gap-1.5"
           >
-            Go Back Home
+            <Home className="w-3.5 h-3.5" />
+            <span>Go Back Home</span>
           </button>
         </div>
       </div>
@@ -353,46 +381,49 @@ export default function HostLobby() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-6 py-12 font-sans">
-        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b-4 border-black pb-6 gap-4">
-            <div>
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-8 py-6 sm:py-12 font-sans w-full max-w-full overflow-x-hidden">
+        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between border-b-4 border-black pb-4 sm:pb-6 gap-4 text-center sm:text-left">
+            <div className="flex flex-col items-center sm:items-start">
               <img
                 src="/HostText.png"
                 alt="Host Lobby"
-                className="h-14 sm:h-20 w-auto object-contain max-w-full"
+                className="h-12 sm:h-20 w-auto object-contain max-w-full"
               />
               <p className="text-xs font-bold text-slate-700 mt-1">Configure your room settings and wait for players</p>
             </div>
             <button
               onClick={handleBackToHome}
-              className="px-4 py-2 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+              className="px-4 py-2 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5 shrink-0"
             >
-              Close Session ❌
+              <span>Close Session</span>
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Quiz Mode Selector (Goofy Wario style) */}
-          <div className="flex border-4 border-black rounded-2xl overflow-hidden shadow-[4px_4px_0px_0px_#000] font-black text-sm uppercase shrink-0">
+          <div className="flex flex-col sm:flex-row border-4 border-black rounded-2xl overflow-hidden shadow-[4px_4px_0px_0px_#000] font-black text-xs sm:text-sm uppercase shrink-0">
             <button
               onClick={() => setQuizMode('playlist')}
-              className={`flex-1 py-4 text-center transition-all ${
+              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 ${
                 quizMode === 'playlist' 
                   ? 'bg-[#002fa7] text-white' 
                   : 'bg-white text-black hover:bg-slate-100'
               }`}
             >
-              💿 Play a Playlist (Pre-made or Custom)
+              <Disc className="w-4 h-4 shrink-0" />
+              <span>Play a Playlist (Pre-made or Custom)</span>
             </button>
             <button
               onClick={() => setQuizMode('mal')}
-              className={`flex-1 py-4 text-center transition-all ${
+              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${
                 quizMode === 'mal' 
                   ? 'bg-[#990000] text-white' 
                   : 'bg-white text-black hover:bg-slate-100'
               }`}
             >
-              ⭐ Play MyAnimeList Completed Quiz
+              <Star className="w-4 h-4 shrink-0" />
+              <span>Play MyAnimeList Quiz</span>
             </button>
           </div>
 
@@ -411,9 +442,9 @@ export default function HostLobby() {
                     type="button"
                     onClick={() => setShowRoomCode(!showRoomCode)}
                     title={showRoomCode ? 'Hide Code' : 'Show Code'}
-                    className="text-lg hover:scale-110 active:scale-95 transition-transform"
+                    className="hover:scale-110 active:scale-95 transition-transform p-1 text-slate-700"
                   >
-                    {showRoomCode ? '🙈' : '👁️'}
+                    {showRoomCode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
 
@@ -421,17 +452,37 @@ export default function HostLobby() {
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="px-4 py-2 border-2 border-black bg-[#002fa7] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition"
+                    className="px-4 py-2 border-2 border-black bg-[#002fa7] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center gap-1.5"
                   >
-                    {copiedLink ? '✅ Link Copied!' : '📋 Copy Join Link'}
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Link Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Join Link</span>
+                      </>
+                    )}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowQRCode(!showQRCode)}
-                    className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition"
+                    className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center gap-1.5"
                   >
-                    {showQRCode ? '🙈 Hide QR Code' : '📱 Show QR Code'}
+                    {showQRCode ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>Hide QR Code</span>
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>Show QR Code</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -477,8 +528,9 @@ export default function HostLobby() {
                 </form>
 
                 {malLoadError && (
-                  <p className="text-[10px] text-[#990000] font-black">
-                    ⚠️ {malLoadError}
+                  <p className="text-[10px] text-[#990000] font-black flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{malLoadError}</span>
                   </p>
                 )}
 
@@ -534,7 +586,12 @@ export default function HostLobby() {
                     </button>
                   </div>
                 )}
-                {twitchError && <p className="text-[10px] text-[#990000] font-black">{twitchError}</p>}
+                {twitchError && (
+                  <p className="text-[10px] text-[#990000] font-black flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{twitchError}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -558,14 +615,15 @@ export default function HostLobby() {
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+                      className="px-4 py-2 border-2 border-black bg-white text-[#002fa7] font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
                     >
                       Load
                     </button>
                   </form>
                   {searchPlaylistError && (
-                    <p className="text-[10px] text-[#990000] font-black mb-3">
-                      ⚠️ {searchPlaylistError}
+                    <p className="text-[10px] text-[#990000] font-black mb-3 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{searchPlaylistError}</span>
                     </p>
                   )}
 
@@ -614,7 +672,7 @@ export default function HostLobby() {
                           >
                             <div className="text-left truncate">
                               <div className="flex items-center gap-1.5">
-                                {isSelected && <span className="text-yellow-500 text-sm">★</span>}
+                                {isSelected && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" />}
                                 <span className="font-black text-xs text-black truncate block max-w-[150px] sm:max-w-xs">
                                   {p.name}
                                 </span>
@@ -629,8 +687,9 @@ export default function HostLobby() {
                               </span>
                             </div>
                             <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
-                              <span className="text-[8px] bg-slate-100 border border-slate-300 text-slate-700 px-1 py-0.5 rounded font-black uppercase">
-                                🕹️ {p.played_count || 0} plays
+                              <span className="text-[8px] bg-slate-100 border border-slate-300 text-slate-700 px-1.5 py-0.5 rounded font-black uppercase flex items-center gap-1">
+                                <Gamepad2 className="w-3 h-3" />
+                                <span>{p.played_count || 0} plays</span>
                               </span>
                               {isSelected ? (
                                 <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded border border-black font-black uppercase">
@@ -737,8 +796,8 @@ export default function HostLobby() {
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12 text-center">
-                      <span className="text-3xl animate-pulse">👉</span>
-                      <p className="mt-4 text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
+                      <ArrowRight className="w-8 h-8 text-[#990000] animate-pulse mb-2" />
+                      <p className="mt-2 text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
                         Enter your MyAnimeList Username and click <span className="text-[#990000] font-black">Load</span> on the left panel to configure matched openings skip checklist.
                       </p>
                     </div>
@@ -759,7 +818,7 @@ export default function HostLobby() {
 
                 {playersList.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-6 text-center">
-                    <span className="text-2xl animate-bounce">💤</span>
+                    <UserX className="w-8 h-8 text-slate-400 animate-pulse mb-2" />
                     <p className="mt-2 text-xs font-bold text-slate-600">Waiting for players to connect...</p>
                   </div>
                 ) : (
@@ -784,9 +843,10 @@ export default function HostLobby() {
                   <button
                     onClick={handleStartGame}
                     disabled={playersList.length === 0}
-                    className="px-6 py-3 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-40"
+                    className="px-6 py-3 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-40 flex items-center gap-2"
                   >
-                    Start Quiz ({playersList.length} players) 🚀
+                    <span>Start Quiz ({playersList.length} players)</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -836,24 +896,35 @@ export default function HostLobby() {
                   className="hover:scale-110 active:scale-95 transition-transform text-xs"
                   title={showRoomCode ? 'Hide Code' : 'Show Code'}
                 >
-                  {showRoomCode ? '🙈' : '👁️'}
+                  {showRoomCode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </span>
 
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
               >
-                {copiedLink ? '✅ Copied!' : '📋 Copy Link'}
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Link</span>
+                  </>
+                )}
               </button>
             </div>
 
             <button
               onClick={handleBackToHome}
-              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
             >
-              Quit Game 🚪
+              <span>Quit Game</span>
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -869,9 +940,10 @@ export default function HostLobby() {
                 <button
                   onClick={handlePrev}
                   disabled={session.currentVideoIndex === 0}
-                  className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl transition disabled:opacity-40"
+                  className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl transition disabled:opacity-40 inline-flex items-center gap-1.5"
                 >
-                  ← Prev
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
                 </button>
                 
                 <span className="text-xs font-black text-black">
@@ -881,16 +953,18 @@ export default function HostLobby() {
                 {session.phase === 'REVEAL' ? (
                   <button
                     onClick={handleProceedAfterReveal}
-                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
                   >
-                    {session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results →' : 'Next Theme →'}
+                    <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results' : 'Next Theme'}</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 ) : (
                   <button
                     onClick={handleShowResults}
-                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
                   >
-                    Show Vote Results 📊
+                    <BarChart2 className="w-4 h-4" />
+                    <span>Show Vote Results</span>
                   </button>
                 )}
               </div>
@@ -962,13 +1036,15 @@ export default function HostLobby() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           {hasSkipped && (
-                            <span className="px-1.5 py-0.5 border border-black rounded bg-slate-200 text-slate-800 text-[8px] font-black uppercase">
-                              Skipped ⏭️
+                            <span className="px-1.5 py-0.5 border border-black rounded bg-slate-200 text-slate-800 text-[8px] font-black uppercase flex items-center gap-1">
+                              <span>Skipped</span>
+                              <SkipForward className="w-2.5 h-2.5" />
                             </span>
                           )}
                           {hasVoted ? (
-                            <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse">
-                              Voted ✅
+                            <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse flex items-center gap-1">
+                              <span>Voted</span>
+                              <Check className="w-2.5 h-2.5" />
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 border border-black rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase">
@@ -1039,7 +1115,10 @@ export default function HostLobby() {
               {/* Requirement 2: Individual Player Votes Breakdown */}
               <div className="rounded-2xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_#000] text-left z-10">
                 <h4 className="text-xs font-black uppercase text-black border-b-2 border-black pb-2 mb-3 flex items-center justify-between">
-                  <span>👥 Player Votes Breakdown</span>
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#002fa7]" />
+                    <span>Player Votes Breakdown</span>
+                  </span>
                   <span className="text-[9px] font-mono text-slate-500">({playersList.length} players)</span>
                 </h4>
                 {playersList.length === 0 ? (
@@ -1049,22 +1128,24 @@ export default function HostLobby() {
                     {playersList.map((player) => {
                       const playerVote = session.votes?.[player.id];
                       let voteBadge = (
-                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
-                          No vote ❌
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase flex items-center gap-1">
+                          <span>No vote</span>
+                          <X className="w-3 h-3" />
                         </span>
                       );
                       if (playerVote !== undefined) {
-                        const labels: Record<number, { text: string; bg: string }> = {
-                          1: { text: '1 🤢 Awful', bg: 'bg-red-600 text-white' },
-                          2: { text: '2 🥱 Meh', bg: 'bg-orange-500 text-white' },
-                          3: { text: '3 🙂 Good', bg: 'bg-yellow-400 text-black' },
-                          4: { text: '4 😎 Great', bg: 'bg-emerald-500 text-white' },
-                          5: { text: '5 👑 Masterpiece', bg: 'bg-[#002fa7] text-white' },
+                        const labels: Record<number, { text: string; bg: string; icon: React.ReactNode }> = {
+                          1: { text: '1 Awful', bg: 'bg-red-600 text-white', icon: <Frown className="w-3 h-3" /> },
+                          2: { text: '2 Meh', bg: 'bg-orange-500 text-white', icon: <MehIcon className="w-3 h-3" /> },
+                          3: { text: '3 Good', bg: 'bg-yellow-400 text-black', icon: <Smile className="w-3 h-3" /> },
+                          4: { text: '4 Great', bg: 'bg-emerald-500 text-white', icon: <Sparkles className="w-3 h-3" /> },
+                          5: { text: '5 Masterpiece', bg: 'bg-[#002fa7] text-white', icon: <Crown className="w-3 h-3 text-amber-300" /> },
                         };
-                        const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white' };
+                        const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white', icon: null };
                         voteBadge = (
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border border-black uppercase ${l.bg}`}>
-                            {l.text}
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border border-black uppercase flex items-center gap-1 ${l.bg}`}>
+                            <span>{l.text}</span>
+                            {l.icon}
                           </span>
                         );
                       }
@@ -1082,9 +1163,10 @@ export default function HostLobby() {
               <div className="mt-2 flex justify-center z-10">
                 <button
                   onClick={handleProceedAfterReveal}
-                  className="px-8 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                  className="px-8 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
                 >
-                  {session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard →' : 'Continue to Next Track →'}
+                  <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard' : 'Continue to Next Track'}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -1102,8 +1184,10 @@ export default function HostLobby() {
       <div className="relative flex flex-col flex-1 bg-transparent px-6 py-12 font-sans">
         <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-8 justify-center">
           <div className="text-center border-b-4 border-black pb-4">
-            <h1 className="text-4xl font-black font-title uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000]">
-              ★ FINAL LEADERBOARD ★
+            <h1 className="text-4xl font-black font-title uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000] inline-flex items-center gap-3">
+              <Trophy className="w-8 h-8 text-amber-500" />
+              <span>FINAL LEADERBOARD</span>
+              <Trophy className="w-8 h-8 text-amber-500" />
             </h1>
             <p className="text-xs font-bold text-slate-700 mt-2">Ranked from the worst average score to the best</p>
           </div>
@@ -1202,9 +1286,10 @@ export default function HostLobby() {
             <div className="flex justify-center border-t-2 border-black pt-6 mt-2">
               <button
                 onClick={handleBackToHome}
-                className="px-8 py-3.5 bg-[#002fa7] border-2 border-black text-white font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                className="px-8 py-3.5 bg-[#002fa7] border-2 border-black text-white font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
               >
-                Back to Homepage 🏠
+                <Home className="w-4 h-4" />
+                <span>Back to Homepage</span>
               </button>
             </div>
           </div>

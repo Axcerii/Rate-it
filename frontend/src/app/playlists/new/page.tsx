@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
+import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface VideoInput {
   title: string;
@@ -213,24 +214,24 @@ export default function NewPlaylist() {
   };
 
   return (
-    <div className="min-h-screen bg-transparent text-black font-sans p-6 sm:p-12 flex flex-col items-center">
+    <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-8 py-6 sm:py-12 flex flex-col items-center w-full max-w-full overflow-x-hidden">
       {/* Title */}
-      <div className="w-full max-w-4xl text-center mb-8 border-b-4 border-black pb-6 flex flex-col items-center justify-center">
+      <div className="w-full max-w-4xl text-center mb-6 sm:mb-8 border-b-4 border-black pb-4 sm:pb-6 flex flex-col items-center justify-center">
         <img
           src="/Cr%C3%A9erText.png"
           alt="Créer une Playlist"
-          className="h-16 sm:h-24 w-auto object-contain max-w-full"
+          className="h-12 sm:h-24 w-auto object-contain max-w-full"
         />
-        <p className="text-sm font-bold text-slate-700 mt-2">
+        <p className="text-xs sm:text-sm font-bold text-slate-700 mt-2">
           Create your custom theme deck in Wario-style!
         </p>
       </div>
 
-      <div className="w-full max-w-4xl grid gap-8 lg:grid-cols-2 items-start">
+      <div className="w-full max-w-4xl grid gap-6 sm:gap-8 lg:grid-cols-2 items-start">
         {/* Left Column: Form Details & Add Track */}
         <div className="flex flex-col gap-6">
           {/* Playlist Info */}
-          <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000]">
+          <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000]">
             <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
               1. Playlist Info
             </h2>
@@ -260,8 +261,9 @@ export default function NewPlaylist() {
 
           {/* Quick Setup Tools Card */}
           <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-4">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-2 text-[#002fa7]">
-              ★ Quick Setup Tools
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-2 text-[#002fa7] flex items-center gap-2">
+              <Wand2 className="w-5 h-5" />
+              <span>Quick Setup Tools</span>
             </h2>
             
             {/* Import MAL */}
@@ -331,7 +333,9 @@ export default function NewPlaylist() {
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
                 />
                 {isSearching && (
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-500 animate-spin">⏳</span>
+                  <span className="absolute right-3 top-2.5">
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                  </span>
                 )}
               </div>
               
@@ -436,8 +440,8 @@ export default function NewPlaylist() {
           {/* Tracks List */}
           {videos.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
-              <span className="text-3xl">🫙</span>
-              <p className="mt-4 text-xs font-bold text-slate-600">The playlist is empty.</p>
+              <FolderX className="w-10 h-10 text-slate-400 mb-2" />
+              <p className="mt-2 text-xs font-bold text-slate-600">The playlist is empty.</p>
               <p className="text-[10px] text-slate-500 mt-1">Add tracks from the left panel!</p>
             </div>
           ) : (
@@ -471,14 +475,16 @@ export default function NewPlaylist() {
 
           {/* Error and Success Indicators */}
           {error && (
-            <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold">
-              ⚠️ {error}
+            <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="mb-4 bg-emerald-100 border-2 border-emerald-500 text-emerald-700 px-4 py-2.5 rounded-lg text-xs font-bold animate-pulse">
-              🎉 Playlist Created successfully! Redirecting...
+            <div className="mb-4 bg-emerald-100 border-2 border-emerald-500 text-emerald-700 px-4 py-2.5 rounded-lg text-xs font-bold animate-pulse flex items-center gap-2">
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span>Playlist Created successfully! Redirecting...</span>
             </div>
           )}
 

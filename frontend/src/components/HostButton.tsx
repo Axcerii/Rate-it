@@ -31,7 +31,7 @@ export default function HostButton({
       <span className="sr-only">{ariaText}</span>
 
       {/* Background Rectangle with Purple Contouring (shown on hover and focus) */}
-      <div className="relative w-full aspect-[1.5/1] rounded-3xl bg-[#009EE3] border-4 border-[#072648] shadow-none ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:shadow-[8px_8px_0px_0px_#6A0DAD] group-focus-visible:shadow-[8px_8px_0px_0px_#6A0DAD] group-hover:ring-6 group-focus-visible:ring-6 group-hover:ring-[#7A1FA2] group-focus-visible:ring-[#7A1FA2] group-hover:bg-[#00A6EF] group-focus-visible:bg-[#00A6EF] group-active:scale-[0.99] group-active:translate-x-1 group-active:translate-y-1">
+      <div className="relative w-full aspect-[1.5/1] rounded-3xl bg-[#009EE3] border-4 border-[#072648] shadow-none ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:shadow-[8px_8px_0px_0px_#6A0DAD] group-focus-visible:shadow-[8px_8px_0px_0px_#6A0DAD] group-hover:ring-6 group-focus-visible:ring-6 group-hover:ring-[#7A1FA2] group-focus-visible:ring-[#7A1FA2] group-hover:bg-[#00A6EF] group-focus-visible:bg-[#00A6EF] group-active:scale-[0.99] group-active:translate-x-1 group-active:translate-y-1 overflow-hidden sm:overflow-visible">
         
         {/* Subtle inner halftone/gradient overlay on the rectangle */}
         <div className="absolute inset-0 rounded-[20px] bg-gradient-to-br from-white/20 via-transparent to-black/10 pointer-events-none" />
@@ -41,7 +41,7 @@ export default function HostButton({
           src="/Vid%C3%A9o_Logo.png"
           alt=""
           aria-hidden="true"
-          className="absolute left-[-2%] bottom-[-2%] w-[59%] h-auto z-10 pointer-events-none transition-transform duration-300 ease-out origin-bottom-left -rotate-[4deg] group-hover:-translate-x-3 group-focus-visible:-translate-x-3 group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:-rotate-[9deg] group-focus-visible:-rotate-[9deg] group-hover:scale-105 group-focus-visible:scale-105"
+          className="absolute left-0 sm:left-[-2%] bottom-0 sm:bottom-[-2%] w-[59%] h-auto z-10 pointer-events-none transition-transform duration-300 ease-out origin-bottom-left -rotate-[4deg] group-hover:-translate-x-3 group-focus-visible:-translate-x-3 group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:-rotate-[9deg] group-focus-visible:-rotate-[9deg] group-hover:scale-105 group-focus-visible:scale-105"
         />
 
         {/* 2. Grade_Logo.png (Top Right) - Decorative layer */}
@@ -49,7 +49,7 @@ export default function HostButton({
           src="/Grade_Logo.png"
           alt=""
           aria-hidden="true"
-          className="absolute right-[-2%] top-[-2%] w-[42%] h-auto z-10 pointer-events-none transition-transform duration-300 ease-out origin-top-right rotate-[6deg] group-hover:translate-x-3 group-focus-visible:translate-x-3 group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:rotate-[12deg] group-focus-visible:rotate-[12deg] group-hover:scale-105 group-focus-visible:scale-105"
+          className="absolute right-0 sm:right-[-2%] top-0 sm:top-[-2%] w-[42%] h-auto z-10 pointer-events-none transition-transform duration-300 ease-out origin-top-right rotate-[6deg] group-hover:translate-x-3 group-focus-visible:translate-x-3 group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:rotate-[12deg] group-focus-visible:rotate-[12deg] group-hover:scale-105 group-focus-visible:scale-105"
         />
 
         {/* 3. Luffy's Hat.png (Top Center / Overlap) - Decorative layer */}
@@ -65,7 +65,7 @@ export default function HostButton({
           src="/HostText.png"
           alt=""
           aria-hidden="true"
-          className="absolute right-[-1%] bottom-[-5%] w-[64%] h-auto z-30 pointer-events-none transition-transform duration-300 ease-out origin-bottom-right group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:scale-110 group-focus-visible:scale-110 group-hover:drop-shadow-[0_10px_16px_rgba(0,0,0,0.3)] group-focus-visible:drop-shadow-[0_10px_16px_rgba(0,0,0,0.3)]"
+          className="absolute right-0 sm:right-[-1%] bottom-0 sm:bottom-[-5%] w-[64%] h-auto z-30 pointer-events-none transition-transform duration-300 ease-out origin-bottom-right group-hover:-translate-y-2 group-focus-visible:-translate-y-2 group-hover:scale-110 group-focus-visible:scale-110 group-hover:drop-shadow-[0_10px_16px_rgba(0,0,0,0.3)] group-focus-visible:drop-shadow-[0_10px_16px_rgba(0,0,0,0.3)]"
         />
 
         {/* Loading Spinner Overlay */}

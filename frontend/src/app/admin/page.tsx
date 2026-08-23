@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
+import { AlertTriangle, Trash2, Pencil, X, Plus, Sparkles, FolderX, ShieldCheck, Clock, Calendar, Gamepad2 } from 'lucide-react';
 
 export default function AdminConsole() {
   const router = useRouter();
@@ -219,10 +220,11 @@ export default function AdminConsole() {
   // Render Login view
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-transparent text-black font-sans p-6 flex items-center justify-center">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center">
-          <h1 className="text-3xl font-black font-title text-[#990000] uppercase tracking-wider mb-6">
-            ★ ADMIN LOGIN ★
+      <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-6 py-6 sm:py-12 flex items-center justify-center w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-6 sm:p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center">
+          <h1 className="text-3xl font-black font-title text-[#990000] uppercase tracking-wider mb-6 flex items-center justify-center gap-2">
+            <ShieldCheck className="w-7 h-7 text-[#990000]" />
+            <span>ADMIN LOGIN</span>
           </h1>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
@@ -236,8 +238,9 @@ export default function AdminConsole() {
               />
             </div>
             {error && (
-              <p className="text-xs text-[#990000] font-black uppercase">
-                ⚠️ {error}
+              <p className="text-xs text-[#990000] font-black uppercase flex items-center justify-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
               </p>
             )}
             <div className="flex gap-4 mt-2">
@@ -265,12 +268,13 @@ export default function AdminConsole() {
   const allLists = [...validatedLists, ...communityLists];
 
   return (
-    <div className="min-h-screen bg-transparent text-black font-sans p-6 sm:p-12 flex flex-col items-center">
+    <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-12 py-6 sm:py-12 flex flex-col items-center w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-black pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000]">
-            ★ ADMIN CONSOLE ★
+          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000] flex items-center gap-3">
+            <ShieldCheck className="w-9 h-9 text-[#990000]" />
+            <span>ADMIN CONSOLE</span>
           </h1>
           <p className="text-sm font-bold text-slate-700 mt-1">
             Manage custom anime theme playlists and validate moderation checks
@@ -304,9 +308,10 @@ export default function AdminConsole() {
             </p>
             <button
               onClick={handleCleanup}
-              className="w-full py-3 bg-[#990000] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+              className="w-full py-3 bg-[#990000] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center justify-center gap-2"
             >
-              🧹 Clean Stale Playlists
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clean Stale Playlists</span>
             </button>
             {cleanupResult && (
               <p className="mt-4 text-xs font-black text-emerald-700 bg-emerald-100 border border-emerald-500 rounded p-2.5">
@@ -318,8 +323,9 @@ export default function AdminConsole() {
           {editingPlaylistId && (
             <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-4">
               <div className="flex justify-between items-center border-b-2 border-black pb-2">
-                <h2 className="text-xs font-black uppercase text-[#990000] truncate max-w-[180px]">
-                  ✏️ Edit: {editingPlaylistName}
+                <h2 className="text-xs font-black uppercase text-[#990000] truncate max-w-[180px] inline-flex items-center gap-1.5">
+                  <Pencil className="w-3.5 h-3.5 shrink-0" />
+                  <span>Edit: {editingPlaylistName}</span>
                 </h2>
                 <button
                   onClick={() => setEditingPlaylistId(null)}
@@ -354,9 +360,9 @@ export default function AdminConsole() {
                             </div>
                             <button
                               onClick={() => handleAdminDeleteTrack(track.id)}
-                              className="text-[9px] text-[#990000] hover:text-red-500 font-black shrink-0"
+                              className="text-[9px] text-[#990000] hover:text-red-500 font-black shrink-0 p-0.5"
                             >
-                              ✕
+                              <X className="w-3 h-3" />
                             </button>
                           </div>
                         ))}
@@ -366,8 +372,9 @@ export default function AdminConsole() {
 
                   {/* Add Track Form */}
                   <form onSubmit={handleAdminAddTrack} className="border-t border-black pt-3 flex flex-col gap-3">
-                    <p className="text-[10px] font-black text-slate-700 uppercase">
-                      ＋ Add New Track
+                    <p className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add New Track</span>
                     </p>
                     <div>
                       <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Anime Name</label>
@@ -449,14 +456,16 @@ export default function AdminConsole() {
           </div>
 
           {actionSuccess && (
-            <div className="mb-4 bg-emerald-100 border-2 border-emerald-500 text-emerald-700 px-4 py-2.5 rounded-lg text-xs font-bold animate-pulse">
-              🎉 {actionSuccess}
+            <div className="mb-4 bg-emerald-100 border-2 border-emerald-500 text-emerald-700 px-4 py-2.5 rounded-lg text-xs font-bold animate-pulse flex items-center gap-2">
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span>{actionSuccess}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold">
-              ⚠️ {error}
+            <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -467,8 +476,8 @@ export default function AdminConsole() {
             if (list.length === 0) {
               return (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
-                  <span className="text-3xl">🏜️</span>
-                  <p className="mt-4 text-xs font-bold text-slate-600">No playlists found in this tab.</p>
+                  <FolderX className="w-10 h-10 text-slate-400 mb-2" />
+                  <p className="mt-2 text-xs font-bold text-slate-600">No playlists found in this tab.</p>
                 </div>
               );
             }
@@ -498,12 +507,17 @@ export default function AdminConsole() {
                     </div>
 
                     <div className="flex flex-wrap text-[10px] font-black text-slate-500 gap-4 mt-1">
-                      <span>🕹️ Play count: {playlist.played_count || 0}</span>
-                      <span>
-                        ⏰ Last played: {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never'}
+                      <span className="flex items-center gap-1">
+                        <Gamepad2 className="w-3 h-3 text-slate-500" />
+                        <span>Play count: {playlist.played_count || 0}</span>
                       </span>
-                      <span>
-                        📅 Created: {new Date(playlist.created_at).toLocaleDateString()}
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-500" />
+                        <span>Last played: {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never'}</span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-500" />
+                        <span>Created: {new Date(playlist.created_at).toLocaleDateString()}</span>
                       </span>
                     </div>
 

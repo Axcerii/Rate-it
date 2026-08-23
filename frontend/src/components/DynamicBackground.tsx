@@ -30,24 +30,24 @@ export default function DynamicBackground({ children }: { children: React.ReactN
 
   return (
     <div 
-      className="relative min-h-screen flex flex-col font-sans transition-colors duration-700 ease-in-out"
+      className="relative min-h-screen w-full max-w-full flex flex-col font-sans transition-colors duration-700 ease-in-out overflow-x-hidden"
       style={{ backgroundColor: bgColor, '--bg-main-color': bgColor } as React.CSSProperties}
     >
       {/* Moving pattern layer (white pattern on transparent background) */}
       <div 
-        className="fixed inset-0 pointer-events-none z-0 background-pattern" 
+        className="fixed inset-0 w-full h-full pointer-events-none z-0 background-pattern" 
       />
 
       {/* Central Circle Mask Overlay (solid main color in center sphere, transparent outside) */}
       <div 
-        className="fixed inset-0 pointer-events-none z-0 transition-all duration-700 ease-in-out"
+        className="fixed inset-0 w-full h-full pointer-events-none z-0 transition-all duration-700 ease-in-out"
         style={{
           background: `radial-gradient(circle at center, ${bgColor} 0%, ${bgColor} 25%, transparent 75%)`
         }}
       />
 
       {/* Main Content */}
-      <div className="relative z-10 flex-1 flex flex-col">
+      <div className="relative z-10 flex-1 flex flex-col w-full max-w-full overflow-x-hidden">
         {children}
       </div>
     </div>

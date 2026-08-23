@@ -6,6 +6,7 @@ import { useSocket } from '@/lib/useSocket';
 import HostButton from '@/components/HostButton';
 import JoinCard from '@/components/JoinCard';
 import CreatePlaylistButton from '@/components/CreatePlaylistButton';
+import { AlertTriangle } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -83,10 +84,10 @@ export default function Home() {
   };
 
   return (
-    <div className="relative flex flex-col flex-1 items-center bg-transparent px-4 py-4 font-sans">
+    <div className="relative flex flex-col flex-1 items-center justify-center bg-transparent px-3 sm:px-6 py-4 sm:py-8 font-sans w-full max-w-full overflow-x-hidden">
 
       {/* Main Card Container */}
-      <div className="w-full max-w-4xl z-10 flex flex-col items-center gap-2">
+      <div className="w-full max-w-4xl z-10 flex flex-col items-center justify-center gap-4 sm:gap-6 px-1 sm:px-0">
 
         {/* Header Logo */}
         <div className="flex justify-center items-center">
@@ -133,8 +134,9 @@ export default function Home() {
 
         {/* Global Error Banner */}
         {error && (
-          <div className="w-full max-w-md bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold text-center">
-            ⚠️ {error}
+          <div className="w-full max-w-md bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
       </div>

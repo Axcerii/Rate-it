@@ -3,6 +3,22 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
+import { 
+  CheckCircle2, 
+  Gamepad2, 
+  LogOut, 
+  BarChart2, 
+  Check, 
+  SkipForward, 
+  Frown, 
+  Meh as MehIcon, 
+  Smile, 
+  Sparkles, 
+  Crown, 
+  Star, 
+  Trophy, 
+  Home 
+} from 'lucide-react';
 
 export default function PlayView() {
   const router = useRouter();
@@ -48,9 +64,10 @@ export default function PlayView() {
           <p className="mt-2 text-xs font-bold text-slate-600">Redirecting to home if offline.</p>
           <button
             onClick={handleLeave}
-            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition"
+            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition inline-flex items-center gap-1.5"
           >
-            Go Back Home
+            <Home className="w-3.5 h-3.5" />
+            <span>Go Back Home</span>
           </button>
         </div>
       </div>
@@ -62,11 +79,12 @@ export default function PlayView() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-4 py-6 sm:py-8 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
-            <div className="px-3 py-1 border-2 border-black bg-emerald-400 text-black text-xs font-black uppercase rounded-lg">
-              CONNECTED ✅
+            <div className="px-3 py-1 border-2 border-black bg-emerald-400 text-black text-xs font-black uppercase rounded-lg inline-flex items-center gap-1.5">
+              <span>CONNECTED</span>
+              <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
             <img
               src="/JoinText.png"
@@ -86,7 +104,7 @@ export default function PlayView() {
           </div>
 
           <div className="py-4 flex flex-col items-center justify-center">
-            <span className="text-4xl animate-bounce mb-2">🎮</span>
+            <Gamepad2 className="w-12 h-12 text-black animate-bounce mb-2" />
             <h4 className="text-lg font-black font-title text-black uppercase">Waiting for Host</h4>
             <p className="mt-2 text-xs font-bold text-slate-600 max-w-[240px] leading-relaxed mx-auto">
               The game will start as soon as the host launches the session. Get ready!
@@ -95,9 +113,10 @@ export default function PlayView() {
 
           <button
             onClick={handleLeave}
-            className="w-full py-3.5 px-6 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition"
+            className="w-full py-3.5 px-6 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition inline-flex items-center justify-center gap-2"
           >
-            Leave Room 🚪
+            <span>Leave Room</span>
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -115,9 +134,17 @@ export default function PlayView() {
       ? Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length 
       : Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
 
+    const ratingOptions = [
+      { value: 1, label: 'Awful', icon: <Frown className="w-4 h-4" /> },
+      { value: 2, label: 'Meh', icon: <MehIcon className="w-4 h-4" /> },
+      { value: 3, label: 'Good', icon: <Smile className="w-4 h-4" /> },
+      { value: 4, label: 'Great!', icon: <Sparkles className="w-4 h-4 text-emerald-500" /> },
+      { value: 5, label: 'Masterpiece!', icon: <Crown className="w-4 h-4 text-amber-500" /> }
+    ];
+
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-4 py-4 sm:py-8 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-5 sm:gap-6">
           {/* Header */}
           <div className="flex justify-between items-center border-b-2 border-black pb-3">
             <span className="text-[10px] font-black text-slate-600 uppercase truncate max-w-[140px]">
@@ -135,7 +162,7 @@ export default function PlayView() {
               </span>
               
               <div className="flex flex-col gap-1.5 mt-2">
-                <h2 className="text-2xl font-black font-title text-black leading-tight border-b-2 border-black pb-2">
+                <h2 className="text-xl sm:text-2xl font-black font-title text-black leading-tight border-b-2 border-black pb-2">
                   {currentVideo.animeName}
                 </h2>
                 <p className="text-xs font-bold text-[#990000] uppercase mt-1">
@@ -146,7 +173,10 @@ export default function PlayView() {
               {isRevealPhase ? (
                 /* REVEAL PHASE PLAYER VIEW */
                 <div className="mt-4 flex flex-col gap-4 py-3 bg-white p-5 rounded-2xl border-2 border-black shadow-[2px_2px_0px_#000]">
-                  <span className="text-xs font-black text-[#002fa7] uppercase">📊 Vote Results Revealed on Main Screen!</span>
+                  <span className="text-xs font-black text-[#002fa7] uppercase flex items-center justify-center gap-1.5">
+                    <BarChart2 className="w-4 h-4" />
+                    <span>Vote Results Revealed on Main Screen!</span>
+                  </span>
                   <div className="text-xs font-black text-black">
                     {currentVote !== undefined ? (
                       <span>Your vote: <strong className="text-base font-mono text-[#002fa7]">{currentVote}/5</strong></span>
@@ -162,23 +192,18 @@ export default function PlayView() {
                         : 'bg-[#002fa7] text-white hover:bg-blue-700'
                     }`}
                   >
-                    <span>{hasSkipped ? '✓ Ready for Next Video' : '⏭️ Skip to Next Track'}</span>
-                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono">
+                    {hasSkipped ? <Check className="w-3.5 h-3.5" /> : <SkipForward className="w-3.5 h-3.5" />}
+                    <span>{hasSkipped ? 'Ready for Next Video' : 'Skip to Next Track'}</span>
+                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
                       {skipsCount} / {activeConnectedPlayers.length}
                     </span>
                   </button>
                 </div>
               ) : (
                 /* VOTING PHASE PLAYER VIEW */
-                <div className="mt-4 flex flex-col gap-6">
-                  <div className="flex justify-between items-center px-1 gap-2">
-                    {[
-                      { value: 1, label: 'Awful 🤢' },
-                      { value: 2, label: 'Meh 🥱' },
-                      { value: 3, label: 'Good 🙂' },
-                      { value: 4, label: 'Great! 😎' },
-                      { value: 5, label: 'Masterpiece! 👑' }
-                    ].map((item) => {
+                <div className="mt-4 flex flex-col gap-5 sm:gap-6">
+                  <div className="flex justify-between items-center px-1 gap-1.5 sm:gap-2">
+                    {ratingOptions.map((item) => {
                       const isSelected = currentVote === item.value;
                       const isAnySelected = currentVote !== undefined;
                       
@@ -203,7 +228,7 @@ export default function PlayView() {
                         <button
                           key={item.value}
                           onClick={() => handleVote(item.value)}
-                          className={`h-14 w-14 rounded-full text-xl font-black transition-all flex items-center justify-center cursor-pointer ${btnStyle}`}
+                          className={`h-11 w-11 sm:h-14 sm:w-14 rounded-full text-base sm:text-xl font-black transition-all flex items-center justify-center cursor-pointer shrink-0 ${btnStyle}`}
                         >
                           {item.value}
                         </button>
@@ -212,17 +237,23 @@ export default function PlayView() {
                   </div>
 
                   <div className="h-6 flex items-center justify-center">
-                    <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                      {currentVote !== undefined 
-                        ? [
-                            { value: 1, label: 'Awful 🤢' },
-                            { value: 2, label: 'Meh 🥱' },
-                            { value: 3, label: 'Good 🙂' },
-                            { value: 4, label: 'Great! 😎' },
-                            { value: 5, label: 'Masterpiece! 👑' }
-                          ].find(r => r.value === currentVote)?.label 
-                        : '★ Select your rating ★'}
-                    </span>
+                    {currentVote !== undefined ? (
+                      (() => {
+                        const opt = ratingOptions.find(r => r.value === currentVote);
+                        return (
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>{opt?.label}</span>
+                            {opt?.icon}
+                          </span>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                        <span>Select your rating</span>
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                      </span>
+                    )}
                   </div>
 
                   {/* Skip Button for Player */}
@@ -234,8 +265,9 @@ export default function PlayView() {
                         : 'bg-white hover:bg-slate-100 text-black'
                     }`}
                   >
-                    <span>{hasSkipped ? '✓ You Voted to Skip Video' : '⏭️ Vote to Skip Video'}</span>
-                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono">
+                    {hasSkipped ? <Check className="w-3.5 h-3.5" /> : <SkipForward className="w-3.5 h-3.5" />}
+                    <span>{hasSkipped ? 'You Voted to Skip Video' : 'Vote to Skip Video'}</span>
+                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
                       {skipsCount} / {activeConnectedPlayers.length}
                     </span>
                   </button>
@@ -248,9 +280,10 @@ export default function PlayView() {
 
           <button
             onClick={handleLeave}
-            className="w-full mt-2 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+            className="w-full mt-2 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 inline-flex items-center justify-center gap-2"
           >
-            Leave Game 🚪
+            <span>Leave Game</span>
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -262,7 +295,7 @@ export default function PlayView() {
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
         <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
-          <span className="text-4xl animate-bounce">🏆</span>
+          <Trophy className="w-14 h-14 text-amber-500 mx-auto animate-bounce" />
           <h2 className="text-3xl font-black font-title text-black uppercase transform rotate-[-1deg]">Game Finished!</h2>
           <p className="text-xs font-bold text-slate-700 leading-relaxed max-w-xs mx-auto">
             All themes have been rated! Look at the Host screen to see who won and what the final rankings are.
@@ -270,9 +303,10 @@ export default function PlayView() {
 
           <button
             onClick={handleLeave}
-            className="w-full mt-4 py-3.5 px-6 bg-[#002fa7] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+            className="w-full mt-4 py-3.5 px-6 bg-[#002fa7] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center justify-center gap-2"
           >
-            Back to Homepage 🏠
+            <Home className="w-4 h-4" />
+            <span>Back to Homepage</span>
           </button>
         </div>
       </div>

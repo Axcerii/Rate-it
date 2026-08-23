@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface JoinCardProps {
   playerName: string;
@@ -34,7 +35,7 @@ export default function JoinCard({
       {/* Background Card Container (styled matching Join.png with exact dark purple #7d0c52) */}
       <form
         onSubmit={onSubmit}
-        className={`relative w-full aspect-[1.5/1] rounded-3xl bg-[#D936C5] border-4 border-[#7d0c52] transition-all duration-300 ease-out p-4 sm:p-5 flex flex-col justify-between overflow-visible ${isActive
+        className={`relative w-full aspect-auto sm:aspect-[1.5/1] min-h-[260px] sm:min-h-0 rounded-3xl bg-[#D936C5] border-4 border-[#7d0c52] transition-all duration-300 ease-out p-4 sm:p-5 flex flex-col justify-between overflow-hidden sm:overflow-visible ${isActive
           ? 'scale-[1.02] shadow-[8px_8px_0px_0px_#7d0c52] ring-6 ring-[#A855F7] bg-[#E442D0]'
           : 'scale-100 shadow-none ring-0 ring-transparent'
           }`}
@@ -66,7 +67,7 @@ export default function JoinCard({
         />
 
         {/* Form Inputs Container (Relative Z-20 over background layers) */}
-        <div className="relative z-20 flex flex-col gap-2 max-w-[82%] sm:max-w-[78%] mx-auto w-full pt-0.5">
+        <div className="relative z-20 flex flex-col gap-2 max-w-[90%] sm:max-w-[78%] mx-auto w-full pt-0.5 pb-8 sm:pb-0">
           {/* Nickname Field ("Nom") */}
           <div className="flex flex-col gap-0.5">
             <label
@@ -111,9 +112,9 @@ export default function JoinCard({
                 onClick={() => setShowRoomCode(!showRoomCode)}
                 tabIndex={-1}
                 title={showRoomCode ? 'Hide Code' : 'Show Code'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 font-bold text-xs sm:text-sm p-1 rounded focus:outline-none"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1 rounded focus:outline-none flex items-center justify-center"
               >
-                {showRoomCode ? '🙈' : '👁️'}
+                {showRoomCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>

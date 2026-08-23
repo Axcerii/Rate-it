@@ -31,7 +31,7 @@ export default function CreatePlaylistButton({
       <span className="sr-only">{ariaText}</span>
 
       {/* Main Card Container: Light green #2fc355 background, Dark green #0a631e border */}
-      <div className="relative w-full aspect-[4/1] rounded-3xl bg-[#2fc355] border-4 border-[#0a631e] shadow-none ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:shadow-[8px_8px_0px_0px_#0a631e] group-focus-visible:shadow-[8px_8px_0px_0px_#0a631e] group-hover:ring-6 group-focus-visible:ring-6 group-hover:ring-[#2fc355]/60 group-focus-visible:ring-[#2fc355]/60 group-hover:bg-[#34d15d] group-focus-visible:bg-[#34d15d] group-active:scale-[0.99] group-active:translate-x-1 group-active:translate-y-1 overflow-visible flex items-center justify-center">
+      <div className="relative w-full aspect-[4/1.2] sm:aspect-[4/1] rounded-3xl bg-[#2fc355] border-4 border-[#0a631e] shadow-none ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:shadow-[8px_8px_0px_0px_#0a631e] group-focus-visible:shadow-[8px_8px_0px_0px_#0a631e] group-hover:ring-6 group-focus-visible:ring-6 group-hover:ring-[#2fc355]/60 group-focus-visible:ring-[#2fc355]/60 group-hover:bg-[#34d15d] group-focus-visible:bg-[#34d15d] group-active:scale-[0.99] group-active:translate-x-1 group-active:translate-y-1 overflow-hidden sm:overflow-visible flex items-center justify-center">
 
         {/* Subtle inner halftone / gradient overlay */}
         <div className="absolute inset-0 rounded-[20px] bg-gradient-to-br from-white/25 via-transparent to-black/15 pointer-events-none z-0 overflow-hidden" />
@@ -41,7 +41,7 @@ export default function CreatePlaylistButton({
           src="/Cr%C3%A9erBackground.png"
           alt=""
           aria-hidden="true"
-          className="absolute -top-[12%] -bottom-[12%] w-[104%] h-[124%] max-w-none object-contain pointer-events-none z-10 transition-transform duration-300 ease-out group-hover:scale-105 group-focus-visible:scale-105 group-hover:-translate-y-1 group-focus-visible:-translate-y-1"
+          className="absolute -top-[12%] -bottom-[12%] w-full sm:w-[104%] h-[124%] max-w-full sm:max-w-none object-contain pointer-events-none z-10 transition-transform duration-300 ease-out group-hover:scale-105 group-focus-visible:scale-105 group-hover:-translate-y-1 group-focus-visible:-translate-y-1"
         />
 
         {/* 2. Text Graphic Layer (CréerText.png) - Bigger text that pops out bottom & top */}
