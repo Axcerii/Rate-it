@@ -25,6 +25,7 @@ export default function JoinCard({
 }: JoinCardProps) {
   const [isJoinHovered, setIsJoinHovered] = useState(false);
   const [isJoinFocused, setIsJoinFocused] = useState(false);
+  const [showRoomCode, setShowRoomCode] = useState(false);
 
   const isActive = isJoinHovered || isJoinFocused;
 
@@ -94,16 +95,27 @@ export default function JoinCard({
             >
               Code
             </label>
-            <input
-              type="text"
-              id="roomCode"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="ABCDEF"
-              maxLength={6}
-              disabled={disabled || loading}
-              className="w-full bg-white border-3 border-[#7d0c52] rounded-xl px-3 py-1.5 sm:py-2 text-center text-slate-900 font-black text-sm sm:text-base tracking-widest uppercase placeholder-slate-300 focus:outline-none focus:ring-3 focus:ring-[#7A1FA2] shadow-inner transition-all disabled:opacity-50"
-            />
+            <div className="relative w-full">
+              <input
+                type={showRoomCode ? 'text' : 'password'}
+                id="roomCode"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                placeholder="ABCDEF"
+                maxLength={6}
+                disabled={disabled || loading}
+                className="w-full bg-white border-3 border-[#7d0c52] rounded-xl pl-3 pr-10 py-1.5 sm:py-2 text-center text-slate-900 font-black text-sm sm:text-base tracking-widest uppercase placeholder-slate-300 focus:outline-none focus:ring-3 focus:ring-[#7A1FA2] shadow-inner transition-all disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowRoomCode(!showRoomCode)}
+                tabIndex={-1}
+                title={showRoomCode ? 'Hide Code' : 'Show Code'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 font-bold text-xs sm:text-sm p-1 rounded focus:outline-none"
+              >
+                {showRoomCode ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
         </div>
 

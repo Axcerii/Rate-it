@@ -16,6 +16,8 @@ interface SocketContextType {
   startGame: (malUsername?: string, playlistId?: string) => Promise<GameSession>;
   nextVideo: () => Promise<GameSession>;
   previousVideo: () => Promise<GameSession>;
+  showResults: () => Promise<GameSession>;
+  toggleSkip: () => Promise<boolean>;
   submitVote: (voteValue: number) => Promise<number>;
   connectTwitch: (channelName: string) => Promise<string>;
   disconnectTwitch: () => Promise<void>;
@@ -273,6 +275,33 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const showResults = (): Promise<GameSession> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:show_results', {}, (response: any) => {
+        if (response.success) {
+          setSession(response.session);
+          resolve(response.session);
+        } else {
+          reject(new Error(response.error || 'Failed to reveal results'));
+        }
+      });
+    });
+  };
+
+  const toggleSkip = (): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('game:player_skip', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.hasSkipped);
+        } else {
+          reject(new Error(response.error || 'Failed to toggle skip'));
+        }
+      });
+    });
+  };
+
   const submitVote = (voteValue: number): Promise<number> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
@@ -449,6 +478,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         startGame,
         nextVideo,
         previousVideo,
+        showResults,
+        toggleSkip,
         submitVote,
         connectTwitch,
         disconnectTwitch,

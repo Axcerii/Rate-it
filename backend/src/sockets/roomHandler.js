@@ -1,5 +1,6 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { disconnectFromTwitchChat } from '../services/twitchService.js';
+import { checkAndAdvanceSkip } from './gameHandler.js';
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -164,7 +165,10 @@ export function registerRoomHandlers(io, socket) {
         console.log(`Player ${playerId} disconnected from room ${sessionId}`);
         session.players[playerId].isConnected = false;
         await saveSession(session);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        const advanced = await checkAndAdvanceSkip(io, session);
+        if (!advanced) {
+          io.to(`session:${sessionId}`).emit('room:update', session);
+        }
       }
     } catch (error) {
       console.error('Error handling disconnect:', error);

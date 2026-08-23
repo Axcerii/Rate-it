@@ -2,6 +2,76 @@ import { getSession, saveSession } from '../store/sessionStore.js';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 
+export async function checkAndAdvanceSkip(io, session) {
+  if (!session || session.status !== 'PLAYING') return false;
+
+  const activePlayers = Object.values(session.players || {}).filter(p => p.isConnected);
+  if (activePlayers.length === 0) return false;
+
+  const phase = session.phase || 'VOTING';
+
+  if (phase === 'VOTING') {
+    const allSkipped = activePlayers.every(p => session.skips && session.skips[p.id]);
+    if (allSkipped) {
+      session.phase = 'REVEAL';
+      // Accumulate round results
+      const currentVideo = session.videos?.[session.currentVideoIndex];
+      if (currentVideo) {
+        const votesList = Object.values(session.votes || {});
+        const sum = votesList.reduce((sum, v) => sum + v, 0);
+        const count = votesList.length;
+        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
+
+        const twitchVotesList = Object.values(session.twitchVotes || {});
+        const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
+        const twitchCount = twitchVotesList.length;
+        const twitchAverage = twitchCount > 0 ? parseFloat((twitchSum / twitchCount).toFixed(2)) : 0;
+
+        session.results = session.results || {};
+        session.results[currentVideo.id] = {
+          id: currentVideo.id,
+          title: currentVideo.title,
+          youtubeId: currentVideo.youtubeId,
+          animeName: currentVideo.animeName,
+          type: currentVideo.type,
+          average,
+          votesCount: count,
+          twitchAverage,
+          twitchVotesCount: twitchCount,
+        };
+      }
+      await saveSession(session);
+      io.to(`session:${session.sessionId}`).emit('room:update', session);
+      return true;
+    }
+  } else if (phase === 'REVEAL') {
+    const allSkipped = activePlayers.every(p => session.revealSkips && session.revealSkips[p.id]);
+    if (allSkipped) {
+      session.currentVideoIndex++;
+      session.votes = {};
+      session.twitchVotes = {};
+      session.skips = {};
+      session.revealSkips = {};
+      session.phase = 'VOTING';
+
+      for (const pid in session.players) {
+        session.players[pid].vote = undefined;
+        session.players[pid].hasSkipped = false;
+      }
+
+      if (session.currentVideoIndex >= session.videos.length) {
+        session.status = 'LEADERBOARD';
+      }
+
+      await saveSession(session);
+      io.to(`session:${session.sessionId}`).emit('room:update', session);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function registerGameHandlers(io, socket) {
   // Start the game session
   socket.on('game:start', async (payload, callback) => {
@@ -114,15 +184,19 @@ export function registerGameHandlers(io, socket) {
       }
 
       session.status = 'PLAYING';
+      session.phase = 'VOTING';
       session.playlistId = activePlaylistId;
       session.currentVideoIndex = 0;
       session.videos = videos;
       session.votes = {};
       session.twitchVotes = {};
+      session.skips = {};
+      session.revealSkips = {};
 
-      // Reset any votes in player objects
+      // Reset any votes & skips in player objects
       for (const pid in session.players) {
         session.players[pid].vote = undefined;
+        session.players[pid].hasSkipped = false;
       }
 
       await saveSession(session);
@@ -137,6 +211,111 @@ export function registerGameHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error starting game:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Reveal vote results for current round
+  socket.on('game:show_results', async (payload, callback) => {
+    const { sessionId } = socket.data;
+    if (!sessionId) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: 'Unauthorized' });
+      }
+      return;
+    }
+
+    try {
+      const session = await getSession(sessionId);
+      if (!session) throw new Error('Session not found');
+
+      session.phase = 'REVEAL';
+
+      const currentVideo = session.videos?.[session.currentVideoIndex];
+      if (currentVideo) {
+        const votesList = Object.values(session.votes || {});
+        const sum = votesList.reduce((sum, v) => sum + v, 0);
+        const count = votesList.length;
+        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
+
+        const twitchVotesList = Object.values(session.twitchVotes || {});
+        const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
+        const twitchCount = twitchVotesList.length;
+        const twitchAverage = twitchCount > 0 ? parseFloat((twitchSum / twitchCount).toFixed(2)) : 0;
+
+        session.results = session.results || {};
+        session.results[currentVideo.id] = {
+          id: currentVideo.id,
+          title: currentVideo.title,
+          youtubeId: currentVideo.youtubeId,
+          animeName: currentVideo.animeName,
+          type: currentVideo.type,
+          average,
+          votesCount: count,
+          twitchAverage,
+          twitchVotesCount: twitchCount,
+        };
+      }
+
+      await saveSession(session);
+      io.to(`session:${sessionId}`).emit('room:update', session);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, session });
+      }
+    } catch (error) {
+      console.error('Error showing results:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Active player toggles skip status
+  socket.on('game:player_skip', async (payload, callback) => {
+    const { sessionId, playerId } = socket.data;
+
+    if (!sessionId || !playerId) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: 'Unauthorized: You are not in a room session' });
+      }
+      return;
+    }
+
+    try {
+      const session = await getSession(sessionId);
+      if (!session) throw new Error('Session not found');
+      if (session.status !== 'PLAYING') throw new Error('Game is not playing');
+
+      const currentPhase = session.phase || 'VOTING';
+
+      if (currentPhase === 'VOTING') {
+        session.skips = session.skips || {};
+        session.skips[playerId] = !session.skips[playerId];
+        if (session.players[playerId]) {
+          session.players[playerId].hasSkipped = session.skips[playerId];
+        }
+      } else if (currentPhase === 'REVEAL') {
+        session.revealSkips = session.revealSkips || {};
+        session.revealSkips[playerId] = !session.revealSkips[playerId];
+      }
+
+      const advanced = await checkAndAdvanceSkip(io, session);
+      if (!advanced) {
+        await saveSession(session);
+        io.to(`session:${sessionId}`).emit('room:update', session);
+      }
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          hasSkipped: currentPhase === 'VOTING' ? session.skips[playerId] : session.revealSkips[playerId]
+        });
+      }
+    } catch (error) {
+      console.error('Error handling player skip:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
@@ -164,7 +343,7 @@ export function registerGameHandlers(io, socket) {
         throw new Error('No videos found in session');
       }
 
-      // Accumulate votes for the current video before advancing
+      // Accumulate votes for the current video before advancing if not accumulated yet
       const currentVideo = session.videos[session.currentVideoIndex];
       if (currentVideo) {
         const votesList = Object.values(session.votes || {});
@@ -172,7 +351,6 @@ export function registerGameHandlers(io, socket) {
         const count = votesList.length;
         const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
 
-        // Calculate Twitch votes average
         const twitchVotesList = Object.values(session.twitchVotes || {});
         const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
         const twitchCount = twitchVotesList.length;
@@ -193,12 +371,15 @@ export function registerGameHandlers(io, socket) {
       }
 
       session.currentVideoIndex++;
-
-      // Reset votes for the next round
       session.votes = {};
       session.twitchVotes = {};
+      session.skips = {};
+      session.revealSkips = {};
+      session.phase = 'VOTING';
+
       for (const pid in session.players) {
         session.players[pid].vote = undefined;
+        session.players[pid].hasSkipped = false;
       }
 
       if (session.currentVideoIndex >= session.videos.length) {
@@ -241,12 +422,15 @@ export function registerGameHandlers(io, socket) {
 
       if (session.currentVideoIndex > 0) {
         session.currentVideoIndex--;
-        session.status = 'PLAYING'; // If we were on leaderboard, go back to playing
-
-        // Reset votes for the replayed round
+        session.status = 'PLAYING';
+        session.phase = 'VOTING';
         session.votes = {};
+        session.skips = {};
+        session.revealSkips = {};
+
         for (const pid in session.players) {
           session.players[pid].vote = undefined;
+          session.players[pid].hasSkipped = false;
         }
 
         await saveSession(session);

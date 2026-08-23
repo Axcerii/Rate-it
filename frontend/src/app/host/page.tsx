@@ -14,6 +14,7 @@ export default function HostLobby() {
     startGame, 
     nextVideo, 
     previousVideo,
+    showResults,
     connectTwitch,
     disconnectTwitch,
     getPlaylists,
@@ -23,11 +24,26 @@ export default function HostLobby() {
   } = useSocket();
 
   const [joinUrl, setJoinUrl] = useState('');
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [showRoomCode, setShowRoomCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [malUsername, setMalUsername] = useState('');
   const [twitchChannel, setTwitchChannel] = useState('');
   const [isTwitchConnecting, setIsTwitchConnecting] = useState(false);
   const [twitchError, setTwitchError] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
+
+  const handleCopyLink = () => {
+    let url = joinUrl;
+    if (!url && session?.sessionId && typeof window !== 'undefined') {
+      url = `${window.location.origin}/?code=${session.sessionId}`;
+    }
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
 
   // Custom playlist states
   const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
@@ -42,14 +58,6 @@ export default function HostLobby() {
   const [malLoadError, setMalLoadError] = useState<string | null>(null);
   const [malConnectedUser, setMalConnectedUser] = useState<string | null>(null);
 
-  // Reveal Modal State
-  const [revealData, setRevealData] = useState<{
-    show: boolean;
-    playersAvg: number;
-    playersCount: number;
-    twitchAvg: number;
-    twitchCount: number;
-  } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   // Generate QR Code join URL once we have window.location
@@ -118,8 +126,8 @@ export default function HostLobby() {
           onStateChange: (event: any) => {
             // @ts-ignore
             if (event.data === window.YT.PlayerState.ENDED) {
-              console.log('Video ended, auto-advancing...');
-              handleNext();
+              console.log('Video ended, auto-revealing vote results...');
+              showResults().catch(err => console.error('Failed to reveal results on video end:', err));
             }
           },
           onError: (err: any) => {
@@ -269,30 +277,15 @@ export default function HostLobby() {
     }
   };
 
-  const handleNext = () => {
-    if (!session) return;
-    
-    const playerVotesList = Object.values(session.votes || {});
-    const pCount = playerVotesList.length;
-    const pSum = playerVotesList.reduce((sum: number, v: any) => sum + v, 0);
-    const pAvg = pCount > 0 ? parseFloat((pSum / pCount).toFixed(2)) : 0;
-
-    const twitchVotesList = Object.values(session.twitchVotes || {});
-    const tCount = twitchVotesList.length;
-    const tSum = twitchVotesList.reduce((sum: number, v: any) => sum + v, 0);
-    const tAvg = tCount > 0 ? parseFloat((tSum / tCount).toFixed(2)) : 0;
-
-    setRevealData({
-      show: true,
-      playersAvg: pAvg,
-      playersCount: pCount,
-      twitchAvg: tAvg,
-      twitchCount: tCount
-    });
+  const handleShowResults = async () => {
+    try {
+      await showResults();
+    } catch (error) {
+      console.error('Failed to reveal results:', error);
+    }
   };
 
   const handleProceedAfterReveal = async () => {
-    setRevealData(null);
     try {
       await nextVideo();
     } catch (error) {
@@ -353,6 +346,9 @@ export default function HostLobby() {
   }
 
   const playersList = Object.values(session.players || {});
+  const activeConnectedPlayers = playersList.filter(p => p.isConnected);
+  const skipsCount = Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
+  const revealSkipsCount = Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length;
 
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
@@ -404,13 +400,43 @@ export default function HostLobby() {
             {/* Left side parameters (2/5) */}
             <div className="lg:col-span-2 flex flex-col gap-6">
               {/* Room Code Card */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 text-center rounded-2xl shadow-[4px_4px_0px_0px_#000]">
+              <div className="bg-[#f0ead8] border-4 border-black p-6 text-center rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col items-center">
                 <h3 className="text-xs font-black uppercase text-slate-600">Room Code</h3>
-                <div className="mt-3 text-5xl font-black tracking-widest text-black bg-white py-3 rounded-xl border-2 border-black shadow-inner select-all">
-                  {session.sessionId}
+                
+                <div className="mt-3 w-full text-4xl sm:text-5xl font-black tracking-widest text-black bg-white py-3 rounded-xl border-2 border-black shadow-inner flex items-center justify-center gap-3 relative overflow-hidden">
+                  <span className="font-mono select-all">
+                    {showRoomCode ? session.sessionId : '••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoomCode(!showRoomCode)}
+                    title={showRoomCode ? 'Hide Code' : 'Show Code'}
+                    className="text-lg hover:scale-110 active:scale-95 transition-transform"
+                  >
+                    {showRoomCode ? '🙈' : '👁️'}
+                  </button>
                 </div>
-                {joinUrl && (
-                  <div className="mt-6 flex flex-col items-center gap-4">
+
+                <div className="mt-4 flex flex-wrap gap-2 justify-center w-full">
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="px-4 py-2 border-2 border-black bg-[#002fa7] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition"
+                  >
+                    {copiedLink ? '✅ Link Copied!' : '📋 Copy Join Link'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowQRCode(!showQRCode)}
+                    className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition"
+                  >
+                    {showQRCode ? '🙈 Hide QR Code' : '📱 Show QR Code'}
+                  </button>
+                </div>
+
+                {showQRCode && joinUrl && (
+                  <div className="mt-4 flex flex-col items-center gap-4">
                     <div className="p-3 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_#000]">
                       <QRCodeSVG value={joinUrl} size={150} level="H" includeMargin={false} />
                     </div>
@@ -776,16 +802,53 @@ export default function HostLobby() {
     const currentVideo = session.videos?.[session.currentVideoIndex];
     if (!currentVideo) return null;
 
+    const currentRoundRes = session.results?.[currentVideo.id];
+    const playerVotesList = Object.values(session.votes || {});
+    const pAvg = currentRoundRes?.average ?? (
+      playerVotesList.length > 0
+        ? parseFloat((playerVotesList.reduce((a, b) => a + b, 0) / playerVotesList.length).toFixed(2))
+        : 0
+    );
+    const pCount = currentRoundRes?.votesCount ?? playerVotesList.length;
+
+    const twitchVotesList = Object.values(session.twitchVotes || {});
+    const tAvg = currentRoundRes?.twitchAverage ?? (
+      twitchVotesList.length > 0
+        ? parseFloat((twitchVotesList.reduce((a, b) => a + b, 0) / twitchVotesList.length).toFixed(2))
+        : 0
+    );
+    const tCount = currentRoundRes?.twitchVotesCount ?? twitchVotesList.length;
+
     return (
       <div className="relative flex flex-col flex-1 bg-transparent p-6 font-sans">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6">
           {/* Top Panel bar */}
           <div className="flex items-center justify-between border-b-2 border-black pb-4">
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                Lobby Code: {session.sessionId}
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2">
+                <span>Lobby Code:</span>
+                <span className="font-mono font-black text-black">
+                  {showRoomCode ? session.sessionId : '••••••'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRoomCode(!showRoomCode)}
+                  className="hover:scale-110 active:scale-95 transition-transform text-xs"
+                  title={showRoomCode ? 'Hide Code' : 'Show Code'}
+                >
+                  {showRoomCode ? '🙈' : '👁️'}
+                </button>
               </span>
+
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+              >
+                {copiedLink ? '✅ Copied!' : '📋 Copy Link'}
+              </button>
             </div>
+
             <button
               onClick={handleBackToHome}
               className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
@@ -815,12 +878,21 @@ export default function HostLobby() {
                   Track {session.currentVideoIndex + 1} / {session.videos?.length}
                 </span>
 
-                <button
-                  onClick={handleNext}
-                  className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
-                >
-                  {session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results →' : 'Next Theme →'}
-                </button>
+                {session.phase === 'REVEAL' ? (
+                  <button
+                    onClick={handleProceedAfterReveal}
+                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                  >
+                    {session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results →' : 'Next Theme →'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleShowResults}
+                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                  >
+                    Show Vote Results 📊
+                  </button>
+                )}
               </div>
             </div>
 
@@ -855,13 +927,28 @@ export default function HostLobby() {
 
               {/* Live Players Voting details */}
               <div className="flex-1 bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col">
-                <h3 className="text-xs font-black uppercase text-black border-b border-black pb-2 mb-4">
-                  Active Votes ({Object.keys(session.votes || {}).length} / {playersList.length})
-                </h3>
+                <div className="flex items-center justify-between border-b border-black pb-2 mb-4">
+                  <h3 className="text-xs font-black uppercase text-black">
+                    Active Votes ({Object.keys(session.votes || {}).length} / {playersList.length})
+                  </h3>
+                  {session.phase === 'REVEAL' ? (
+                    <span className="text-[9px] bg-purple-100 text-purple-800 border border-black font-black px-2 py-0.5 rounded-lg">
+                      Ready: {revealSkipsCount}/{activeConnectedPlayers.length}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-blue-100 text-blue-800 border border-black font-black px-2 py-0.5 rounded-lg">
+                      Skips: {skipsCount}/{activeConnectedPlayers.length}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex-1 overflow-y-auto max-h-48 flex flex-col gap-2 pr-1">
                   {playersList.map((player) => {
                     const hasVoted = session.votes?.[player.id] !== undefined;
+                    const hasSkipped = session.phase === 'REVEAL' 
+                      ? session.revealSkips?.[player.id] 
+                      : session.skips?.[player.id];
+
                     return (
                       <div
                         key={player.id}
@@ -873,15 +960,22 @@ export default function HostLobby() {
                             {player.name}
                           </span>
                         </div>
-                        {hasVoted ? (
-                          <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse">
-                            Voted ✅
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 border border-black rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase">
-                            Voting...
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {hasSkipped && (
+                            <span className="px-1.5 py-0.5 border border-black rounded bg-slate-200 text-slate-800 text-[8px] font-black uppercase">
+                              Skipped ⏭️
+                            </span>
+                          )}
+                          {hasVoted ? (
+                            <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse">
+                              Voted ✅
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 border border-black rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase">
+                              Voting...
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -892,9 +986,9 @@ export default function HostLobby() {
         </div>
 
         {/* WarioWare-styled Reveal Modal */}
-        {revealData?.show && (
+        {session.phase === 'REVEAL' && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300">
-            <div className="w-full max-w-2xl bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[8px_8px_0px_#000] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
+            <div className="w-full max-w-3xl bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[8px_8px_0px_#000] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
               <div className="flex flex-col gap-1 z-10">
                 <span className="text-[10px] uppercase font-black text-slate-600 tracking-wider">Round Results</span>
                 <h2 className="text-3xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
@@ -910,23 +1004,23 @@ export default function HostLobby() {
                 <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
                   <span className="text-[10px] uppercase font-black text-[#002fa7] tracking-wider">Players Average</span>
                   <span className="text-5xl font-black text-black font-mono leading-none">
-                    {revealData.playersAvg.toFixed(2)}
+                    {pAvg.toFixed(2)}
                   </span>
                   <span className="text-xs text-slate-500 font-bold mt-1">
-                    from {revealData.playersCount} {revealData.playersCount === 1 ? 'player' : 'players'}
+                    from {pCount} {pCount === 1 ? 'player' : 'players'}
                   </span>
                 </div>
 
                 {/* Twitch Rating Card */}
                 <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
                   <span className="text-[10px] uppercase font-black text-purple-700 tracking-wider">Twitch Chat Average</span>
-                  {revealData.twitchCount > 0 ? (
+                  {tCount > 0 ? (
                     <>
                       <span className="text-5xl font-black text-black font-mono leading-none">
-                        {revealData.twitchAvg.toFixed(2)}
+                        {tAvg.toFixed(2)}
                       </span>
                       <span className="text-xs text-slate-500 font-bold mt-1">
-                        from {revealData.twitchCount} {revealData.twitchCount === 1 ? 'chat vote' : 'chat votes'}
+                        from {tCount} {tCount === 1 ? 'chat vote' : 'chat votes'}
                       </span>
                     </>
                   ) : (
@@ -942,7 +1036,50 @@ export default function HostLobby() {
                 </div>
               </div>
 
-              <div className="mt-4 flex justify-center z-10">
+              {/* Requirement 2: Individual Player Votes Breakdown */}
+              <div className="rounded-2xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_#000] text-left z-10">
+                <h4 className="text-xs font-black uppercase text-black border-b-2 border-black pb-2 mb-3 flex items-center justify-between">
+                  <span>👥 Player Votes Breakdown</span>
+                  <span className="text-[9px] font-mono text-slate-500">({playersList.length} players)</span>
+                </h4>
+                {playersList.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-2">No connected players</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {playersList.map((player) => {
+                      const playerVote = session.votes?.[player.id];
+                      let voteBadge = (
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
+                          No vote ❌
+                        </span>
+                      );
+                      if (playerVote !== undefined) {
+                        const labels: Record<number, { text: string; bg: string }> = {
+                          1: { text: '1 🤢 Awful', bg: 'bg-red-600 text-white' },
+                          2: { text: '2 🥱 Meh', bg: 'bg-orange-500 text-white' },
+                          3: { text: '3 🙂 Good', bg: 'bg-yellow-400 text-black' },
+                          4: { text: '4 😎 Great', bg: 'bg-emerald-500 text-white' },
+                          5: { text: '5 👑 Masterpiece', bg: 'bg-[#002fa7] text-white' },
+                        };
+                        const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white' };
+                        voteBadge = (
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border border-black uppercase ${l.bg}`}>
+                            {l.text}
+                          </span>
+                        );
+                      }
+                      return (
+                        <div key={player.id} className="flex items-center justify-between p-2 border-2 border-black rounded-xl bg-slate-50 shadow-[1px_1px_0px_#000]">
+                          <span className="text-xs font-black text-black truncate max-w-[110px]">{player.name}</span>
+                          {voteBadge}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-2 flex justify-center z-10">
                 <button
                   onClick={handleProceedAfterReveal}
                   className="px-8 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"

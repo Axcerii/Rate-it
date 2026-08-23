@@ -6,7 +6,7 @@ import { useSocket } from '@/lib/useSocket';
 
 export default function PlayView() {
   const router = useRouter();
-  const { session, isConnected, playerId, leaveRoom, submitVote } = useSocket();
+  const { session, isConnected, playerId, leaveRoom, submitVote, toggleSkip } = useSocket();
 
   // Redirect back to home only if there is no session to restore and connection is established
   useEffect(() => {
@@ -28,6 +28,14 @@ export default function PlayView() {
       await submitVote(voteValue);
     } catch (error) {
       console.error('Failed to submit vote:', error);
+    }
+  };
+
+  const handleToggleSkip = async () => {
+    try {
+      await toggleSkip();
+    } catch (error) {
+      console.error('Failed to toggle skip:', error);
     }
   };
 
@@ -100,6 +108,12 @@ export default function PlayView() {
   if (session.status === 'PLAYING') {
     const currentVideo = session.videos?.[session.currentVideoIndex];
     const currentVote = currentPlayer?.vote;
+    const isRevealPhase = session.phase === 'REVEAL';
+    const hasSkipped = isRevealPhase ? !!session.revealSkips?.[playerId] : !!session.skips?.[playerId];
+    const activeConnectedPlayers = Object.values(session.players || {}).filter(p => p.isConnected);
+    const skipsCount = isRevealPhase 
+      ? Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length 
+      : Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
 
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
@@ -129,62 +143,104 @@ export default function PlayView() {
                 </p>
               </div>
 
-              {/* Circular Rating Buttons (WarioWare Thick Borders) */}
-              <div className="mt-6 flex flex-col gap-6">
-                <div className="flex justify-between items-center px-1 gap-2">
-                  {[
-                    { value: 1, label: 'Awful 🤢' },
-                    { value: 2, label: 'Meh 🥱' },
-                    { value: 3, label: 'Good 🙂' },
-                    { value: 4, label: 'Great! 😎' },
-                    { value: 5, label: 'Masterpiece! 👑' }
-                  ].map((item) => {
-                    const isSelected = currentVote === item.value;
-                    const isAnySelected = currentVote !== undefined;
-                    
-                    let btnStyle = "border-2 border-black bg-white text-black hover:-translate-y-0.5 active:translate-y-0.5";
-                    if (isSelected) {
-                      if (item.value === 1) btnStyle = "border-4 border-black bg-red-600 text-white shadow-[2px_2px_0px_#000]";
-                      else if (item.value === 2) btnStyle = "border-4 border-black bg-orange-500 text-white shadow-[2px_2px_0px_#000]";
-                      else if (item.value === 3) btnStyle = "border-4 border-black bg-yellow-400 text-black shadow-[2px_2px_0px_#000]";
-                      else if (item.value === 4) btnStyle = "border-4 border-black bg-emerald-500 text-white shadow-[2px_2px_0px_#000]";
-                      else if (item.value === 5) btnStyle = "border-4 border-black bg-[#002fa7] text-white shadow-[2px_2px_0px_#000]";
-                    } else if (isAnySelected) {
-                      btnStyle = "border-2 border-slate-300 bg-slate-100 text-slate-400 opacity-40";
-                    } else {
-                      if (item.value === 1) btnStyle = "border-2 border-black bg-white hover:bg-red-50 text-black";
-                      else if (item.value === 2) btnStyle = "border-2 border-black bg-white hover:bg-orange-50 text-black";
-                      else if (item.value === 3) btnStyle = "border-2 border-black bg-white hover:bg-yellow-50 text-black";
-                      else if (item.value === 4) btnStyle = "border-2 border-black bg-white hover:bg-emerald-50 text-black";
-                      else if (item.value === 5) btnStyle = "border-2 border-black bg-white hover:bg-blue-50 text-black";
-                    }
-
-                    return (
-                      <button
-                        key={item.value}
-                        onClick={() => handleVote(item.value)}
-                        className={`h-14 w-14 rounded-full text-xl font-black transition-all flex items-center justify-center cursor-pointer ${btnStyle}`}
-                      >
-                        {item.value}
-                      </button>
-                    );
-                  })}
+              {isRevealPhase ? (
+                /* REVEAL PHASE PLAYER VIEW */
+                <div className="mt-4 flex flex-col gap-4 py-3 bg-white p-5 rounded-2xl border-2 border-black shadow-[2px_2px_0px_#000]">
+                  <span className="text-xs font-black text-[#002fa7] uppercase">📊 Vote Results Revealed on Main Screen!</span>
+                  <div className="text-xs font-black text-black">
+                    {currentVote !== undefined ? (
+                      <span>Your vote: <strong className="text-base font-mono text-[#002fa7]">{currentVote}/5</strong></span>
+                    ) : (
+                      <span className="text-slate-500">You didn't submit a vote this round</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleToggleSkip}
+                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${
+                      hasSkipped 
+                        ? 'bg-purple-200 text-purple-950 border-dashed' 
+                        : 'bg-[#002fa7] text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    <span>{hasSkipped ? '✓ Ready for Next Video' : '⏭️ Skip to Next Track'}</span>
+                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono">
+                      {skipsCount} / {activeConnectedPlayers.length}
+                    </span>
+                  </button>
                 </div>
+              ) : (
+                /* VOTING PHASE PLAYER VIEW */
+                <div className="mt-4 flex flex-col gap-6">
+                  <div className="flex justify-between items-center px-1 gap-2">
+                    {[
+                      { value: 1, label: 'Awful 🤢' },
+                      { value: 2, label: 'Meh 🥱' },
+                      { value: 3, label: 'Good 🙂' },
+                      { value: 4, label: 'Great! 😎' },
+                      { value: 5, label: 'Masterpiece! 👑' }
+                    ].map((item) => {
+                      const isSelected = currentVote === item.value;
+                      const isAnySelected = currentVote !== undefined;
+                      
+                      let btnStyle = "border-2 border-black bg-white text-black hover:-translate-y-0.5 active:translate-y-0.5";
+                      if (isSelected) {
+                        if (item.value === 1) btnStyle = "border-4 border-black bg-red-600 text-white shadow-[2px_2px_0px_#000]";
+                        else if (item.value === 2) btnStyle = "border-4 border-black bg-orange-500 text-white shadow-[2px_2px_0px_#000]";
+                        else if (item.value === 3) btnStyle = "border-4 border-black bg-yellow-400 text-black shadow-[2px_2px_0px_#000]";
+                        else if (item.value === 4) btnStyle = "border-4 border-black bg-emerald-500 text-white shadow-[2px_2px_0px_#000]";
+                        else if (item.value === 5) btnStyle = "border-4 border-black bg-[#002fa7] text-white shadow-[2px_2px_0px_#000]";
+                      } else if (isAnySelected) {
+                        btnStyle = "border-2 border-slate-300 bg-slate-100 text-slate-400 opacity-40";
+                      } else {
+                        if (item.value === 1) btnStyle = "border-2 border-black bg-white hover:bg-red-50 text-black";
+                        else if (item.value === 2) btnStyle = "border-2 border-black bg-white hover:bg-orange-50 text-black";
+                        else if (item.value === 3) btnStyle = "border-2 border-black bg-white hover:bg-yellow-50 text-black";
+                        else if (item.value === 4) btnStyle = "border-2 border-black bg-white hover:bg-emerald-50 text-black";
+                        else if (item.value === 5) btnStyle = "border-2 border-black bg-white hover:bg-blue-50 text-black";
+                      }
 
-                <div className="h-6 flex items-center justify-center mt-2">
-                  <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                    {currentVote !== undefined 
-                      ? [
-                          { value: 1, label: 'Awful 🤢' },
-                          { value: 2, label: 'Meh 🥱' },
-                          { value: 3, label: 'Good 🙂' },
-                          { value: 4, label: 'Great! 😎' },
-                          { value: 5, label: 'Masterpiece! 👑' }
-                        ].find(r => r.value === currentVote)?.label 
-                      : '★ Select your rating ★'}
-                  </span>
+                      return (
+                        <button
+                          key={item.value}
+                          onClick={() => handleVote(item.value)}
+                          className={`h-14 w-14 rounded-full text-xl font-black transition-all flex items-center justify-center cursor-pointer ${btnStyle}`}
+                        >
+                          {item.value}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="h-6 flex items-center justify-center">
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                      {currentVote !== undefined 
+                        ? [
+                            { value: 1, label: 'Awful 🤢' },
+                            { value: 2, label: 'Meh 🥱' },
+                            { value: 3, label: 'Good 🙂' },
+                            { value: 4, label: 'Great! 😎' },
+                            { value: 5, label: 'Masterpiece! 👑' }
+                          ].find(r => r.value === currentVote)?.label 
+                        : '★ Select your rating ★'}
+                    </span>
+                  </div>
+
+                  {/* Skip Button for Player */}
+                  <button
+                    onClick={handleToggleSkip}
+                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${
+                      hasSkipped 
+                        ? 'bg-amber-200 text-amber-950 border-dashed' 
+                        : 'bg-white hover:bg-slate-100 text-black'
+                    }`}
+                  >
+                    <span>{hasSkipped ? '✓ You Voted to Skip Video' : '⏭️ Vote to Skip Video'}</span>
+                    <span className="text-[9px] bg-black text-white px-2 py-0.5 rounded font-mono">
+                      {skipsCount} / {activeConnectedPlayers.length}
+                    </span>
+                  </button>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="py-8 text-slate-500 font-bold text-xs">Loading video metadata...</div>
@@ -192,7 +248,7 @@ export default function PlayView() {
 
           <button
             onClick={handleLeave}
-            className="w-full mt-4 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+            className="w-full mt-2 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl transition shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
           >
             Leave Game 🚪
           </button>
