@@ -1,4 +1,4 @@
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, deleteSession } from '../store/sessionStore.js';
 import { disconnectFromTwitchChat } from '../services/twitchService.js';
 import { checkAndAdvanceSkip } from './gameHandler.js';
 
@@ -139,6 +139,36 @@ export function registerRoomHandlers(io, socket) {
       io.to(`session:${formattedCode}`).emit('room:update', session);
     } catch (error) {
       console.error('Error joining room:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Host deletes a room session
+  socket.on('room:delete', async (payload, callback) => {
+    const { sessionId, isHost } = socket.data;
+
+    if (!sessionId || !isHost) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: 'Unauthorized: Only the host can delete the room' });
+      }
+      return;
+    }
+
+    try {
+      disconnectFromTwitchChat(sessionId);
+      await deleteSession(sessionId);
+
+      // Broadcast to all clients in the room session that it was deleted
+      io.to(`session:${sessionId}`).emit('room:deleted');
+      console.log(`Room ${sessionId} deleted by host ${socket.id}`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

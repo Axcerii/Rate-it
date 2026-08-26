@@ -10,9 +10,9 @@
   --bg-main-color: var(--bg-menu);
 
   /* Shared UI Tokens */
-  --card-bg: #f0ead8;
+  --card-bg: #FEEC67;
   --card-border: #000000;
-  --accent-blue: #002fa7;
+  --accent-blue: #24B3F1;
   --accent-red: #990000;
   --foreground: #171717;
 }
@@ -29,6 +29,41 @@
   --font-sans: var(--font-exo), sans-serif;
   --font-title: var(--font-dynapuff), cursive;
   --font-mono: var(--font-exo), monospace;
+
+  /* Custom Animations */
+  --animate-unfold-right: unfoldRightToLeft 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  @keyframes unfoldRightToLeft {
+    0% {
+      opacity: 0;
+      transform: translateX(100%) scaleX(0.05);
+      transform-origin: right center;
+    }
+
+    65% {
+      opacity: 1;
+      transform: translateX(0) scaleX(1.02);
+      transform-origin: right center;
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateX(0) scaleX(1);
+      transform-origin: right center;
+    }
+  }
+}
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
 }
 
 html,
@@ -66,7 +101,36 @@ button {
 }
 
 .background-pattern {
-  background-image: url('/BackgroundPatternTransparent.png');
+  background-image: url('/BACKGROUNDS/BackgroundPatternTransparent.png');
   background-repeat: repeat;
   animation: movePatternTopRight 60s linear infinite;
+}
+
+.animate-unfold-right {
+  animation: unfoldRightToLeft 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: right center;
+}
+
+/* Reusable Information Card Class (styled matching Text_exemple.png with #FEEC67) */
+.info-card {
+  position: relative;
+  background-color: #FEEC67 !important;
+  border: 10px solid #FFF !important;
+  overflow: hidden;
+}
+
+.info-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/BACKGROUNDS/Background_Basique.png');
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.info-card>* {
+  position: relative;
+  z-index: 1;
 }

@@ -8,13 +8,15 @@ import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles } from 'lucide-react';
 interface VideoInput {
   title: string;
   youtubeId: string;
-  animeName: string;
-  type: string;
+  artistName: string;
+  description?: string;
 }
 
 export default function NewPlaylist() {
   const router = useRouter();
-  const { createPlaylist, searchVideos, getMalVideos, getPlaylistDetails, isConnected } = useSocket();
+  const { createPlaylist, searchVideos, getMalVideos, getPlaylistDetails, isConnected, showBanner } = useSocket();
+
+  const DRAFT_KEY = 'rate_it_playlist_draft';
 
   const [playlistName, setPlaylistName] = useState('');
   const [description, setDescription] = useState('');
@@ -22,6 +24,7 @@ export default function NewPlaylist() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
 
   // MAL Import state
   const [malUsernameInput, setMalUsernameInput] = useState('');
@@ -37,10 +40,55 @@ export default function NewPlaylist() {
   const [isSearching, setIsSearching] = useState(false);
 
   // Manual Add state
-  const [customAnime, setCustomAnime] = useState('');
+  const [customArtist, setCustomArtist] = useState('');
   const [customTitle, setCustomTitle] = useState('');
+  const [customDescription, setCustomDescription] = useState('');
   const [customUrl, setCustomUrl] = useState('');
-  const [customType, setCustomType] = useState('OP');
+
+  // 1. Load draft from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed.playlistName) setPlaylistName(parsed.playlistName);
+          if (parsed.description) setDescription(parsed.description);
+          if (Array.isArray(parsed.videos)) setVideos(parsed.videos);
+          if (parsed.playlistName || parsed.description || (Array.isArray(parsed.videos) && parsed.videos.length > 0)) {
+            showBanner('Restored saved draft from local storage!', 'info');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load saved playlist draft:', e);
+      } finally {
+        setIsDraftLoaded(true);
+      }
+    }
+  }, []);
+
+  // 2. Auto-save draft to localStorage whenever fields change after load
+  useEffect(() => {
+    if (!isDraftLoaded) return;
+    if (typeof window !== 'undefined') {
+      const draft = { playlistName, description, videos };
+      if (playlistName.trim() || description.trim() || videos.length > 0) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    }
+  }, [playlistName, description, videos, isDraftLoaded]);
+
+  const handleClearDraft = () => {
+    setPlaylistName('');
+    setDescription('');
+    setVideos([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+    showBanner('Draft cleared.', 'info');
+  };
 
   // Trigger search on query change
   useEffect(() => {
@@ -75,42 +123,43 @@ export default function NewPlaylist() {
     e.preventDefault();
     setError(null);
 
-    if (!customAnime.trim() || !customTitle.trim() || !customUrl.trim()) {
-      setError('Please fill in all custom track fields.');
+    if (!customArtist.trim() || !customTitle.trim() || !customUrl.trim()) {
+      showBanner('Please fill in Artist Name, Song Name, and YouTube link.', 'error');
       return;
     }
 
     const ytid = extractYoutubeId(customUrl.trim());
     if (ytid.length !== 11) {
-      setError('Invalid YouTube link or ID. Must contain an 11-character video ID.');
+      showBanner('Invalid YouTube link or ID. Must contain an 11-character video ID.', 'error');
       return;
     }
 
     const newVideo: VideoInput = {
-      animeName: customAnime.trim(),
+      artistName: customArtist.trim(),
       title: customTitle.trim(),
+      description: customDescription.trim(),
       youtubeId: ytid,
-      type: customType,
     };
 
     setVideos([...videos, newVideo]);
-    setCustomAnime('');
+    setCustomArtist('');
     setCustomTitle('');
+    setCustomDescription('');
     setCustomUrl('');
   };
 
   const handleAddSearchResult = (result: any) => {
     const alreadyAdded = videos.some(v => v.youtubeId === result.youtubeId);
     if (alreadyAdded) {
-      setError(`"${result.title}" is already in the list.`);
+      showBanner(`"${result.title}" is already in your playlist deck.`, 'error');
       return;
     }
 
     setVideos([...videos, {
-      animeName: result.animeName,
+      artistName: result.artistName || 'Unknown Artist',
       title: result.title,
+      description: result.description || '',
       youtubeId: result.youtubeId,
-      type: result.type
     }]);
     setSearchQuery('');
     setSearchResults([]);
@@ -125,23 +174,27 @@ export default function NewPlaylist() {
   const handleSavePlaylist = async () => {
     setError(null);
     if (!playlistName.trim()) {
-      setError('Playlist Name is required.');
+      showBanner('Playlist Name is required.', 'error');
       return;
     }
     if (videos.length === 0) {
-      setError('Please add at least one track to the playlist.');
+      showBanner('Please add at least one track to the playlist.', 'error');
       return;
     }
 
     setIsSaving(true);
     try {
       await createPlaylist(playlistName, description, videos);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(DRAFT_KEY);
+      }
       setSuccess(true);
+      showBanner('Playlist created successfully!', 'announcement');
       setTimeout(() => {
         router.push('/');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to save playlist');
+      showBanner(err.message || 'Failed to save playlist', 'error');
       setIsSaving(false);
     }
   };
@@ -156,7 +209,7 @@ export default function NewPlaylist() {
     try {
       const matched = await getMalVideos(username);
       if (matched.length === 0) {
-        throw new Error('No matched openings found for this MAL account in the database.');
+        throw new Error('No matched tracks found for this MAL account in the database.');
       }
       
       let addedCount = 0;
@@ -166,10 +219,10 @@ export default function NewPlaylist() {
           const exists = updated.some(v => v.youtubeId === item.youtubeId);
           if (!exists) {
             updated.push({
-              animeName: item.animeName,
+              artistName: item.artistName || 'Unknown Artist',
               title: item.title,
+              description: item.description || '',
               youtubeId: item.youtubeId,
-              type: item.type || 'OP'
             });
             addedCount++;
           }
@@ -177,9 +230,9 @@ export default function NewPlaylist() {
         return updated;
       });
       setMalUsernameInput('');
-      alert(`Imported ${addedCount} unique openings from MAL account: ${username}`);
+      showBanner(`Imported ${addedCount} unique tracks from MAL profile: ${username}`, 'announcement');
     } catch (err: any) {
-      setError(err.message || 'Failed to import MAL matched tracks');
+      showBanner(err.message || 'Failed to import MAL matched tracks', 'error');
     } finally {
       setIsImportingMal(false);
     }
@@ -198,10 +251,10 @@ export default function NewPlaylist() {
       setDescription(res.playlist.description || '');
       
       const mappedVideos = res.videos.map(v => ({
-        animeName: v.animeName,
+        artistName: v.artistName || 'Unknown Artist',
         title: v.title,
+        description: v.description || '',
         youtubeId: v.youtubeId,
-        type: v.type || 'OP'
       }));
       setVideos(mappedVideos);
       setClonePlaylistIdInput('');
@@ -218,23 +271,34 @@ export default function NewPlaylist() {
       {/* Title */}
       <div className="w-full max-w-4xl text-center mb-6 sm:mb-8 border-b-4 border-black pb-4 sm:pb-6 flex flex-col items-center justify-center">
         <img
-          src="/Cr%C3%A9erText.png"
+          src="/CREATE/Cr%C3%A9erText.png"
           alt="Créer une Playlist"
           className="h-12 sm:h-24 w-auto object-contain max-w-full"
         />
         <p className="text-xs sm:text-sm font-bold text-slate-700 mt-2">
-          Create your custom theme deck in Wario-style!
+          Create your custom music deck in Wario-style!
         </p>
       </div>
-
       <div className="w-full max-w-4xl grid gap-6 sm:gap-8 lg:grid-cols-2 items-start">
         {/* Left Column: Form Details & Add Track */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 w-full max-w-full overflow-hidden">
           {/* Playlist Info */}
-          <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000]">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
-              1. Playlist Info
-            </h2>
+          <div className="info-card p-3.5 sm:p-6 rounded-2xl w-full max-w-full overflow-hidden">
+            <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
+              <h2 className="text-lg font-black uppercase text-emerald-900">
+                1. Playlist Info
+              </h2>
+              {(playlistName || description || videos.length > 0) && (
+                <button
+                  type="button"
+                  onClick={handleClearDraft}
+                  className="px-2.5 py-1 text-[10px] font-black uppercase text-[#990000] border-2 border-black bg-white hover:bg-red-50 rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all shrink-0"
+                >
+                  Clear Draft
+                </button>
+              )}
+            </div>
+            
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-xs font-black uppercase mb-1">Playlist Name</label>
@@ -260,9 +324,9 @@ export default function NewPlaylist() {
           </div>
 
           {/* Quick Setup Tools Card */}
-          <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-4">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-2 text-[#002fa7] flex items-center gap-2">
-              <Wand2 className="w-5 h-5" />
+          <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col gap-4 w-full max-w-full overflow-hidden">
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-2 text-emerald-900 flex items-center gap-2">
+              <Wand2 className="w-5 h-5 shrink-0" />
               <span>Quick Setup Tools</span>
             </h2>
             
@@ -270,20 +334,20 @@ export default function NewPlaylist() {
             <div className="border-b-2 border-dashed border-black pb-4">
               <label className="block text-xs font-black uppercase mb-1">Import from MAL Profile</label>
               <p className="text-[10px] text-slate-600 font-bold mb-2">
-                Instantly import matched openings based on a MAL username.
+                Instantly import matched tracks based on a MAL username.
               </p>
-              <form onSubmit={handleImportMal} className="flex gap-2">
+              <form onSubmit={handleImportMal} className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={malUsernameInput}
                   onChange={(e) => setMalUsernameInput(e.target.value)}
-                  placeholder="MAL username (e.g. Ryrry)..."
-                  className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
+                  placeholder="MAL username..."
+                  className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
                 />
                 <button
                   type="submit"
                   disabled={isImportingMal}
-                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
+                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50 shrink-0"
                 >
                   {isImportingMal ? '...' : 'Import'}
                 </button>
@@ -296,18 +360,18 @@ export default function NewPlaylist() {
               <p className="text-[10px] text-slate-600 font-bold mb-2">
                 Copy name, desc, and tracks from an existing playlist ID.
               </p>
-              <form onSubmit={handleClonePlaylist} className="flex gap-2">
+              <form onSubmit={handleClonePlaylist} className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={clonePlaylistIdInput}
                   onChange={(e) => setClonePlaylistIdInput(e.target.value)}
-                  placeholder="Playlist ID (e.g. PL-A1B2C3)..."
-                  className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
+                  placeholder="Playlist ID..."
+                  className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
                 />
                 <button
                   type="submit"
                   disabled={isCloningPlaylist}
-                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
+                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50 shrink-0"
                 >
                   {isCloningPlaylist ? '...' : 'Clone'}
                 </button>
@@ -316,20 +380,20 @@ export default function NewPlaylist() {
           </div>
 
           {/* Add Tracks Card */}
-          <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000]">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
+          <div className="info-card p-3.5 sm:p-6 rounded-2xl w-full max-w-full overflow-hidden">
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-emerald-900">
               2. Add Tracks
             </h2>
 
             {/* Search Existing */}
             <div className="mb-6">
-              <label className="block text-xs font-black uppercase mb-1">Search DB Videos</label>
+              <label className="block text-xs font-black uppercase mb-1">Search DB Music</label>
               <div className="relative">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by Anime Name or Song Title..."
+                  placeholder="Search Artist, Song Name, or Description..."
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
                 />
                 {isSearching && (
@@ -346,13 +410,15 @@ export default function NewPlaylist() {
                     <button
                       key={idx}
                       onClick={() => handleAddSearchResult(result)}
-                      className="w-full text-left p-2.5 border-b border-slate-200 hover:bg-[#faf6eb] transition text-xs font-bold flex justify-between items-center"
+                      className="w-full text-left p-2.5 border-b border-slate-200 hover:bg-[#faf6eb] transition text-xs font-bold flex justify-between items-center gap-2"
                     >
-                      <div>
-                        <div className="font-black text-black">{result.animeName}</div>
-                        <div className="text-slate-600 mt-0.5">{result.type} - {result.title}</div>
+                      <div className="min-w-0 flex-1 truncate">
+                        <div className="font-black text-black truncate">{result.title}</div>
+                        <div className="text-slate-600 mt-0.5 truncate">
+                          By {result.artistName || 'Unknown Artist'} {result.description ? `— ${result.description}` : ''}
+                        </div>
                       </div>
-                      <span className="bg-[#002fa7] text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">
+                      <span className="bg-[#4BD66F] text-black border border-black px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0">
                         + Add
                       </span>
                     </button>
@@ -363,33 +429,43 @@ export default function NewPlaylist() {
 
             <div className="relative flex items-center justify-center my-4">
               <hr className="border-black w-full" />
-              <span className="absolute px-3 bg-[#f0ead8] text-xs font-black text-slate-500 uppercase">Or Add Custom YouTube Link</span>
+              <span className="absolute px-3 bg-[#FEEC67] border border-black rounded text-xs font-black text-slate-800 uppercase text-center">Or Custom Track</span>
             </div>
 
             {/* Add Custom Track Form */}
             <form onSubmit={handleAddCustom} className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-black uppercase mb-1">Anime Name</label>
+                <label className="block text-xs font-black uppercase mb-1">Artist Name</label>
                 <input
                   type="text"
-                  value={customAnime}
-                  onChange={(e) => setCustomAnime(e.target.value)}
-                  placeholder="e.g. Bleach"
+                  value={customArtist}
+                  onChange={(e) => setCustomArtist(e.target.value)}
+                  placeholder="e.g. Yoko Takahashi"
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none text-sm font-bold"
                 />
               </div>
               <div>
-                <label className="block text-xs font-black uppercase mb-1">Theme Title</label>
+                <label className="block text-xs font-black uppercase mb-1">Song Name</label>
                 <input
                   type="text"
                   value={customTitle}
                   onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="e.g. Asterisk"
+                  placeholder="e.g. Cruel Angel Thesis"
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none text-sm font-bold"
                 />
               </div>
               <div>
-                <label className="block text-xs font-black uppercase mb-1">YouTube Video Link or ID</label>
+                <label className="block text-xs font-black uppercase mb-1">Description (Optional)</label>
+                <input
+                  type="text"
+                  value={customDescription}
+                  onChange={(e) => setCustomDescription(e.target.value)}
+                  placeholder="e.g. Opening of Neon Genesis Evangelion from 1995"
+                  className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none text-sm font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase mb-1">YouTube Link or ID</label>
                 <input
                   type="text"
                   value={customUrl}
@@ -397,25 +473,6 @@ export default function NewPlaylist() {
                   placeholder="e.g. https://www.youtube.com/watch?v=..."
                   className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none text-sm font-bold"
                 />
-              </div>
-              <div className="flex gap-4 items-center">
-                <span className="text-xs font-black uppercase">Type:</span>
-                <div className="flex border-2 border-black rounded-lg overflow-hidden font-bold text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setCustomType('OP')}
-                    className={`px-3 py-1.5 transition ${customType === 'OP' ? 'bg-[#990000] text-white' : 'bg-white hover:bg-slate-100'}`}
-                  >
-                    Opening (OP)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomType('ED')}
-                    className={`px-3 py-1.5 transition ${customType === 'ED' ? 'bg-[#990000] text-white' : 'bg-white hover:bg-slate-100'}`}
-                  >
-                    Ending (ED)
-                  </button>
-                </div>
               </div>
 
               <button
@@ -429,8 +486,8 @@ export default function NewPlaylist() {
         </div>
 
         {/* Right Column: Playlist Preview & Save */}
-        <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[500px]">
-          <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7] flex items-center justify-between">
+        <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[500px] w-full max-w-full overflow-hidden">
+          <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-emerald-900 flex items-center justify-between">
             <span>3. Playlist Preview</span>
             <span className="bg-black text-[#faf6eb] px-2.5 py-0.5 rounded text-xs font-mono">
               {videos.length} Tracks
@@ -439,7 +496,7 @@ export default function NewPlaylist() {
 
           {/* Tracks List */}
           {videos.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12 text-center">
               <FolderX className="w-10 h-10 text-slate-400 mb-2" />
               <p className="mt-2 text-xs font-bold text-slate-600">The playlist is empty.</p>
               <p className="text-[10px] text-slate-500 mt-1">Add tracks from the left panel!</p>
@@ -449,22 +506,22 @@ export default function NewPlaylist() {
               {videos.map((video, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_0px_#000]"
+                  className="flex items-center justify-between p-2.5 sm:p-3 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_0px_#000] gap-2"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="h-6 w-6 rounded-lg bg-black text-[#faf6eb] text-xs font-black flex items-center justify-center">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
+                    <span className="h-6 w-6 shrink-0 rounded-lg bg-black text-[#faf6eb] text-xs font-black flex items-center justify-center">
                       {index + 1}
                     </span>
-                    <div className="max-w-[200px] sm:max-w-xs">
-                      <div className="font-black text-xs text-black truncate">{video.animeName}</div>
+                    <div className="min-w-0 flex-1 truncate">
+                      <div className="font-black text-xs text-black truncate">{video.title}</div>
                       <div className="text-[10px] text-slate-600 truncate mt-0.5">
-                        {video.type} — {video.title}
+                        By {video.artistName || 'Unknown Artist'} {video.description ? `— ${video.description}` : ''}
                       </div>
                     </div>
                   </div>
                   <button
                     onClick={() => handleRemoveTrack(index)}
-                    className="text-xs text-[#990000] hover:text-red-500 font-black p-1"
+                    className="text-xs text-[#990000] hover:text-red-500 font-black p-1 shrink-0"
                   >
                     Delete
                   </button>
@@ -489,17 +546,17 @@ export default function NewPlaylist() {
           )}
 
           {/* Action button */}
-          <div className="mt-auto border-t-2 border-black pt-4 flex gap-4">
+          <div className="mt-auto border-t-2 border-black pt-4 flex gap-3 sm:gap-4">
             <button
               onClick={() => router.push('/')}
-              className="flex-1 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-sm uppercase rounded-xl transition"
+              className="flex-1 py-3 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm uppercase rounded-xl transition"
             >
               Cancel
             </button>
             <button
               onClick={handleSavePlaylist}
               disabled={isSaving || success}
-              className="flex-1 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-40 transition-all duration-150"
+              className="flex-1 py-3 bg-[#4BD66F] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-40 transition-all duration-150"
             >
               {isSaving ? 'Saving...' : 'Save Playlist'}
             </button>

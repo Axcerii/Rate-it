@@ -44,6 +44,23 @@ export function connectToTwitchChat(io, sessionId, channelName) {
           const user = match[1];
           const text = match[2].trim();
 
+          // Check for special user announcement banner message enclosed in quotation marks
+          const specialUser = (process.env.SPECIAL_TWITCH_USER || 'ryrynoceros_').toLowerCase();
+          if (user.toLowerCase() === specialUser) {
+            const quoteMatch = text.match(/^["“](.+)["”]$/);
+            if (quoteMatch) {
+              const bannerMessage = quoteMatch[1].trim();
+              if (bannerMessage) {
+                console.log(`Room ${sessionId} [Twitch Banner Broadcast] from ${user}: "${bannerMessage}"`);
+                io.to(`session:${sessionId}`).emit('banner:broadcast', {
+                  message: bannerMessage,
+                  sender: user,
+                  type: 'announcement'
+                });
+              }
+            }
+          }
+
           // Check if message is a vote (1 to 5)
           const firstChar = text.charAt(0);
           const vote = parseInt(firstChar, 10);

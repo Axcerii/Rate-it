@@ -3,6 +3,7 @@ import { Exo, DynaPuff } from "next/font/google";
 import "./globals.css";
 import { SocketProvider } from "@/lib/useSocket";
 import DynamicBackground from "@/components/DynamicBackground";
+import BannerNotification from "@/components/BannerNotification";
 
 const exo = Exo({
   variable: "--font-exo",
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col text-black">
         <SocketProvider>
+          <BannerNotification />
           <DynamicBackground>
             {children}
           </DynamicBackground>

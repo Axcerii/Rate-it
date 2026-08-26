@@ -10,13 +10,13 @@ import { AlertTriangle } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
-  const { createRoom, joinRoom, session, isHost } = useSocket();
+  const { createRoom, joinRoom, session, isHost, showBanner } = useSocket();
 
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [hasUrlCode, setHasUrlCode] = useState(false);
 
   // Redirect to active session if restored
   useEffect(() => {
@@ -41,19 +41,19 @@ export default function Home() {
       const code = params.get('code');
       if (code) {
         setRoomCode(code.toUpperCase());
+        setHasUrlCode(true);
       }
     }
   }, []);
 
   const handleCreate = async () => {
     setIsCreating(true);
-    setError(null);
     try {
       await createRoom();
       router.push('/host');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to create session');
+      showBanner(err.message || 'Failed to create room session', 'error');
       setIsCreating(false);
     }
   };
@@ -61,16 +61,15 @@ export default function Home() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) {
-      setError('Please enter your name');
+      showBanner('Please enter your player nickname', 'error');
       return;
     }
     if (!roomCode.trim() || roomCode.length !== 6) {
-      setError('Please enter a valid 6-character room code');
+      showBanner('Please enter a valid 6-character room code', 'error');
       return;
     }
 
     setIsJoining(true);
-    setError(null);
 
     try {
       localStorage.setItem('rate_it_player_name', playerName.trim());
@@ -78,7 +77,7 @@ export default function Home() {
       router.push('/play');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to join session');
+      showBanner(err.message || 'Room not found. Please check your 6-character room code.', 'error');
       setIsJoining(false);
     }
   };
@@ -92,36 +91,63 @@ export default function Home() {
         {/* Header Logo */}
         <div className="flex justify-center items-center">
           <img
-            src="/RateItLogo.png"
+            src="/LOGOS/RateItLogo.png"
             alt="Rate It Logo"
-            className="w-auto h-28 sm:h-52 md:h-64 object-contain max-w-full transition-transform duration-300"
+            className="w-auto h-28 sm:h-48 xl:h-64 object-contain max-w-full transition-transform duration-300"
           />
         </div>
 
         {/* Action Panel Grid */}
         <div className="grid w-full gap-8 md:grid-cols-2">
+          {hasUrlCode ? (
+            <>
+              {/* Join Card first if URL contains code */}
+              <div className="flex items-center justify-center">
+                <JoinCard
+                  playerName={playerName}
+                  setPlayerName={setPlayerName}
+                  roomCode={roomCode}
+                  setRoomCode={setRoomCode}
+                  onSubmit={handleJoin}
+                  disabled={isCreating || isJoining}
+                  loading={isJoining}
+                />
+              </div>
 
-          {/* Host Button */}
-          <div className="flex items-center justify-center">
-            <HostButton
-              onClick={handleCreate}
-              disabled={isCreating || isJoining}
-              loading={isCreating}
-            />
-          </div>
+              {/* Host Button second */}
+              <div className="flex items-center justify-center">
+                <HostButton
+                  onClick={handleCreate}
+                  disabled={isCreating || isJoining}
+                  loading={isCreating}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Host Button first */}
+              <div className="flex items-center justify-center">
+                <HostButton
+                  onClick={handleCreate}
+                  disabled={isCreating || isJoining}
+                  loading={isCreating}
+                />
+              </div>
 
-          {/* Join Card */}
-          <div className="flex items-center justify-center">
-            <JoinCard
-              playerName={playerName}
-              setPlayerName={setPlayerName}
-              roomCode={roomCode}
-              setRoomCode={setRoomCode}
-              onSubmit={handleJoin}
-              disabled={isCreating || isJoining}
-              loading={isJoining}
-            />
-          </div>
+              {/* Join Card second */}
+              <div className="flex items-center justify-center">
+                <JoinCard
+                  playerName={playerName}
+                  setPlayerName={setPlayerName}
+                  roomCode={roomCode}
+                  setRoomCode={setRoomCode}
+                  onSubmit={handleJoin}
+                  disabled={isCreating || isJoining}
+                  loading={isJoining}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Create Playlist Button (Spans full length under the two main buttons) */}
@@ -131,14 +157,6 @@ export default function Home() {
             disabled={isCreating || isJoining}
           />
         </div>
-
-        {/* Global Error Banner */}
-        {error && (
-          <div className="w-full max-w-md bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
       </div>
     </div>
   );

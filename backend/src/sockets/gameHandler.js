@@ -2,6 +2,76 @@ import { getSession, saveSession } from '../store/sessionStore.js';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 
+async function recordAndFetchVideoRatings(session, currentVideo) {
+  if (!session || !currentVideo) return;
+
+  const videoId = parseInt(currentVideo.id, 10) || null;
+  const youtubeId = currentVideo.youtubeId;
+  const playlistId = session.playlistId;
+  const sessionId = session.sessionId;
+
+  // Track recorded rounds on session to avoid inserting twice for same session & video
+  session.savedRatingsMap = session.savedRatingsMap || {};
+  const saveKey = `${sessionId}_${currentVideo.id}`;
+
+  if (!session.savedRatingsMap[saveKey]) {
+    session.savedRatingsMap[saveKey] = true;
+
+    // 1. Insert player votes
+    for (const pid in session.votes) {
+      const ratingVal = session.votes[pid];
+      if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
+        const playerName = session.players?.[pid]?.name || 'Anonymous Player';
+        try {
+          await pool.query(
+            `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
+             VALUES ($1, $2, $3, $4, $5, $6, 'PLAYER')`,
+            [videoId, youtubeId, playlistId, sessionId, playerName, ratingVal]
+          );
+        } catch (err) {
+          console.error('Failed to insert player rating:', err);
+        }
+      }
+    }
+
+    // 2. Insert Twitch votes
+    for (const username in session.twitchVotes) {
+      const ratingVal = session.twitchVotes[username];
+      if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
+        try {
+          await pool.query(
+            `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
+             VALUES ($1, $2, $3, $4, $5, $6, 'TWITCH')`,
+            [videoId, youtubeId, playlistId, sessionId, username, ratingVal]
+          );
+        } catch (err) {
+          console.error('Failed to insert Twitch rating:', err);
+        }
+      }
+    }
+  }
+
+  // 3. Query historical average and total rating count for this youtube_id
+  try {
+    const statsRes = await pool.query(
+      `SELECT COUNT(*)::int as count, COALESCE(AVG(rating), 0) as avg
+       FROM ratings
+       WHERE youtube_id = $1`,
+      [youtubeId]
+    );
+
+    const histCount = statsRes.rows[0].count;
+    const histAvg = parseFloat(parseFloat(statsRes.rows[0].avg).toFixed(2));
+
+    if (session.results && session.results[currentVideo.id]) {
+      session.results[currentVideo.id].historicalAverage = histAvg;
+      session.results[currentVideo.id].historicalVotesCount = histCount;
+    }
+  } catch (err) {
+    console.error('Failed to fetch historical ratings stats:', err);
+  }
+}
+
 export async function checkAndAdvanceSkip(io, session) {
   if (!session || session.status !== 'PLAYING') return false;
 
@@ -32,13 +102,14 @@ export async function checkAndAdvanceSkip(io, session) {
           id: currentVideo.id,
           title: currentVideo.title,
           youtubeId: currentVideo.youtubeId,
-          animeName: currentVideo.animeName,
-          type: currentVideo.type,
+          artistName: currentVideo.artistName,
+          description: currentVideo.description,
           average,
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
         };
+        await recordAndFetchVideoRatings(session, currentVideo);
       }
       await saveSession(session);
       io.to(`session:${session.sessionId}`).emit('room:update', session);
@@ -103,30 +174,22 @@ export function registerGameHandlers(io, socket) {
           if (malTitles.length > 0) {
             // Get all videos in DB to match
             const allVideosResult = await pool.query(
-              `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
+              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
                FROM videos
                ORDER BY order_index ASC`
             );
 
-            const ANIME_SYNONYMS = {
-              'neon genesis evangelion': ['neon genesis evangelion', 'evangelion', 'shinseiki evangelion'],
-              'attack on titan': ['attack on titan', 'shingeki no kyojin', 'snk'],
-              'naruto shippuden': ['naruto shippuden', 'naruto shippuuden', 'naruto: shippuuden', 'naruto'],
-              'tokyo ghoul': ['tokyo ghoul', 'tokyo kushushu']
-            };
-
-            // Filter videos whose anime name matches (substring match, case insensitive, with synonyms)
+            // Filter videos whose description, title, or artist matches
             const matchedVideos = allVideosResult.rows.filter(video => {
-              const videoAnimeNameLower = video.animeName.toLowerCase().trim();
-              const synonyms = ANIME_SYNONYMS[videoAnimeNameLower] || [videoAnimeNameLower];
+              const textToSearch = `${video.description || ''} ${video.artistName || ''} ${video.title || ''}`.toLowerCase().trim();
               
               return malTitles.some(entry => {
                 const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
                 const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
                 
-                return synonyms.some(syn => 
-                  (titleLower && (titleLower.includes(syn) || syn.includes(titleLower))) ||
-                  (engTitleLower && (engTitleLower.includes(syn) || syn.includes(engTitleLower)))
+                return (
+                  (titleLower && textToSearch.includes(titleLower)) ||
+                  (engTitleLower && textToSearch.includes(engTitleLower))
                 );
               });
             });
@@ -154,7 +217,7 @@ export function registerGameHandlers(io, socket) {
           activePlaylistId = 'anime-classics';
         }
         const result = await pool.query(
-          `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
+          `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
            FROM videos 
            WHERE playlist_id = $1 
            ORDER BY order_index ASC`,
@@ -250,13 +313,14 @@ export function registerGameHandlers(io, socket) {
           id: currentVideo.id,
           title: currentVideo.title,
           youtubeId: currentVideo.youtubeId,
-          animeName: currentVideo.animeName,
-          type: currentVideo.type,
+          artistName: currentVideo.artistName,
+          description: currentVideo.description,
           average,
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
         };
+        await recordAndFetchVideoRatings(session, currentVideo);
       }
 
       await saveSession(session);
@@ -361,13 +425,14 @@ export function registerGameHandlers(io, socket) {
           id: currentVideo.id,
           title: currentVideo.title,
           youtubeId: currentVideo.youtubeId,
-          animeName: currentVideo.animeName,
-          type: currentVideo.type,
+          artistName: currentVideo.artistName,
+          description: currentVideo.description,
           average,
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
         };
+        await recordAndFetchVideoRatings(session, currentVideo);
       }
 
       session.currentVideoIndex++;

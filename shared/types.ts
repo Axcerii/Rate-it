@@ -8,10 +8,10 @@ export interface Player {
 
 export interface Video {
   id: string;
-  title: string;
+  title: string;        // Song Name
   youtubeId: string;
-  animeName?: string;
-  type?: 'OP' | 'ED' | 'OTHER';
+  artistName?: string;  // Artist Name
+  description?: string; // Description
 }
 
 export interface Playlist {
@@ -26,12 +26,30 @@ export interface VideoResult {
   id: string;
   title: string;
   youtubeId: string;
-  animeName: string;
-  type: string;
+  artistName?: string;
+  description?: string;
   average: number;
   votesCount: number;
   twitchAverage?: number;
   twitchVotesCount?: number;
+  historicalAverage?: number;
+  historicalVotesCount?: number;
+}
+
+export interface TrackStats {
+  youtubeId: string;
+  title?: string;
+  artistName?: string;
+  description?: string;
+  totalVotes: number;
+  averageRating: number;
+  distribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
 }
 
 export interface GameSession {

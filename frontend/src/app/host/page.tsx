@@ -4,25 +4,25 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import { QRCodeSVG } from 'qrcode.react';
-import { 
-  Eye, 
-  EyeOff, 
-  Copy, 
-  QrCode, 
-  Check, 
-  X, 
-  Disc, 
-  Star, 
-  AlertTriangle, 
-  Gamepad2, 
-  ArrowRight, 
-  ArrowLeft, 
-  UserX, 
-  LogOut, 
-  BarChart2, 
-  SkipForward, 
-  Users, 
-  Trophy, 
+import {
+  Eye,
+  EyeOff,
+  Copy,
+  QrCode,
+  Check,
+  X,
+  Disc,
+  Star,
+  AlertTriangle,
+  Gamepad2,
+  ArrowRight,
+  ArrowLeft,
+  UserX,
+  LogOut,
+  BarChart2,
+  SkipForward,
+  Users,
+  Trophy,
   Home,
   Loader2,
   Frown,
@@ -34,12 +34,13 @@ import {
 
 export default function HostLobby() {
   const router = useRouter();
-  const { 
-    session, 
-    isConnected, 
-    leaveRoom, 
-    startGame, 
-    nextVideo, 
+  const {
+    session,
+    isConnected,
+    leaveRoom,
+    deleteRoom,
+    startGame,
+    nextVideo,
     previousVideo,
     showResults,
     connectTwitch,
@@ -47,7 +48,8 @@ export default function HostLobby() {
     getPlaylists,
     getPlaylistDetails,
     toggleLobbyVideo,
-    getMalVideos
+    getMalVideos,
+    showBanner
   } = useSocket();
 
   const [joinUrl, setJoinUrl] = useState('');
@@ -103,6 +105,37 @@ export default function HostLobby() {
       }
     }
   }, [session, isConnected, router]);
+
+  // Intercept back navigation (browser back button or swipe-back gesture) to confirm room deletion
+  useEffect(() => {
+    if (!session) return;
+
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ hostSession: true }, '', window.location.href);
+    }
+
+    const handlePopState = async () => {
+      const confirmDelete = window.confirm('Are you sure you want to delete this host room session?');
+      if (confirmDelete) {
+        try {
+          await deleteRoom();
+        } catch (err) {
+          console.error(err);
+          leaveRoom();
+        }
+        router.push('/');
+      } else {
+        if (typeof window !== 'undefined') {
+          window.history.pushState({ hostSession: true }, '', window.location.href);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [session, deleteRoom, leaveRoom, router]);
 
   // Load playlists on mount when lobby is active
   useEffect(() => {
@@ -196,11 +229,11 @@ export default function HostLobby() {
 
   const handleStartGame = async () => {
     setSearchPlaylistError(null);
-    
+
     if (quizMode === 'mal') {
       const username = malUsername.trim();
       if (!username) {
-        alert('Please enter your MyAnimeList username to start.');
+        showBanner('Please enter your MyAnimeList username to start.', 'error');
         return;
       }
 
@@ -217,7 +250,7 @@ export default function HostLobby() {
       } catch (error: any) {
         clearTimeout(t1);
         clearTimeout(t2);
-        alert(error.message || 'Failed to start game');
+        showBanner(error.message || 'Failed to start game', 'error');
       } finally {
         setLoadingMessage(null);
       }
@@ -226,7 +259,7 @@ export default function HostLobby() {
       try {
         await startGame(undefined, selectedPlaylistId);
       } catch (error: any) {
-        alert(error.message || 'Failed to start game');
+        showBanner(error.message || 'Failed to start game', 'error');
       } finally {
         setLoadingMessage(null);
       }
@@ -239,8 +272,10 @@ export default function HostLobby() {
     setTwitchError(null);
     try {
       await connectTwitch(twitchChannel.trim());
+      showBanner(`Connected to Twitch chat #${twitchChannel.trim()}`, 'announcement');
     } catch (err: any) {
       setTwitchError(err.message || 'Failed to connect Twitch');
+      showBanner(err.message || 'Failed to connect Twitch', 'error');
     } finally {
       setIsTwitchConnecting(false);
     }
@@ -259,7 +294,7 @@ export default function HostLobby() {
     e.preventDefault();
     setSearchPlaylistError(null);
     if (!searchPlaylistId.trim()) return;
-    
+
     try {
       const res = await getPlaylistDetails(searchPlaylistId.trim().toUpperCase());
       const alreadyPresent = playlists.community.some(p => p.id === res.playlist.id) || playlists.validated.some(p => p.id === res.playlist.id);
@@ -328,21 +363,29 @@ export default function HostLobby() {
     }
   };
 
-  const handleBackToHome = () => {
-    leaveRoom();
-    router.push('/');
+  const handleBackToHome = async () => {
+    const confirmDelete = window.confirm('Are you sure you want to delete this host room session?');
+    if (confirmDelete) {
+      try {
+        await deleteRoom();
+      } catch (err) {
+        console.error(err);
+        leaveRoom();
+      }
+      router.push('/');
+    }
   };
 
   if (loadingMessage) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
-          <Loader2 className="w-10 h-10 animate-spin text-[#002fa7] mx-auto" />
+        <div className="info-card w-full max-w-md p-8 rounded-3xl flex flex-col gap-6">
+          <Loader2 className="w-10 h-10 animate-spin text-[#24B3F1] mx-auto" />
           <h2 className="text-2xl font-black text-black font-title uppercase transform rotate-[-1deg]">
             Setting up Quiz
           </h2>
           <div className="py-4 border-t-2 border-b-2 border-black bg-white rounded-xl">
-            <p className="text-sm font-black text-[#002fa7] uppercase tracking-wide animate-pulse">
+            <p className="text-sm font-black text-[#24B3F1] uppercase tracking-wide animate-pulse">
               {loadingMessage}
             </p>
           </div>
@@ -386,7 +429,7 @@ export default function HostLobby() {
           <div className="flex flex-col sm:flex-row items-center justify-between border-b-4 border-black pb-4 sm:pb-6 gap-4 text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start">
               <img
-                src="/HostText.png"
+                src="/HOST/HostText.png"
                 alt="Host Lobby"
                 className="h-12 sm:h-20 w-auto object-contain max-w-full"
               />
@@ -405,36 +448,33 @@ export default function HostLobby() {
           <div className="flex flex-col sm:flex-row border-4 border-black rounded-2xl overflow-hidden shadow-[4px_4px_0px_0px_#000] font-black text-xs sm:text-sm uppercase shrink-0">
             <button
               onClick={() => setQuizMode('playlist')}
-              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 ${
-                quizMode === 'playlist' 
-                  ? 'bg-[#002fa7] text-white' 
-                  : 'bg-white text-black hover:bg-slate-100'
-              }`}
+              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 ${quizMode === 'playlist'
+                ? 'bg-play text-black'
+                : 'bg-white text-black hover:bg-slate-100'
+                }`}
             >
-              <Disc className="w-4 h-4 shrink-0" />
               <span>Play a Playlist (Pre-made or Custom)</span>
             </button>
             <button
               onClick={() => setQuizMode('mal')}
-              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${
-                quizMode === 'mal' 
-                  ? 'bg-[#990000] text-white' 
-                  : 'bg-white text-black hover:bg-slate-100'
-              }`}
+              className={`flex-1 py-3.5 sm:py-4 px-2 text-center transition-all inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${quizMode === 'mal'
+                ? 'bg-[#990000] text-white'
+                : 'bg-white text-black hover:bg-slate-100'
+                }`}
             >
               <Star className="w-4 h-4 shrink-0" />
               <span>Play MyAnimeList Quiz</span>
             </button>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-5 flex-1 items-start">
+          <div className="grid gap-6 sm:gap-8 lg:grid-cols-5 flex-1 items-start w-full max-w-full">
             {/* Left side parameters (2/5) */}
-            <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="lg:col-span-2 flex flex-col gap-6 w-full max-w-full overflow-hidden">
               {/* Room Code Card */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 text-center rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col items-center">
+              <div className="info-card p-3.5 sm:p-6 text-center rounded-2xl flex flex-col items-center w-full max-w-full">
                 <h3 className="text-xs font-black uppercase text-slate-600">Room Code</h3>
-                
-                <div className="mt-3 w-full text-4xl sm:text-5xl font-black tracking-widest text-black bg-white py-3 rounded-xl border-2 border-black shadow-inner flex items-center justify-center gap-3 relative overflow-hidden">
+
+                <div className="mt-3 w-full text-2xl sm:text-4xl font-black tracking-wider sm:tracking-widest text-black bg-white py-2.5 sm:py-3 rounded-xl border-2 border-black shadow-inner flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden px-2">
                   <span className="font-mono select-all">
                     {showRoomCode ? session.sessionId : '••••••'}
                   </span>
@@ -444,24 +484,24 @@ export default function HostLobby() {
                     title={showRoomCode ? 'Hide Code' : 'Show Code'}
                     className="hover:scale-110 active:scale-95 transition-transform p-1 text-slate-700"
                   >
-                    {showRoomCode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showRoomCode ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2 justify-center w-full">
+                <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center w-full">
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="px-4 py-2 border-2 border-black bg-[#002fa7] text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center gap-1.5"
+                    className="px-3 sm:px-4 py-2 border-2 border-black bg-[#24B3F1] text-black font-black text-[10px] sm:text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center justify-center gap-1.5"
                   >
                     {copiedLink ? (
                       <>
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5 shrink-0" />
                         <span>Link Copied!</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5" />
+                        <Copy className="w-3.5 h-3.5 shrink-0" />
                         <span>Copy Join Link</span>
                       </>
                     )}
@@ -470,16 +510,16 @@ export default function HostLobby() {
                   <button
                     type="button"
                     onClick={() => setShowQRCode(!showQRCode)}
-                    className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center gap-1.5"
+                    className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-[10px] sm:text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition inline-flex items-center justify-center gap-1.5"
                   >
                     {showQRCode ? (
                       <>
-                        <EyeOff className="w-3.5 h-3.5" />
+                        <EyeOff className="w-3.5 h-3.5 shrink-0" />
                         <span>Hide QR Code</span>
                       </>
                     ) : (
                       <>
-                        <QrCode className="w-3.5 h-3.5" />
+                        <QrCode className="w-3.5 h-3.5 shrink-0" />
                         <span>Show QR Code</span>
                       </>
                     )}
@@ -487,65 +527,67 @@ export default function HostLobby() {
                 </div>
 
                 {showQRCode && joinUrl && (
-                  <div className="mt-4 flex flex-col items-center gap-4">
+                  <div className="mt-4 flex flex-col items-center gap-4 w-full">
                     <div className="p-3 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_#000]">
-                      <QRCodeSVG value={joinUrl} size={150} level="H" includeMargin={false} />
+                      <QRCodeSVG value={joinUrl} size={140} level="H" includeMargin={false} />
                     </div>
                     <p className="text-[10px] text-slate-700 font-bold leading-relaxed max-w-xs mt-1">
                       Scan or open this link to rate:
                       <br />
-                      <span className="text-[#002fa7] break-all select-all font-mono">{joinUrl}</span>
+                      <span className="text-[#24B3F1] break-all select-all font-mono">{joinUrl}</span>
                     </p>
                   </div>
                 )}
               </div>
 
               {/* MAL Custom Quiz */}
-              <div className={`bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3 transition-opacity duration-200 ${quizMode !== 'mal' ? 'opacity-35 pointer-events-none' : ''}`}>
-                <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
-                  <span>MyAnimeList Quiz</span>
-                  <span className="text-[9px] bg-[#002fa7]/10 text-[#002fa7] px-2 py-0.5 rounded font-black uppercase">Active</span>
-                </h3>
-                <p className="text-[10px] text-slate-700 font-bold">
-                  Filters themes using your completed MAL profile.
-                </p>
-
-                <form onSubmit={handleLoadMalTracks} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={malUsername}
-                    onChange={(e) => setMalUsername(e.target.value)}
-                    placeholder="MAL Username (e.g. Ryrry)..."
-                    className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs font-bold"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoadingMalTracks}
-                    className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50"
-                  >
-                    {isLoadingMalTracks ? '...' : 'Load'}
-                  </button>
-                </form>
-
-                {malLoadError && (
-                  <p className="text-[10px] text-[#990000] font-black flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{malLoadError}</span>
+              {quizMode === 'mal' && (
+                <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col gap-3 w-full max-w-full overflow-hidden">
+                  <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
+                    <span>MyAnimeList Quiz</span>
+                    <span className="text-[9px] bg-[#24B3F1]/20 text-cyan-950 px-2 py-0.5 rounded font-black uppercase">Active</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-700 font-bold">
+                    Filters themes using your completed MAL profile.
                   </p>
-                )}
 
-                {malConnectedUser && (
-                  <div className="bg-emerald-50 p-2.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
-                    <span className="text-[10px] text-emerald-950 font-black flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Connected: {malConnectedUser}'s Profile ({malTracks.length} matched openings)
-                    </span>
-                  </div>
-                )}
-              </div>
+                  <form onSubmit={handleLoadMalTracks} className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={malUsername}
+                      onChange={(e) => setMalUsername(e.target.value)}
+                      placeholder="MAL Username..."
+                      className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs font-bold"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoadingMalTracks}
+                      className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-50 shrink-0"
+                    >
+                      {isLoadingMalTracks ? '...' : 'Load'}
+                    </button>
+                  </form>
+
+                  {malLoadError && (
+                    <p className="text-[10px] text-[#990000] font-black flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{malLoadError}</span>
+                    </p>
+                  )}
+
+                  {malConnectedUser && (
+                    <div className="bg-emerald-50 p-2.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
+                      <span className="text-[10px] text-emerald-950 font-black flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        Connected: {malConnectedUser}'s Profile ({malTracks.length} matched openings)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Twitch Votes */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-3">
+              <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col gap-3 w-full max-w-full overflow-hidden">
                 <h3 className="text-sm font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
                   <span>Twitch Chat Votes</span>
                   <span className="text-[9px] bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded font-black uppercase">optional</span>
@@ -556,31 +598,31 @@ export default function HostLobby() {
                 {session.twitchChannel ? (
                   <div className="flex flex-col gap-2 bg-purple-50 p-3 border-2 border-purple-300 rounded-xl">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-purple-900 font-black flex items-center gap-1.5">
+                      <span className="text-xs text-purple-900 font-black flex items-center gap-1.5 truncate">
                         <span className="h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
                         Connected to #{session.twitchChannel}
                       </span>
                       <button
                         onClick={handleDisconnectTwitch}
-                        className="text-xs text-[#990000] hover:text-red-500 font-black"
+                        className="text-xs text-[#990000] hover:text-red-500 font-black shrink-0"
                       >
                         Disconnect
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={twitchChannel}
                       onChange={(e) => setTwitchChannel(e.target.value)}
                       placeholder="Channel name..."
-                      className="flex-1 px-3 py-2 border-2 border-black bg-white focus:outline-none text-xs font-bold"
+                      className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none text-xs font-bold"
                     />
                     <button
                       onClick={handleConnectTwitch}
                       disabled={isTwitchConnecting}
-                      className="px-4 py-2 bg-[#002fa7] text-white border-2 border-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-y-0.5 active:translate-x-0.5 disabled:opacity-50"
+                      className="px-4 py-2 bg-[#24B3F1] text-black border-2 border-black font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-y-0.5 active:translate-x-0.5 disabled:opacity-50 shrink-0"
                     >
                       {isTwitchConnecting ? '...' : 'Connect'}
                     </button>
@@ -596,26 +638,26 @@ export default function HostLobby() {
             </div>
 
             {/* Right side parameters (3/5) */}
-            <div className="lg:col-span-3 flex flex-col gap-6">
+            <div className="lg:col-span-3 flex flex-col gap-6 w-full max-w-full overflow-hidden">
               {quizMode === 'playlist' ? (
                 /* PLAYLIST SELECTION CARD */
-                <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px]">
-                  <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
+                <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[420px] w-full max-w-full overflow-hidden">
+                  <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-cyan-950">
                     Playlist Selection & Skip Toggles
                   </h3>
 
                   {/* Search Playlist ID */}
-                  <form onSubmit={handleSearchPlaylist} className="flex gap-2 mb-4">
+                  <form onSubmit={handleSearchPlaylist} className="flex flex-col sm:flex-row gap-2 mb-4">
                     <input
                       type="text"
                       value={searchPlaylistId}
                       onChange={(e) => setSearchPlaylistId(e.target.value)}
-                      placeholder="Enter Share Playlist ID (e.g. PL-A1B2C3)..."
-                      className="flex-1 px-3 py-2 border-2 border-black bg-white text-xs font-bold focus:outline-none"
+                      placeholder="Share Playlist ID..."
+                      className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white text-xs font-bold focus:outline-none"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 border-2 border-black bg-white text-[#002fa7] font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5"
+                      className="px-4 py-2 border-2 border-black bg-white text-cyan-950 font-black text-xs uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 shrink-0"
                     >
                       Load
                     </button>
@@ -628,31 +670,29 @@ export default function HostLobby() {
                   )}
 
                   {/* Playlist Tabs (Validated vs Community) */}
-                  <div className="flex border-b-2 border-black pb-2 mb-4 gap-2">
+                  <div className="flex border-b-2 border-black pb-2 mb-4 gap-1.5 sm:gap-2">
                     <button
                       onClick={() => setPlaylistTab('validated')}
-                      className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
-                        playlistTab === 'validated' 
-                          ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
-                          : 'bg-white hover:bg-slate-100'
-                      }`}
+                      className={`flex-1 px-2 sm:px-3 py-1.5 border-2 border-black font-black text-[9px] sm:text-[10px] uppercase rounded-lg transition text-center ${playlistTab === 'validated'
+                        ? 'bg-[#24B3F1] text-black shadow-[1px_1px_0px_#000]'
+                        : 'bg-white hover:bg-slate-100'
+                        }`}
                     >
                       Validated ({playlists.validated.length})
                     </button>
                     <button
                       onClick={() => setPlaylistTab('community')}
-                      className={`px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase rounded-lg transition ${
-                        playlistTab === 'community' 
-                          ? 'bg-[#002fa7] text-white shadow-[1px_1px_0px_#000]' 
-                          : 'bg-white hover:bg-slate-100'
-                      }`}
+                      className={`flex-1 px-2 sm:px-3 py-1.5 border-2 border-black font-black text-[9px] sm:text-[10px] uppercase rounded-lg transition text-center ${playlistTab === 'community'
+                        ? 'bg-[#24B3F1] text-black shadow-[1px_1px_0px_#000]'
+                        : 'bg-white hover:bg-slate-100'
+                        }`}
                     >
                       Community ({playlists.community.length})
                     </button>
                   </div>
 
                   {/* Playlist Cards List (Scrollable box) */}
-                  <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-48 overflow-y-auto mb-4 flex flex-col gap-3">
+                  <div className="flex-1 border-2 border-black bg-white p-2.5 sm:p-3 rounded-xl max-h-48 overflow-y-auto mb-4 flex flex-col gap-3">
                     {(() => {
                       const activeLists = playlistTab === 'validated' ? playlists.validated : playlists.community;
                       if (activeLists.length === 0) {
@@ -664,21 +704,20 @@ export default function HostLobby() {
                           <div
                             key={p.id}
                             onClick={() => setSelectedPlaylistId(p.id)}
-                            className={`p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-4 ${
-                              isSelected 
-                                ? 'border-4 border-black bg-yellow-100 shadow-[2px_2px_0px_#000]' 
-                                : 'border-black bg-white hover:bg-slate-50'
-                            }`}
+                            className={`p-2.5 sm:p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-2 sm:gap-4 ${isSelected
+                              ? 'border-4 border-black bg-yellow-100 shadow-[2px_2px_0px_#000]'
+                              : 'border-black bg-white hover:bg-slate-50'
+                              }`}
                           >
-                            <div className="text-left truncate">
-                              <div className="flex items-center gap-1.5">
+                            <div className="text-left flex-1 min-w-0 truncate">
+                              <div className="flex items-center gap-1.5 truncate">
                                 {isSelected && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" />}
-                                <span className="font-black text-xs text-black truncate block max-w-[150px] sm:max-w-xs">
+                                <span className="font-black text-xs text-black truncate block max-w-[100px] sm:max-w-xs">
                                   {p.name}
                                 </span>
                               </div>
                               {p.description && (
-                                <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[150px] sm:max-w-xs">
+                                <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[100px] sm:max-w-xs">
                                   {p.description}
                                 </p>
                               )}
@@ -708,7 +747,7 @@ export default function HostLobby() {
                   </div>
 
                   {/* Tracks list inside selected playlist with toggles */}
-                  <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
+                  <div className="flex-1 border-2 border-black bg-white p-2.5 sm:p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
                     <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
                       Lobby Tracks Checklists (Uncheck to skip)
                     </p>
@@ -719,21 +758,20 @@ export default function HostLobby() {
                         {selectedPlaylistTracks.map((track) => {
                           const isDisabled = session.disabledVideoIds?.[track.id] || false;
                           return (
-                            <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-100 last:border-b-0">
-                              <div className="flex items-center gap-2 truncate max-w-[280px]">
-                                <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
-                                  {track.type}
-                                </span>
-                                <span className="truncate text-black">
-                                  {track.animeName} — {track.title}
+                            <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-100 last:border-b-0 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                                <span className="truncate text-black text-[11px] sm:text-xs">
+                                  <span className="font-black">{track.title}</span>
+                                  <span className="text-slate-600 font-bold"> by {track.artistName || 'Unknown Artist'}</span>
+                                  {track.description && <span className="text-slate-500 font-normal"> — {track.description}</span>}
                                 </span>
                               </div>
-                              <label className="flex items-center gap-2 cursor-pointer">
+                              <label className="flex items-center gap-2 cursor-pointer shrink-0">
                                 <input
                                   type="checkbox"
                                   checked={!isDisabled}
                                   onChange={() => handleToggleTrack(track.id)}
-                                  className="h-4.5 w-4.5 accent-[#002fa7] cursor-pointer"
+                                  className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
                                 />
                               </label>
                             </div>
@@ -745,7 +783,7 @@ export default function HostLobby() {
                 </div>
               ) : (
                 /* MYANIMELIST SELECTION CARD */
-                <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[420px]">
+                <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[420px] w-full max-w-full overflow-hidden">
                   <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-[#990000]">
                     MyAnimeList Openings & Skip Toggles
                   </h3>
@@ -759,7 +797,7 @@ export default function HostLobby() {
                       </div>
 
                       {/* Tracks list checklist with toggles */}
-                      <div className="flex-1 border-2 border-black bg-white p-3 rounded-xl max-h-[300px] overflow-y-auto mb-4">
+                      <div className="flex-1 border-2 border-black bg-white p-2.5 sm:p-3 rounded-xl max-h-[300px] overflow-y-auto mb-4">
                         <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
                           MAL Matched Openings (Uncheck to skip)
                         </p>
@@ -770,21 +808,20 @@ export default function HostLobby() {
                             {malTracks.map((track) => {
                               const isDisabled = session.disabledVideoIds?.[track.id] || false;
                               return (
-                                <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1.5 border-b border-slate-100 last:border-b-0">
-                                  <div className="flex items-center gap-2 truncate max-w-[280px]">
-                                    <span className="bg-slate-100 border border-slate-300 text-slate-700 px-1 rounded text-[8px] font-mono font-black uppercase">
-                                      {track.type}
-                                    </span>
-                                    <span className="truncate text-black">
-                                      {track.animeName} — {track.title}
+                                <div key={track.id} className="flex items-center justify-between text-xs font-bold py-1.5 border-b border-slate-100 last:border-b-0 gap-2">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                                    <span className="truncate text-black text-[11px] sm:text-xs">
+                                      <span className="font-black">{track.title}</span>
+                                      <span className="text-slate-600 font-bold"> by {track.artistName || 'Unknown Artist'}</span>
+                                      {track.description && <span className="text-slate-500 font-normal"> — {track.description}</span>}
                                     </span>
                                   </div>
-                                  <label className="flex items-center gap-2 cursor-pointer">
+                                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
                                     <input
                                       type="checkbox"
                                       checked={!isDisabled}
                                       onChange={() => handleToggleTrack(track.id)}
-                                      className="h-4.5 w-4.5 accent-[#990000] cursor-pointer"
+                                      className="h-4 w-4 accent-[#990000] cursor-pointer"
                                     />
                                   </label>
                                 </div>
@@ -806,7 +843,7 @@ export default function HostLobby() {
               )}
 
               {/* Connected players list */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[220px]">
+              <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[220px] w-full max-w-full overflow-hidden">
                 <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
                   <h3 className="text-sm font-black text-black uppercase flex items-center gap-2">
                     Players Joined
@@ -819,20 +856,19 @@ export default function HostLobby() {
                 {playersList.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-6 text-center">
                     <UserX className="w-8 h-8 text-slate-400 animate-pulse mb-2" />
-                    <p className="mt-2 text-xs font-bold text-slate-600">Waiting for players to connect...</p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">Waiting for players to connect...</p>
                   </div>
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 max-h-40 overflow-y-auto pr-1">
+                  <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 max-h-40 overflow-y-auto pr-1">
                     {playersList.map((player) => (
                       <div
                         key={player.id}
-                        className={`flex items-center justify-between p-3 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_#000] ${
-                          player.isConnected ? 'opacity-100' : 'opacity-50 bg-slate-100'
-                        }`}
+                        className={`flex items-center justify-between p-2.5 sm:p-3 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_#000] ${player.isConnected ? 'opacity-100' : 'opacity-50 bg-slate-100'
+                          }`}
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className={`h-2.5 w-2.5 rounded-full ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
-                          <span className="font-black text-xs text-black truncate max-w-[140px]">{player.name}</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
+                          <span className="font-black text-xs text-black truncate">{player.name}</span>
                         </div>
                       </div>
                     ))}
@@ -843,10 +879,10 @@ export default function HostLobby() {
                   <button
                     onClick={handleStartGame}
                     disabled={playersList.length === 0}
-                    className="px-6 py-3 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-40 flex items-center gap-2"
+                    className="w-full sm:w-auto px-6 py-3 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-40 flex items-center justify-center gap-2"
                   >
                     <span>Start Quiz ({playersList.length} players)</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4 shrink-0" />
                   </button>
                 </div>
               </div>
@@ -880,12 +916,12 @@ export default function HostLobby() {
     const tCount = currentRoundRes?.twitchVotesCount ?? twitchVotesList.length;
 
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent p-6 font-sans">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-4 sm:py-6 font-sans w-full max-w-full overflow-x-hidden">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6">
           {/* Top Panel bar */}
-          <div className="flex items-center justify-between border-b-2 border-black pb-4">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between border-b-2 border-black pb-3 sm:pb-4 gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2">
                 <span>Lobby Code:</span>
                 <span className="font-mono font-black text-black">
                   {showRoomCode ? session.sessionId : '••••••'}
@@ -907,12 +943,12 @@ export default function HostLobby() {
               >
                 {copiedLink ? (
                   <>
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-3.5 h-3.5 shrink-0" />
                     <span>Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5" />
+                    <Copy className="w-3.5 h-3.5 shrink-0" />
                     <span>Copy Link</span>
                   </>
                 )}
@@ -921,10 +957,10 @@ export default function HostLobby() {
 
             <button
               onClick={handleBackToHome}
-              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
+              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5 shrink-0"
             >
               <span>Quit Game</span>
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
             </button>
           </div>
 
@@ -936,16 +972,16 @@ export default function HostLobby() {
               </div>
 
               {/* Navigation controls */}
-              <div className="flex justify-between items-center bg-[#f0ead8] border-4 border-black p-4 rounded-2xl shadow-[4px_4px_0px_#000]">
+              <div className="flex flex-wrap justify-between items-center bg-[#f0ead8] border-4 border-black p-3 sm:p-4 rounded-2xl shadow-[4px_4px_0px_#000] gap-2">
                 <button
                   onClick={handlePrev}
                   disabled={session.currentVideoIndex === 0}
-                  className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl transition disabled:opacity-40 inline-flex items-center gap-1.5"
+                  className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl transition disabled:opacity-40 inline-flex items-center gap-1.5"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
                   <span>Prev</span>
                 </button>
-                
+
                 <span className="text-xs font-black text-black">
                   Track {session.currentVideoIndex + 1} / {session.videos?.length}
                 </span>
@@ -953,17 +989,17 @@ export default function HostLobby() {
                 {session.phase === 'REVEAL' ? (
                   <button
                     onClick={handleProceedAfterReveal}
-                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
+                    className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
                   >
                     <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results' : 'Next Theme'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4 shrink-0" />
                   </button>
                 ) : (
                   <button
                     onClick={handleShowResults}
-                    className="px-5 py-2.5 bg-[#002fa7] border-2 border-black text-white font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
+                    className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-1.5"
                   >
-                    <BarChart2 className="w-4 h-4" />
+                    <BarChart2 className="w-4 h-4 shrink-0" />
                     <span>Show Vote Results</span>
                   </button>
                 )}
@@ -973,19 +1009,19 @@ export default function HostLobby() {
             {/* Side info & live votes status (1/3) */}
             <div className="lg:col-span-1 flex flex-col gap-6">
               {/* Currently Playing details */}
-              <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000]">
+              <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl shadow-[4px_4px_0px_#000]">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Currently playing</span>
-                <h2 className="mt-2 text-2xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
-                  {currentVideo.animeName}
+                <h2 className="mt-2 text-xl sm:text-2xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
+                  {currentVideo.title}
                 </h2>
-                <p className="text-xs font-bold text-[#990000] uppercase">
-                  {currentVideo.type} — {currentVideo.title}
+                <p className="text-xs font-bold text-cyan-950">
+                  By {currentVideo.artistName || 'Unknown Artist'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                 </p>
               </div>
 
               {/* Twitch Live votes tracking */}
               {session.twitchChannel && (
-                <div className="bg-[#f0ead8] border-4 border-black p-5 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col gap-2">
+                <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-5 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col gap-2">
                   <h3 className="text-xs font-black uppercase text-purple-700 flex items-center gap-1.5 border-b border-purple-200 pb-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse border border-black" />
                     Twitch Chat Votes
@@ -1000,7 +1036,7 @@ export default function HostLobby() {
               )}
 
               {/* Live Players Voting details */}
-              <div className="flex-1 bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col">
+              <div className="flex-1 bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl shadow-[4px_4px_0px_#000] flex flex-col">
                 <div className="flex items-center justify-between border-b border-black pb-2 mb-4">
                   <h3 className="text-xs font-black uppercase text-black">
                     Active Votes ({Object.keys(session.votes || {}).length} / {playersList.length})
@@ -1019,8 +1055,8 @@ export default function HostLobby() {
                 <div className="flex-1 overflow-y-auto max-h-48 flex flex-col gap-2 pr-1">
                   {playersList.map((player) => {
                     const hasVoted = session.votes?.[player.id] !== undefined;
-                    const hasSkipped = session.phase === 'REVEAL' 
-                      ? session.revealSkips?.[player.id] 
+                    const hasSkipped = session.phase === 'REVEAL'
+                      ? session.revealSkips?.[player.id]
                       : session.skips?.[player.id];
 
                     return (
@@ -1028,13 +1064,13 @@ export default function HostLobby() {
                         key={player.id}
                         className="flex items-center justify-between p-2.5 border-2 border-black bg-white rounded-xl shadow-[2px_2px_0px_#000]"
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className={`h-2.5 w-2.5 rounded-full ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
-                          <span className="font-black text-xs text-black truncate max-w-[120px]">
+                        <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
+                          <span className="font-black text-xs text-black truncate max-w-[100px] sm:max-w-[120px]">
                             {player.name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           {hasSkipped && (
                             <span className="px-1.5 py-0.5 border border-black rounded bg-slate-200 text-slate-800 text-[8px] font-black uppercase flex items-center gap-1">
                               <span>Skipped</span>
@@ -1063,23 +1099,23 @@ export default function HostLobby() {
 
         {/* WarioWare-styled Reveal Modal */}
         {session.phase === 'REVEAL' && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300">
-            <div className="w-full max-w-3xl bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[8px_8px_0px_#000] text-center flex flex-col gap-6 mx-4 relative overflow-hidden">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 p-2">
+            <div className="w-full max-w-3xl bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[8px_8px_0px_#000] text-center flex flex-col gap-4 sm:gap-6 relative overflow-hidden max-h-[92vh] overflow-y-auto">
               <div className="flex flex-col gap-1 z-10">
                 <span className="text-[10px] uppercase font-black text-slate-600 tracking-wider">Round Results</span>
-                <h2 className="text-3xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
-                  {currentVideo.animeName}
+                <h2 className="text-xl sm:text-3xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-1">
+                  {currentVideo.title}
                 </h2>
-                <p className="text-sm font-black text-[#990000] uppercase">
-                  {currentVideo.type} — {currentVideo.title}
+                <p className="text-xs sm:text-sm font-black text-cyan-950">
+                  By {currentVideo.artistName || 'Unknown Artist'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                 </p>
               </div>
 
-              <div className="grid gap-6 sm:grid-cols-2 mt-2 z-10">
+              <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 mt-1 z-10">
                 {/* Players Rating Card */}
-                <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
-                  <span className="text-[10px] uppercase font-black text-[#002fa7] tracking-wider">Players Average</span>
-                  <span className="text-5xl font-black text-black font-mono leading-none">
+                <div className="rounded-2xl border-4 border-black bg-white p-4 sm:p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
+                  <span className="text-[10px] uppercase font-black text-cyan-950 tracking-wider">Players Average</span>
+                  <span className="text-4xl sm:text-5xl font-black text-black font-mono leading-none">
                     {pAvg.toFixed(2)}
                   </span>
                   <span className="text-xs text-slate-500 font-bold mt-1">
@@ -1088,11 +1124,11 @@ export default function HostLobby() {
                 </div>
 
                 {/* Twitch Rating Card */}
-                <div className="rounded-2xl border-4 border-black bg-white p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
+                <div className="rounded-2xl border-4 border-black bg-white p-4 sm:p-5 flex flex-col items-center justify-center gap-2 shadow-[4px_4px_0px_#000]">
                   <span className="text-[10px] uppercase font-black text-purple-700 tracking-wider">Twitch Chat Average</span>
                   {tCount > 0 ? (
                     <>
-                      <span className="text-5xl font-black text-black font-mono leading-none">
+                      <span className="text-4xl sm:text-5xl font-black text-black font-mono leading-none">
                         {tAvg.toFixed(2)}
                       </span>
                       <span className="text-xs text-slate-500 font-bold mt-1">
@@ -1110,13 +1146,27 @@ export default function HostLobby() {
                     </>
                   )}
                 </div>
+
+                {/* All-Time Historical Average Card */}
+                {currentRoundRes?.historicalAverage !== undefined && (
+                  <div className="sm:col-span-2 rounded-2xl border-2 border-black bg-amber-50 p-3.5 flex items-center justify-between shadow-[2px_2px_0px_#000] text-left">
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-amber-950 tracking-wider block">All-Time Global Rating</span>
+                      <span className="text-[10px] text-amber-800 font-bold">Based on {currentRoundRes.historicalVotesCount || 0} historical ratings across all room sessions</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-black text-[#faf6eb] px-3 py-1.5 rounded-xl border-2 border-black font-mono font-black text-sm sm:text-base shrink-0">
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+                      <span>{currentRoundRes.historicalAverage.toFixed(2)} / 5</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Requirement 2: Individual Player Votes Breakdown */}
-              <div className="rounded-2xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_#000] text-left z-10">
+              <div className="rounded-2xl border-4 border-black bg-white p-3 sm:p-4 shadow-[4px_4px_0px_#000] text-left z-10">
                 <h4 className="text-xs font-black uppercase text-black border-b-2 border-black pb-2 mb-3 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[#002fa7]" />
+                    <Users className="w-4 h-4 text-[#24B3F1]" />
                     <span>Player Votes Breakdown</span>
                   </span>
                   <span className="text-[9px] font-mono text-slate-500">({playersList.length} players)</span>
@@ -1139,7 +1189,7 @@ export default function HostLobby() {
                           2: { text: '2 Meh', bg: 'bg-orange-500 text-white', icon: <MehIcon className="w-3 h-3" /> },
                           3: { text: '3 Good', bg: 'bg-yellow-400 text-black', icon: <Smile className="w-3 h-3" /> },
                           4: { text: '4 Great', bg: 'bg-emerald-500 text-white', icon: <Sparkles className="w-3 h-3" /> },
-                          5: { text: '5 Masterpiece', bg: 'bg-[#002fa7] text-white', icon: <Crown className="w-3 h-3 text-amber-300" /> },
+                          5: { text: '5 Masterpiece', bg: 'bg-[#24B3F1] text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
                         };
                         const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white', icon: null };
                         voteBadge = (
@@ -1151,7 +1201,7 @@ export default function HostLobby() {
                       }
                       return (
                         <div key={player.id} className="flex items-center justify-between p-2 border-2 border-black rounded-xl bg-slate-50 shadow-[1px_1px_0px_#000]">
-                          <span className="text-xs font-black text-black truncate max-w-[110px]">{player.name}</span>
+                          <span className="text-xs font-black text-black truncate max-w-[90px] sm:max-w-[110px]">{player.name}</span>
                           {voteBadge}
                         </div>
                       );
@@ -1163,10 +1213,10 @@ export default function HostLobby() {
               <div className="mt-2 flex justify-center z-10">
                 <button
                   onClick={handleProceedAfterReveal}
-                  className="px-8 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
+                  className="px-6 sm:px-8 py-3 bg-[#24B3F1] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
                 >
                   <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard' : 'Continue to Next Track'}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
               </div>
             </div>
@@ -1181,18 +1231,18 @@ export default function HostLobby() {
     const sortedResults = Object.values(session.results || {}).sort((a, b) => a.average - b.average);
 
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-6 py-12 font-sans">
-        <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-8 justify-center">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-12 font-sans w-full max-w-full overflow-x-hidden">
+        <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8 justify-center">
           <div className="text-center border-b-4 border-black pb-4">
-            <h1 className="text-4xl font-black font-title uppercase text-[#990000] drop-shadow-[2px_2px_0px_#000] inline-flex items-center gap-3">
-              <Trophy className="w-8 h-8 text-amber-500" />
+            <h1 className="text-2xl sm:text-4xl font-[#990000] font-black font-title uppercase drop-shadow-[2px_2px_0px_#000] flex flex-wrap justify-center items-center gap-2 sm:gap-3">
+              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
               <span>FINAL LEADERBOARD</span>
-              <Trophy className="w-8 h-8 text-amber-500" />
+              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
             </h1>
             <p className="text-xs font-bold text-slate-700 mt-2">Ranked from the worst average score to the best</p>
           </div>
 
-          <div className="bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6">
+          <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_#000] sm:shadow-[6px_6px_0px_0px_#000] flex flex-col gap-6 w-full max-w-full overflow-hidden">
             {sortedResults.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold text-xs">
                 No votes were recorded during this session.
@@ -1201,11 +1251,11 @@ export default function HostLobby() {
               <div className="flex flex-col gap-4">
                 {sortedResults.map((result, idx) => {
                   const percent = (result.average / 5) * 100;
-                  
+
                   // Color highlights based on rankings
                   let cardBg = "bg-white";
                   let borderStyle = "border-2 border-black shadow-[3px_3px_0px_#000]";
-                  
+
                   if (idx === sortedResults.length - 1) {
                     // Winner gets the highlighted bright Wario yellow card
                     cardBg = "bg-[#facc15]";
@@ -1226,10 +1276,10 @@ export default function HostLobby() {
                         </div>
                         <div>
                           <h3 className="font-black text-black text-sm sm:text-base leading-snug">
-                            {result.animeName}
+                            {result.title}
                           </h3>
                           <p className="text-[10px] font-bold text-slate-600 mt-0.5">
-                            {result.type} — {result.title}
+                            By {result.artistName || 'Unknown Artist'} {result.description ? `— ${result.description}` : ''}
                           </p>
                         </div>
                       </div>
@@ -1239,9 +1289,9 @@ export default function HostLobby() {
                         <div className="flex items-center gap-4 justify-between">
                           {/* Players Flat Score Bar */}
                           <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                            <div className="h-full bg-[#002fa7] border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${percent}%` }} />
+                            <div className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${percent}%` }} />
                           </div>
-                          
+
                           <div className="text-right flex items-center gap-2 min-w-[90px]">
                             <div className="flex flex-col items-end">
                               <span className="text-lg font-black text-black font-mono leading-none">
@@ -1262,7 +1312,7 @@ export default function HostLobby() {
                             <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
                               <div className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }} />
                             </div>
-                            
+
                             <div className="text-right flex items-center gap-2 min-w-[90px]">
                               <div className="flex flex-col items-end">
                                 <span className="text-lg font-black text-purple-700 font-mono leading-none">
@@ -1286,7 +1336,7 @@ export default function HostLobby() {
             <div className="flex justify-center border-t-2 border-black pt-6 mt-2">
               <button
                 onClick={handleBackToHome}
-                className="px-8 py-3.5 bg-[#002fa7] border-2 border-black text-white font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
+                className="px-8 py-3.5 bg-[#24B3F1] border-2 border-black text-black font-black text-sm uppercase rounded-xl shadow-[3px_3px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center gap-2"
               >
                 <Home className="w-4 h-4" />
                 <span>Back to Homepage</span>

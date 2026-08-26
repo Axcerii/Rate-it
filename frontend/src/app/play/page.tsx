@@ -3,26 +3,26 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
-import { 
-  CheckCircle2, 
-  Gamepad2, 
-  LogOut, 
-  BarChart2, 
-  Check, 
-  SkipForward, 
-  Frown, 
-  Meh as MehIcon, 
-  Smile, 
-  Sparkles, 
-  Crown, 
-  Star, 
-  Trophy, 
-  Home 
+import {
+  CheckCircle2,
+  Gamepad2,
+  LogOut,
+  BarChart2,
+  Check,
+  SkipForward,
+  Frown,
+  Meh as MehIcon,
+  Smile,
+  Sparkles,
+  Crown,
+  Star,
+  Trophy,
+  Home
 } from 'lucide-react';
 
 export default function PlayView() {
   const router = useRouter();
-  const { session, isConnected, playerId, leaveRoom, submitVote, toggleSkip } = useSocket();
+  const { session, isConnected, playerId, leaveRoom, submitVote, toggleSkip, showBanner } = useSocket();
 
   // Redirect back to home only if there is no session to restore and connection is established
   useEffect(() => {
@@ -42,16 +42,18 @@ export default function PlayView() {
   const handleVote = async (voteValue: number) => {
     try {
       await submitVote(voteValue);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to submit vote:', error);
+      showBanner(error.message || 'Failed to submit vote', 'error');
     }
   };
 
   const handleToggleSkip = async () => {
     try {
       await toggleSkip();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle skip:', error);
+      showBanner(error.message || 'Failed to skip', 'error');
     }
   };
 
@@ -80,19 +82,19 @@ export default function PlayView() {
   if (session.status === 'LOBBY') {
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-4 py-6 sm:py-8 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
+        <div className="info-card w-full max-w-md p-5 sm:p-8 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
             <div className="px-3 py-1 border-2 border-black bg-emerald-400 text-black text-xs font-black uppercase rounded-lg inline-flex items-center gap-1.5">
               <span>CONNECTED</span>
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
             <img
-              src="/JoinText.png"
+              src="/JOIN/JoinText.png"
               alt="Join"
               className="h-14 sm:h-20 w-auto object-contain max-w-full my-2"
             />
             <p className="text-xs font-bold text-slate-700">
-              Room Code: <span className="font-mono font-black text-[#002fa7] tracking-wider">{session.sessionId}</span>
+              Room Code: <span className="font-mono font-black text-[#DD4DCC] tracking-wider">{session.sessionId}</span>
             </p>
           </div>
 
@@ -130,8 +132,8 @@ export default function PlayView() {
     const isRevealPhase = session.phase === 'REVEAL';
     const hasSkipped = isRevealPhase ? !!session.revealSkips?.[playerId] : !!session.skips?.[playerId];
     const activeConnectedPlayers = Object.values(session.players || {}).filter(p => p.isConnected);
-    const skipsCount = isRevealPhase 
-      ? Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length 
+    const skipsCount = isRevealPhase
+      ? Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length
       : Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
 
     const ratingOptions = [
@@ -144,13 +146,13 @@ export default function PlayView() {
 
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-4 py-4 sm:py-8 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-5 sm:gap-6">
+        <div className="info-card w-full max-w-md p-4 sm:p-8 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-5 sm:gap-6">
           {/* Header */}
           <div className="flex justify-between items-center border-b-2 border-black pb-3">
             <span className="text-[10px] font-black text-slate-600 uppercase truncate max-w-[140px]">
               Name: {currentPlayer?.name}
             </span>
-            <span className="text-[10px] font-black text-[#002fa7] uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-black">
+            <span className="text-[10px] font-black text-[#DD4DCC] uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-black">
               Room {session.sessionId}
             </span>
           </div>
@@ -160,37 +162,36 @@ export default function PlayView() {
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 py-0.5 rounded border border-slate-200 inline-block mx-auto px-2">
                 Theme {session.currentVideoIndex + 1} of {session.videos?.length}
               </span>
-              
+
               <div className="flex flex-col gap-1.5 mt-2">
                 <h2 className="text-xl sm:text-2xl font-black font-title text-black leading-tight border-b-2 border-black pb-2">
-                  {currentVideo.animeName}
+                  {currentVideo.title}
                 </h2>
-                <p className="text-xs font-bold text-[#990000] uppercase mt-1">
-                  {currentVideo.type} — {currentVideo.title}
+                <p className="text-xs font-bold text-fuchsia-950 mt-1">
+                  By {currentVideo.artistName || 'Unknown Artist'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                 </p>
               </div>
 
               {isRevealPhase ? (
                 /* REVEAL PHASE PLAYER VIEW */
                 <div className="mt-4 flex flex-col gap-4 py-3 bg-white p-5 rounded-2xl border-2 border-black shadow-[2px_2px_0px_#000]">
-                  <span className="text-xs font-black text-[#002fa7] uppercase flex items-center justify-center gap-1.5">
+                  <span className="text-xs font-black text-fuchsia-900 uppercase flex items-center justify-center gap-1.5">
                     <BarChart2 className="w-4 h-4" />
                     <span>Vote Results Revealed on Main Screen!</span>
                   </span>
                   <div className="text-xs font-black text-black">
                     {currentVote !== undefined ? (
-                      <span>Your vote: <strong className="text-base font-mono text-[#002fa7]">{currentVote}/5</strong></span>
+                      <span>Your vote: <strong className="text-base font-mono text-[#DD4DCC]">{currentVote}/5</strong></span>
                     ) : (
                       <span className="text-slate-500">You didn't submit a vote this round</span>
                     )}
                   </div>
                   <button
                     onClick={handleToggleSkip}
-                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${
-                      hasSkipped 
-                        ? 'bg-purple-200 text-purple-950 border-dashed' 
-                        : 'bg-[#002fa7] text-white hover:bg-blue-700'
-                    }`}
+                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${hasSkipped
+                        ? 'bg-purple-200 text-purple-950 border-dashed'
+                        : 'bg-[#DD4DCC] text-white hover:bg-fuchsia-600'
+                      }`}
                   >
                     {hasSkipped ? <Check className="w-3.5 h-3.5" /> : <SkipForward className="w-3.5 h-3.5" />}
                     <span>{hasSkipped ? 'Ready for Next Video' : 'Skip to Next Track'}</span>
@@ -206,14 +207,14 @@ export default function PlayView() {
                     {ratingOptions.map((item) => {
                       const isSelected = currentVote === item.value;
                       const isAnySelected = currentVote !== undefined;
-                      
+
                       let btnStyle = "border-2 border-black bg-white text-black hover:-translate-y-0.5 active:translate-y-0.5";
                       if (isSelected) {
                         if (item.value === 1) btnStyle = "border-4 border-black bg-red-600 text-white shadow-[2px_2px_0px_#000]";
                         else if (item.value === 2) btnStyle = "border-4 border-black bg-orange-500 text-white shadow-[2px_2px_0px_#000]";
                         else if (item.value === 3) btnStyle = "border-4 border-black bg-yellow-400 text-black shadow-[2px_2px_0px_#000]";
                         else if (item.value === 4) btnStyle = "border-4 border-black bg-emerald-500 text-white shadow-[2px_2px_0px_#000]";
-                        else if (item.value === 5) btnStyle = "border-4 border-black bg-[#002fa7] text-white shadow-[2px_2px_0px_#000]";
+                        else if (item.value === 5) btnStyle = "border-4 border-black bg-[#DD4DCC] text-white shadow-[2px_2px_0px_#000]";
                       } else if (isAnySelected) {
                         btnStyle = "border-2 border-slate-300 bg-slate-100 text-slate-400 opacity-40";
                       } else {
@@ -259,11 +260,10 @@ export default function PlayView() {
                   {/* Skip Button for Player */}
                   <button
                     onClick={handleToggleSkip}
-                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${
-                      hasSkipped 
-                        ? 'bg-amber-200 text-amber-950 border-dashed' 
+                    className={`w-full py-3 px-4 border-2 border-black font-black text-xs uppercase rounded-xl transition shadow-[2px_2px_0px_#000] flex items-center justify-center gap-2 ${hasSkipped
+                        ? 'bg-amber-200 text-amber-950 border-dashed'
                         : 'bg-white hover:bg-slate-100 text-black'
-                    }`}
+                      }`}
                   >
                     {hasSkipped ? <Check className="w-3.5 h-3.5" /> : <SkipForward className="w-3.5 h-3.5" />}
                     <span>{hasSkipped ? 'You Voted to Skip Video' : 'Vote to Skip Video'}</span>
@@ -294,7 +294,7 @@ export default function PlayView() {
   if (session.status === 'LEADERBOARD') {
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-4 py-8 font-sans justify-center items-center">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center flex flex-col gap-6">
+        <div className="info-card w-full max-w-md p-8 rounded-3xl text-center flex flex-col gap-6">
           <Trophy className="w-14 h-14 text-amber-500 mx-auto animate-bounce" />
           <h2 className="text-3xl font-black font-title text-black uppercase transform rotate-[-1deg]">Game Finished!</h2>
           <p className="text-xs font-bold text-slate-700 leading-relaxed max-w-xs mx-auto">
@@ -303,7 +303,7 @@ export default function PlayView() {
 
           <button
             onClick={handleLeave}
-            className="w-full mt-4 py-3.5 px-6 bg-[#002fa7] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center justify-center gap-2"
+            className="w-full mt-4 py-3.5 px-6 bg-[#DD4DCC] text-white border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform inline-flex items-center justify-center gap-2"
           >
             <Home className="w-4 h-4" />
             <span>Back to Homepage</span>

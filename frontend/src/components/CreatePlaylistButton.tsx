@@ -38,7 +38,7 @@ export default function CreatePlaylistButton({
 
         {/* 1. Background Graphic Layer (CréerBackground.png) - Pops out top & sides */}
         <img
-          src="/Cr%C3%A9erBackground.png"
+          src="/CREATE/Cr%C3%A9erBackground.png"
           alt=""
           aria-hidden="true"
           className="absolute -top-[12%] -bottom-[12%] w-full sm:w-[104%] h-[124%] max-w-full sm:max-w-none object-contain pointer-events-none z-10 transition-transform duration-300 ease-out group-hover:scale-105 group-focus-visible:scale-105 group-hover:-translate-y-1 group-focus-visible:-translate-y-1"
@@ -46,7 +46,7 @@ export default function CreatePlaylistButton({
 
         {/* 2. Text Graphic Layer (CréerText.png) - Bigger text that pops out bottom & top */}
         <img
-          src="/Cr%C3%A9erText.png"
+          src="/CREATE/Cr%C3%A9erText.png"
           alt=""
           aria-hidden="true"
           className="absolute left-1/2 top-6/7 -translate-x-1/2 -translate-y-1/2 z-20 w-[95%] sm:w-[92%] md:w-[90%] max-w-none h-auto object-contain pointer-events-none transition-transform duration-300 ease-out origin-center group-hover:scale-108 group-focus-visible:scale-108 group-hover:-translate-y-[55%] group-focus-visible:-translate-y-[55%] group-hover:drop-shadow-[0_10px_20px_rgba(10,99,30,0.6)] group-focus-visible:drop-shadow-[0_10px_20px_rgba(10,99,30,0.6)]"

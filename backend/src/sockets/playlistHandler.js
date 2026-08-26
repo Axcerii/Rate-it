@@ -74,14 +74,14 @@ export function registerPlaylistHandlers(io, socket) {
           throw new Error(`Track at index ${i} is missing title or YouTube URL.`);
         }
         await client.query(
-          `INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
+          `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, order_index)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             playlistId,
             video.title.trim(),
             video.youtubeId.trim(),
-            video.animeName ? video.animeName.trim() : 'Unknown Anime',
-            video.type ? video.type.trim() : 'OP',
+            video.artistName ? video.artistName.trim() : 'Unknown Artist',
+            video.description ? video.description.trim() : '',
             i,
           ]
         );
@@ -121,7 +121,7 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       const videosRes = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type", order_index
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, order_index
          FROM videos
          WHERE playlist_id = $1
          ORDER BY order_index ASC`,
@@ -148,9 +148,9 @@ export function registerPlaylistHandlers(io, socket) {
     try {
       const searchQuery = `%${(query || '').trim()}%`;
       const result = await pool.query(
-        `SELECT DISTINCT ON (youtube_id) title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
+        `SELECT DISTINCT ON (youtube_id) title, youtube_id as "youtubeId", artist_name as "artistName", description
          FROM videos
-         WHERE anime_name ILIKE $1 OR title ILIKE $1
+         WHERE artist_name ILIKE $1 OR title ILIKE $1 OR description ILIKE $1
          LIMIT 15`,
         [searchQuery]
       );
@@ -296,7 +296,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch all videos from the database
       const allVideosResult = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", anime_name as "animeName", video_type as "type"
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
          FROM videos
          ORDER BY order_index ASC`
       );
@@ -308,18 +308,17 @@ export function registerPlaylistHandlers(io, socket) {
         'tokyo ghoul': ['tokyo ghoul', 'tokyo kushushu']
       };
 
-      // Filter videos whose anime name matches (substring match, case insensitive, with synonyms)
+      // Filter videos whose description, title, or artist matches
       const matchedVideos = allVideosResult.rows.filter(video => {
-        const videoAnimeNameLower = video.animeName.toLowerCase().trim();
-        const synonyms = ANIME_SYNONYMS[videoAnimeNameLower] || [videoAnimeNameLower];
+        const textToSearch = `${video.description || ''} ${video.artistName || ''} ${video.title || ''}`.toLowerCase().trim();
         
         return malTitles.some(entry => {
           const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
           const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
           
-          return synonyms.some(syn => 
-            (titleLower && (titleLower.includes(syn) || syn.includes(titleLower))) ||
-            (engTitleLower && (engTitleLower.includes(syn) || syn.includes(engTitleLower)))
+          return (
+            (titleLower && textToSearch.includes(titleLower)) ||
+            (engTitleLower && textToSearch.includes(engTitleLower))
           );
         });
       });
@@ -349,7 +348,7 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // Admin: Add video to playlist
-  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, animeName, type, password }, callback) => {
+  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, artistName, description, password }, callback) => {
     try {
       if (password !== ADMIN_PASSWORD) {
         throw new Error('Invalid admin password');
@@ -367,15 +366,15 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Insert video
       const insertRes = await pool.query(
-        `INSERT INTO videos (playlist_id, title, youtube_id, anime_name, video_type, order_index)
+        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, order_index)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id::text`,
         [
           playlistId,
           title.trim(),
           youtubeId.trim(),
-          animeName ? animeName.trim() : 'Unknown Anime',
-          type ? type.trim() : 'OP',
+          artistName ? artistName.trim() : 'Unknown Artist',
+          description ? description.trim() : '',
           nextIndex
         ]
       );
@@ -415,6 +414,131 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error deleting video as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Get rating statistics for a specific video
+  socket.on('video:get_stats', async ({ youtubeId }, callback) => {
+    try {
+      if (!youtubeId) {
+        throw new Error('YouTube ID is required');
+      }
+
+      const res = await pool.query(
+        `SELECT 
+           COUNT(*)::int as total,
+           COALESCE(AVG(rating), 0) as avg,
+           COUNT(CASE WHEN rating = 1 THEN 1 END)::int as r1,
+           COUNT(CASE WHEN rating = 2 THEN 1 END)::int as r2,
+           COUNT(CASE WHEN rating = 3 THEN 1 END)::int as r3,
+           COUNT(CASE WHEN rating = 4 THEN 1 END)::int as r4,
+           COUNT(CASE WHEN rating = 5 THEN 1 END)::int as r5
+         FROM ratings
+         WHERE youtube_id = $1`,
+        [youtubeId]
+      );
+
+      const row = res.rows[0];
+      const stats = {
+        youtubeId,
+        totalVotes: row.total,
+        averageRating: parseFloat(parseFloat(row.avg).toFixed(2)),
+        distribution: {
+          1: row.r1,
+          2: row.r2,
+          3: row.r3,
+          4: row.r4,
+          5: row.r5,
+        },
+      };
+
+      if (typeof callback === 'function') {
+        callback({ success: true, stats });
+      }
+    } catch (error) {
+      console.error(`Error fetching stats for video ${youtubeId}:`, error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Admin: Get global ratings statistics and top/worst rated tracks
+  socket.on('admin:get_global_stats', async ({ password }, callback) => {
+    try {
+      if (password !== ADMIN_PASSWORD) {
+        throw new Error('Invalid admin password');
+      }
+
+      // 1. Overall aggregated counts
+      const overallRes = await pool.query(
+        `SELECT 
+           COUNT(*)::int as total,
+           COALESCE(AVG(rating), 0) as avg,
+           COUNT(CASE WHEN rating = 1 THEN 1 END)::int as r1,
+           COUNT(CASE WHEN rating = 2 THEN 1 END)::int as r2,
+           COUNT(CASE WHEN rating = 3 THEN 1 END)::int as r3,
+           COUNT(CASE WHEN rating = 4 THEN 1 END)::int as r4,
+           COUNT(CASE WHEN rating = 5 THEN 1 END)::int as r5
+         FROM ratings`
+      );
+      const overallRow = overallRes.rows[0];
+
+      // 2. Top-rated tracks (at least 1 vote)
+      const topTracksRes = await pool.query(
+        `SELECT 
+           r.youtube_id as "youtubeId",
+           v.title,
+           v.artist_name as "artistName",
+           v.description,
+           COUNT(r.id)::int as "totalVotes",
+           ROUND(AVG(r.rating)::numeric, 2)::float as "averageRating"
+         FROM ratings r
+         LEFT JOIN videos v ON r.youtube_id = v.youtube_id
+         GROUP BY r.youtube_id, v.title, v.artist_name, v.description
+         ORDER BY "averageRating" DESC, "totalVotes" DESC
+         LIMIT 10`
+      );
+
+      // 3. Worst-rated tracks (at least 1 vote)
+      const worstTracksRes = await pool.query(
+        `SELECT 
+           r.youtube_id as "youtubeId",
+           v.title,
+           v.artist_name as "artistName",
+           v.description,
+           COUNT(r.id)::int as "totalVotes",
+           ROUND(AVG(r.rating)::numeric, 2)::float as "averageRating"
+         FROM ratings r
+         LEFT JOIN videos v ON r.youtube_id = v.youtube_id
+         GROUP BY r.youtube_id, v.title, v.artist_name, v.description
+         ORDER BY "averageRating" ASC, "totalVotes" DESC
+         LIMIT 10`
+      );
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          overall: {
+            totalVotes: overallRow.total,
+            averageRating: parseFloat(parseFloat(overallRow.avg).toFixed(2)),
+            distribution: {
+              1: overallRow.r1,
+              2: overallRow.r2,
+              3: overallRow.r3,
+              4: overallRow.r4,
+              5: overallRow.r5,
+            },
+          },
+          topTracks: topTracksRes.rows,
+          worstTracks: worstTracksRes.rows,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching global ratings stats:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

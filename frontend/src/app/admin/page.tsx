@@ -15,6 +15,7 @@ export default function AdminConsole() {
     getPlaylistDetails,
     adminAddVideo,
     adminDeleteVideo,
+    getGlobalStats,
     isConnected 
   } = useSocket();
 
@@ -25,7 +26,29 @@ export default function AdminConsole() {
   // Playlists data
   const [validatedLists, setValidatedLists] = useState<any[]>([]);
   const [communityLists, setCommunityLists] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'pending' | 'validated' | 'all'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'validated' | 'all' | 'analytics'>('pending');
+
+  // Global Ratings Analytics State
+  const [globalStats, setGlobalStats] = useState<{ overall: any; topTracks: any[]; worstTracks: any[] } | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
+
+  const fetchGlobalStats = async () => {
+    setIsStatsLoading(true);
+    try {
+      const stats = await getGlobalStats(adminPassword);
+      setGlobalStats(stats);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'analytics') {
+      fetchGlobalStats();
+    }
+  }, [activeTab, isAuthenticated]);
 
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -37,10 +60,10 @@ export default function AdminConsole() {
   const [isEditingLoading, setIsEditingLoading] = useState(false);
 
   // New Track inputs for editor
-  const [newTrackAnime, setNewTrackAnime] = useState('');
+  const [newTrackArtist, setNewTrackArtist] = useState('');
   const [newTrackTitle, setNewTrackTitle] = useState('');
+  const [newTrackDescription, setNewTrackDescription] = useState('');
   const [newTrackUrl, setNewTrackUrl] = useState('');
-  const [newTrackType, setNewTrackType] = useState('OP');
 
   const fetchLists = async () => {
     setError(null);
@@ -159,8 +182,8 @@ export default function AdminConsole() {
     setError(null);
     if (!editingPlaylistId) return;
 
-    if (!newTrackAnime.trim() || !newTrackTitle.trim() || !newTrackUrl.trim()) {
-      setError('Please fill in all track fields.');
+    if (!newTrackArtist.trim() || !newTrackTitle.trim() || !newTrackUrl.trim()) {
+      setError('Please fill in Artist Name, Song Title, and YouTube link.');
       return;
     }
 
@@ -175,8 +198,8 @@ export default function AdminConsole() {
         editingPlaylistId,
         newTrackTitle.trim(),
         ytid,
-        newTrackAnime.trim(),
-        newTrackType,
+        newTrackArtist.trim(),
+        newTrackDescription.trim(),
         adminPassword
       );
       
@@ -185,8 +208,9 @@ export default function AdminConsole() {
       setEditingPlaylistTracks(res.videos);
       
       // Clear inputs
+      setNewTrackArtist('');
       setNewTrackTitle('');
-      setNewTrackAnime('');
+      setNewTrackDescription('');
       setNewTrackUrl('');
       setActionSuccess('Track added to playlist successfully!');
     } catch (err: any) {
@@ -221,7 +245,7 @@ export default function AdminConsole() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-6 py-6 sm:py-12 flex items-center justify-center w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-md bg-[#f0ead8] border-4 border-black p-6 sm:p-8 rounded-3xl shadow-[6px_6px_0px_0px_#000] text-center">
+        <div className="info-card w-full max-w-md p-6 sm:p-8 rounded-3xl text-center">
           <h1 className="text-3xl font-black font-title text-[#990000] uppercase tracking-wider mb-6 flex items-center justify-center gap-2">
             <ShieldCheck className="w-7 h-7 text-[#990000]" />
             <span>ADMIN LOGIN</span>
@@ -253,7 +277,7 @@ export default function AdminConsole() {
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 bg-[#002fa7] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                className="flex-1 py-3 bg-[#BF1539] text-white border-2 border-black font-black text-sm uppercase rounded-xl shadow-[2px_2px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
               >
                 Login
               </button>
@@ -299,8 +323,8 @@ export default function AdminConsole() {
       <div className="w-full max-w-5xl grid gap-8 lg:grid-cols-3 items-start">
         {/* Left Side: Cleanup Controls */}
         <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000]">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#002fa7]">
+          <div className="info-card p-6 rounded-2xl">
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#BF1539]">
               Database Cleanup
             </h2>
             <p className="text-xs text-slate-700 leading-relaxed mb-4 font-bold">
@@ -321,7 +345,7 @@ export default function AdminConsole() {
           </div>
 
           {editingPlaylistId && (
-            <div className="bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col gap-4">
+            <div className="info-card p-6 rounded-2xl flex flex-col gap-4">
               <div className="flex justify-between items-center border-b-2 border-black pb-2">
                 <h2 className="text-xs font-black uppercase text-[#990000] truncate max-w-[180px] inline-flex items-center gap-1.5">
                   <Pencil className="w-3.5 h-3.5 shrink-0" />
@@ -351,12 +375,9 @@ export default function AdminConsole() {
                         {editingPlaylistTracks.map((track) => (
                           <div key={track.id} className="flex items-center justify-between text-[11px] font-bold py-1 border-b border-slate-100 last:border-b-0 gap-2">
                             <div className="truncate text-left flex-1">
-                              <span className="bg-slate-100 text-slate-700 px-1 rounded text-[7px] font-mono font-black uppercase mr-1">
-                                {track.type || 'OP'}
-                              </span>
-                              <span className="text-black text-[10px]">
-                                {track.animeName} — {track.title}
-                              </span>
+                              <span className="font-black text-black text-[10px]">{track.title}</span>
+                              <span className="text-slate-600 text-[10px]"> by {track.artistName || 'Unknown Artist'}</span>
+                              {track.description && <span className="text-slate-500 text-[10px]"> — {track.description}</span>}
                             </div>
                             <button
                               onClick={() => handleAdminDeleteTrack(track.id)}
@@ -377,12 +398,12 @@ export default function AdminConsole() {
                       <span>Add New Track</span>
                     </p>
                     <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Anime Name</label>
+                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Artist Name</label>
                       <input
                         type="text"
-                        value={newTrackAnime}
-                        onChange={(e) => setNewTrackAnime(e.target.value)}
-                        placeholder="e.g. Tokyo Ghoul..."
+                        value={newTrackArtist}
+                        onChange={(e) => setNewTrackArtist(e.target.value)}
+                        placeholder="e.g. Yoko Takahashi..."
                         className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
                       />
                     </div>
@@ -392,7 +413,17 @@ export default function AdminConsole() {
                         type="text"
                         value={newTrackTitle}
                         onChange={(e) => setNewTrackTitle(e.target.value)}
-                        placeholder="e.g. Unravel..."
+                        placeholder="e.g. Cruel Angel Thesis..."
+                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Description (Optional)</label>
+                      <input
+                        type="text"
+                        value={newTrackDescription}
+                        onChange={(e) => setNewTrackDescription(e.target.value)}
+                        placeholder="e.g. Opening of Neon Genesis Evangelion..."
                         className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
                       />
                     </div>
@@ -406,21 +437,9 @@ export default function AdminConsole() {
                         className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Song Type</label>
-                      <select
-                        value={newTrackType}
-                        onChange={(e) => setNewTrackType(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      >
-                        <option value="OP">Opening (OP)</option>
-                        <option value="ED">Ending (ED)</option>
-                        <option value="OST">Insert Theme / OST</option>
-                      </select>
-                    </div>
                     <button
                       type="submit"
-                      className="w-full py-2 bg-[#002fa7] text-white border border-black font-black text-[10px] uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 mt-1"
+                      className="w-full py-2 bg-[#BF1539] text-white border border-black font-black text-[10px] uppercase rounded-lg shadow-[1px_1px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 mt-1"
                     >
                       Add Track
                     </button>
@@ -432,26 +451,32 @@ export default function AdminConsole() {
         </div>
 
         {/* Right Side: Playlists List */}
-        <div className="lg:col-span-2 bg-[#f0ead8] border-4 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex flex-col min-h-[500px]">
+        <div className="info-card lg:col-span-2 p-6 rounded-2xl flex flex-col min-h-[500px]">
           {/* Tabs */}
-          <div className="flex border-b-2 border-black pb-3 mb-6 gap-3">
+          <div className="flex flex-wrap border-b-2 border-black pb-3 mb-6 gap-2 sm:gap-3">
             <button
               onClick={() => setActiveTab('pending')}
-              className={`px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'pending' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
+              className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'pending' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'}`}
             >
               Pending ({communityLists.length})
             </button>
             <button
               onClick={() => setActiveTab('validated')}
-              className={`px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'validated' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
+              className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'validated' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'}`}
             >
               Validated ({validatedLists.length})
             </button>
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'all' ? 'bg-[#002fa7] text-white' : 'bg-white hover:bg-slate-100'}`}
+              className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'all' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'}`}
             >
               All ({allLists.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${activeTab === 'analytics' ? 'bg-amber-400 text-black' : 'bg-white hover:bg-slate-100'}`}
+            >
+              Ratings Stats 📊
             </button>
           </div>
 
@@ -469,85 +494,195 @@ export default function AdminConsole() {
             </div>
           )}
 
-          {/* List display */}
-          {(() => {
-            const list = activeTab === 'pending' ? communityLists : activeTab === 'validated' ? validatedLists : allLists;
+          {/* Analytics View */}
+          {activeTab === 'analytics' ? (
+            isStatsLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+                <p className="text-xs font-bold animate-pulse">Loading global rating statistics...</p>
+              </div>
+            ) : globalStats ? (
+              <div className="flex flex-col gap-6 overflow-y-auto max-h-[520px] pr-1 text-left">
+                {/* Overall Summary Card */}
+                <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000] flex flex-col gap-4">
+                  <div className="flex justify-between items-center border-b-2 border-black pb-2">
+                    <h3 className="font-black text-xs sm:text-sm text-black uppercase">
+                      All-Time Rating Summary
+                    </h3>
+                    <span className="text-xs font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+                      {globalStats.overall.totalVotes} Total Votes
+                    </span>
+                  </div>
 
-            if (list.length === 0) {
-              return (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
-                  <FolderX className="w-10 h-10 text-slate-400 mb-2" />
-                  <p className="mt-2 text-xs font-bold text-slate-600">No playlists found in this tab.</p>
-                </div>
-              );
-            }
-
-            return (
-              <div className="flex flex-col gap-4 overflow-y-auto max-h-[480px] pr-1">
-                {list.map((playlist) => (
-                  <div
-                    key={playlist.id}
-                    className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000]"
-                  >
-                    <div className="flex justify-between items-start border-b border-slate-200 pb-2">
-                      <div>
-                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">
-                          ID: {playlist.id}
-                        </span>
-                        <h3 className="font-black text-sm text-black mt-1">
-                          {playlist.name}
-                        </h3>
-                        <p className="text-[10px] text-slate-600 mt-1 italic">
-                          {playlist.description || 'No description'}
-                        </p>
-                      </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${playlist.is_validated ? 'bg-emerald-100 text-emerald-700 border-emerald-500' : 'bg-amber-100 text-amber-700 border-amber-500'}`}>
-                        {playlist.is_validated ? 'Validated' : 'Pending'}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-black rounded-xl">
+                      <span className="text-[10px] font-black text-slate-500 uppercase">Global Average Rating</span>
+                      <span className="text-3xl font-black font-mono text-[#BF1539] mt-1">
+                        {globalStats.overall.averageRating.toFixed(2)} / 5
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap text-[10px] font-black text-slate-500 gap-4 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Gamepad2 className="w-3 h-3 text-slate-500" />
-                        <span>Play count: {playlist.played_count || 0}</span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-500" />
-                        <span>Last played: {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never'}</span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-500" />
-                        <span>Created: {new Date(playlist.created_at).toLocaleDateString()}</span>
-                      </span>
-                    </div>
-
-                    {/* Admin Actions */}
-                    <div className="flex justify-end gap-3 mt-1 border-t border-slate-100 pt-3">
-                      <button
-                        onClick={() => handleSelectEditPlaylist(playlist.id, playlist.name)}
-                        className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
-                      >
-                        Edit Tracks
-                      </button>
-                      <button
-                        onClick={() => handleToggleValidation(playlist.id, playlist.is_validated)}
-                        className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
-                      >
-                        {playlist.is_validated ? 'Invalidate' : 'Validate'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(playlist.id)}
-                        disabled={playlist.id === 'anime-classics'}
-                        className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-30 disabled:hover:translate-x-0 disabled:hover:translate-y-0"
-                      >
-                        Delete
-                      </button>
+                    {/* Distribution Bars */}
+                    <div className="flex flex-col gap-1.5 justify-center">
+                      {[5, 4, 3, 2, 1].map((star) => {
+                        const count = globalStats.overall.distribution[star as 1|2|3|4|5] || 0;
+                        const total = globalStats.overall.totalVotes || 1;
+                        const pct = Math.round((count / total) * 100);
+                        return (
+                          <div key={star} className="flex items-center gap-2 text-[10px] font-bold">
+                            <span className="w-8 font-black shrink-0">{star} ★</span>
+                            <div className="flex-1 bg-slate-100 border border-black rounded-full h-3 overflow-hidden">
+                              <div
+                                className="h-full bg-amber-400 border-r border-black"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-12 text-right font-mono font-black shrink-0 text-slate-600">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Top 10 Rated Tracks */}
+                <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000]">
+                  <h3 className="font-black text-xs sm:text-sm text-black uppercase border-b-2 border-black pb-2 mb-3 text-emerald-700">
+                    Highest-Rated Tracks
+                  </h3>
+                  {globalStats.topTracks.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">No votes recorded yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {globalStats.topTracks.map((tr, idx) => (
+                        <div key={tr.youtubeId + idx} className="flex items-center justify-between text-xs p-2 border border-slate-200 rounded-xl bg-slate-50 gap-2">
+                          <div className="truncate flex-1">
+                            <span className="font-black text-black">{tr.title || tr.youtubeId}</span>
+                            <span className="text-slate-500 text-[10px]"> by {tr.artistName || 'Unknown Artist'}</span>
+                          </div>
+                          <div className="text-right shrink-0 flex items-center gap-2 font-mono font-black text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded">
+                            <span>★ {tr.averageRating}</span>
+                            <span className="text-[9px] text-slate-400">({tr.totalVotes} votes)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Lowest 10 Rated Tracks */}
+                <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000]">
+                  <h3 className="font-black text-xs sm:text-sm text-black uppercase border-b-2 border-black pb-2 mb-3 text-[#990000]">
+                    Lowest-Rated Tracks
+                  </h3>
+                  {globalStats.worstTracks.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">No votes recorded yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {globalStats.worstTracks.map((tr, idx) => (
+                        <div key={tr.youtubeId + idx} className="flex items-center justify-between text-xs p-2 border border-slate-200 rounded-xl bg-slate-50 gap-2">
+                          <div className="truncate flex-1">
+                            <span className="font-black text-black">{tr.title || tr.youtubeId}</span>
+                            <span className="text-slate-500 text-[10px]"> by {tr.artistName || 'Unknown Artist'}</span>
+                          </div>
+                          <div className="text-right shrink-0 flex items-center gap-2 font-mono font-black text-[#990000] bg-red-50 border border-red-300 px-2 py-0.5 rounded">
+                            <span>★ {tr.averageRating}</span>
+                            <span className="text-[9px] text-slate-400">({tr.totalVotes} votes)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            );
-          })()}
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+                <p className="text-xs font-bold">No rating statistics recorded yet.</p>
+              </div>
+            )
+          ) : (
+            <div>
+              {(() => {
+                const list = activeTab === 'pending' ? communityLists : activeTab === 'validated' ? validatedLists : allLists;
+
+                if (list.length === 0) {
+                  return (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+                      <FolderX className="w-10 h-10 text-slate-400 mb-2" />
+                      <p className="mt-2 text-xs font-bold text-slate-600">No playlists found in this tab.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-col gap-4 overflow-y-auto max-h-[480px] pr-1">
+                    {list.map((playlist) => (
+                      <div
+                        key={playlist.id}
+                        className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000]"
+                      >
+                        <div className="flex justify-between items-start border-b border-slate-200 pb-2">
+                          <div>
+                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">
+                              ID: {playlist.id}
+                            </span>
+                            <h3 className="font-black text-sm text-black mt-1">
+                              {playlist.name}
+                            </h3>
+                            <p className="text-[10px] text-slate-600 mt-1 italic">
+                              {playlist.description || 'No description'}
+                            </p>
+                          </div>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${playlist.is_validated ? 'bg-emerald-100 text-emerald-700 border-emerald-500' : 'bg-amber-100 text-amber-700 border-amber-500'}`}>
+                            {playlist.is_validated ? 'Validated' : 'Pending'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap text-[10px] font-black text-slate-500 gap-4 mt-1">
+                          <span className="flex items-center gap-1">
+                            <Gamepad2 className="w-3 h-3 text-slate-500" />
+                            <span>Play count: {playlist.played_count || 0}</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            <span>Last played: {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never'}</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-slate-500" />
+                            <span>Created: {new Date(playlist.created_at).toLocaleDateString()}</span>
+                          </span>
+                        </div>
+
+                        {/* Admin Actions */}
+                        <div className="flex justify-end gap-3 mt-1 border-t border-slate-100 pt-3">
+                          <button
+                            onClick={() => handleSelectEditPlaylist(playlist.id, playlist.name)}
+                            className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+                          >
+                            Edit Tracks
+                          </button>
+                          <button
+                            onClick={() => handleToggleValidation(playlist.id, playlist.is_validated)}
+                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
+                          >
+                            {playlist.is_validated ? 'Invalidate' : 'Validate'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(playlist.id)}
+                            disabled={playlist.id === 'anime-classics'}
+                            className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl shadow-[1px_1px_0px_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-transform disabled:opacity-30 disabled:hover:translate-x-0 disabled:hover:translate-y-0"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
     </div>

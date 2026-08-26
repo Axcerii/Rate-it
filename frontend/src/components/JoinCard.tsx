@@ -45,7 +45,7 @@ export default function JoinCard({
 
         {/* 1. BG_join.png (Crew Silhouettes Layer) */}
         <img
-          src="/BG_join.png"
+          src="/JOIN/BG_join.png"
           alt=""
           aria-hidden="true"
           className={`absolute left-0 bottom-1/4 w-full h-[65%] object-cover opacity-45 mix-blend-multiply pointer-events-none z-0 rounded-b-[20px] transition-transform duration-300 ease-out ${isActive ? 'scale-105' : 'scale-100'
@@ -57,7 +57,7 @@ export default function JoinCard({
 
         {/* 2. Join_chain.png (Diagonal Chain Layer extending to top right) */}
         <img
-          src="/Join_chain.png"
+          src="/JOIN/Join_chain.png"
           alt=""
           aria-hidden="true"
           className={`absolute inset-0 w-full h-full object-contain pointer-events-none z-15 opacity-90 transition-transform duration-300 ease-out ${isActive
@@ -133,7 +133,7 @@ export default function JoinCard({
           className="absolute left-1/2 bottom-[-3%] -translate-x-1/2 z-30 cursor-pointer focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed group/btn"
         >
           <img
-            src="/JoinText.png"
+            src="/JOIN/JoinText.png"
             alt="JOIN"
             className={`w-48 sm:w-52 h-auto transition-transform duration-300 ease-out origin-center ${isActive
               ? 'scale-130 -translate-y-2 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]'
