@@ -134,3 +134,44 @@ button {
   position: relative;
   z-index: 1;
 }
+
+/* Reusable tactile offset movement animation for classic action buttons */
+.btn-action-hover {
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.btn-action-hover:hover:not(:disabled) {
+  transform: translate(-3px, -3px);
+}
+.btn-action-hover:active:not(:disabled) {
+  transform: translate(2px, 2px);
+}
+
+/* Choice selector button hover feedback with center-expanding underline matching text length */
+.btn-choice-hover {
+  position: relative;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+.btn-choice-hover span {
+  position: relative;
+  display: inline-block;
+}
+.btn-choice-hover span::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  background-color: currentColor;
+  transform: translateX(-50%);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  border-radius: 9999px;
+}
+.btn-choice-hover:hover span::after {
+  width: 100%;
+}
+.btn-choice-hover:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: -3px;
+}
