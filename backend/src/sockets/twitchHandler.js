@@ -1,33 +1,35 @@
 import { connectToTwitchChat, disconnectFromTwitchChat } from '../services/twitchService.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
+import { validateTwitchChannel, broadcastRoomUpdate } from '../utils/security.js';
 
 export function registerTwitchHandlers(io, socket) {
   // Connect Host to Twitch Chat room
   socket.on('twitch:connect', async ({ channelName }, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized: Only Host can connect Twitch Chat' });
-      }
-      return;
-    }
-
     try {
-      if (!channelName) {
-        throw new Error('Twitch channel name is required');
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut connecter le chat Twitch' });
+        }
+        return;
       }
 
-      connectToTwitchChat(io, sessionId, channelName);
+      const validChannel = validateTwitchChannel(channelName);
+      if (!validChannel) {
+        throw new Error('Nom de chaîne Twitch invalide');
+      }
+
+      connectToTwitchChat(io, sessionId, validChannel);
 
       // Save channel name in session state for UI reference
       const session = await getSession(sessionId);
       if (session) {
-        session.twitchChannel = channelName.trim();
+        session.twitchChannel = validChannel;
         // Reset twitchVotes for safety
         session.twitchVotes = {};
         await saveSession(session);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        broadcastRoomUpdate(io, session);
       }
 
       console.log(`Socket ${socket.id} requested Twitch connection to #${channelName}`);
@@ -45,16 +47,16 @@ export function registerTwitchHandlers(io, socket) {
 
   // Disconnect Host from Twitch Chat room
   socket.on('twitch:disconnect', async (payload, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Unauthorized' });
+        }
+        return;
+      }
+
       disconnectFromTwitchChat(sessionId);
       
       const session = await getSession(sessionId);
@@ -62,7 +64,7 @@ export function registerTwitchHandlers(io, socket) {
         session.twitchChannel = null;
         session.twitchVotes = {};
         await saveSession(session);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        broadcastRoomUpdate(io, session);
       }
 
       console.log(`Socket ${socket.id} requested Twitch disconnect`);

@@ -25,9 +25,10 @@ import {
   Trophy,
   Home,
   Loader2,
-  Frown,
-  Meh as MehIcon,
-  Smile,
+  FastForward,
+  Ghost,
+  ThumbsUp,
+  ListPlus,
   Sparkles,
   Crown
 } from 'lucide-react';
@@ -49,7 +50,9 @@ export default function HostLobby() {
     getPlaylistDetails,
     toggleLobbyVideo,
     getMalVideos,
-    showBanner
+    showBanner,
+    toggleHostPlayer,
+    submitVote,
   } = useSocket();
 
   const [joinUrl, setJoinUrl] = useState('');
@@ -115,7 +118,7 @@ export default function HostLobby() {
     }
 
     const handlePopState = async () => {
-      const confirmDelete = window.confirm('Are you sure you want to delete this host room session?');
+      const confirmDelete = window.confirm('Êtes-vous sûr de vouloir quitter et supprimer la salle ?');
       if (confirmDelete) {
         try {
           await deleteRoom();
@@ -233,7 +236,7 @@ export default function HostLobby() {
     if (quizMode === 'mal') {
       const username = malUsername.trim();
       if (!username) {
-        showBanner('Indiquez votre nom d\'utilisateur <a href="https://myanimelist.net">MyAnimeList</a> pour commencer.', 'error');
+        showBanner('Indiquez votre nom d\'utilisateur MyAnimeList pour commencer.', 'warning');
         return;
       }
 
@@ -272,7 +275,7 @@ export default function HostLobby() {
     setTwitchError(null);
     try {
       await connectTwitch(twitchChannel.trim());
-      showBanner(`Compte Twitch connecté : #${twitchChannel.trim()}`, 'announcement');
+      showBanner(`Compte Twitch connecté : #${twitchChannel.trim()}`, 'success');
     } catch (err: any) {
       setTwitchError(err.message || 'Connexion avec Twitch échouée. Vérifiez que le compte existe bien.');
       showBanner(err.message || 'Connexion avec Twitch échouée. Vérifiez que le compte existe bien.', 'error');
@@ -406,7 +409,7 @@ export default function HostLobby() {
           <p className="mt-2 text-xs font-bold text-slate-600">Redirection vers l'accueil si déconnexion.</p>
           <button
             onClick={handleBackToHome}
-            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+            className="mt-6 px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
           >
             <Home className="w-3.5 h-3.5" />
             <span>Retour à l'accueil</span>
@@ -437,10 +440,10 @@ export default function HostLobby() {
             </div>
             <button
               onClick={handleBackToHome}
-              className="p-4 border-2 border-black bg-playlist text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0"
+              className="px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0"
             >
+              <X className="w-4 h-4" />
               <span>Fermer la session</span>
-              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -450,7 +453,7 @@ export default function HostLobby() {
               onClick={() => setQuizMode('playlist')}
               className={`flex-1 py-3.5 sm:py-4 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 ${quizMode === 'playlist'
                 ? 'bg-playlist text-black font-black'
-                : 'bg-white text-black hover:bg-slate-100'
+                : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                 }`}
             >
               <span className="uppercase">Choisir une playlist</span>
@@ -459,7 +462,7 @@ export default function HostLobby() {
               onClick={() => setQuizMode('mal')}
               className={`flex-1 py-3.5 sm:py-4 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${quizMode === 'mal'
                 ? 'bg-playlist text-black font-black'
-                : 'bg-white text-black hover:bg-slate-100'
+                : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                 }`}
             >
               <span className="uppercase">Basé sur mon MyAnimeList</span>
@@ -468,7 +471,7 @@ export default function HostLobby() {
 
           <div className="grid gap-6 sm:gap-8 lg:grid-cols-5 flex-1 items-start w-full max-w-full">
             {/* Left side parameters (2/5) */}
-            <div className="lg:col-span-2 flex flex-col gap-6 w-full max-w-full overflow-hidden">
+            <div className="lg:col-span-2 flex flex-col gap-6 w-full max-w-full">
               {/* Room Code Card */}
               <div className="info-card p-3.5 sm:p-6 text-center rounded-2xl flex flex-col items-center w-full max-w-full">
                 <h3 className="text-xs font-black uppercase text-slate-600">Code de la Salle</h3>
@@ -480,7 +483,7 @@ export default function HostLobby() {
                   <button
                     type="button"
                     onClick={() => setShowRoomCode(!showRoomCode)}
-                    title={showRoomCode ? 'Hide Code' : 'Show Code'}
+                    title={showRoomCode ? 'Cacher le code' : 'Afficher le code'}
                     className="btn-action-hover p-1 text-slate-700"
                   >
                     {showRoomCode ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -509,7 +512,7 @@ export default function HostLobby() {
                   <button
                     type="button"
                     onClick={() => setShowQRCode(!showQRCode)}
-                    className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-[10px] sm:text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
+                    className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-[10px] sm:text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
                   >
                     {showQRCode ? (
                       <>
@@ -539,6 +542,42 @@ export default function HostLobby() {
                 )}
               </div>
 
+              {/* Host Player Option Toggle Card */}
+              <div className="info-card p-3.5 sm:p-5 rounded-2xl flex items-center justify-between gap-3 w-full max-w-full !overflow-visible z-20">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                    <input
+                      type="checkbox"
+                      id="hostIsPlayerLobbyToggle"
+                      checked={session.isHostPlayer !== false}
+                      onChange={async (e) => {
+                        try {
+                          await toggleHostPlayer(e.target.checked);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                    />
+                    <span>Le Host est un joueur</span>
+                  </label>
+
+                  {/* Hoverable Tooltip "?" */}
+                  <div className="group relative inline-flex items-center justify-center">
+                    <span
+                      tabIndex={0}
+                      className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
+                    >
+                      ?
+                    </span>
+                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 bg-black text-white text-[10px] font-bold rounded-lg shadow-xl text-center leading-snug z-50">
+                      Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vrai vie.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
 
 
               {/* Twitch Votes */}
@@ -559,7 +598,7 @@ export default function HostLobby() {
                       </span>
                       <button
                         onClick={handleDisconnectTwitch}
-                        className="text-xs text-[#990000] hover:text-red-500 font-black shrink-0 btn-action-hover"
+                        className="text-xs text-[#990000] hover:text-red-500 focus:text-red-500 focus-visible:text-red-500 font-black shrink-0 btn-action-hover"
                       >
                         Déconnexion
                       </button>
@@ -598,7 +637,7 @@ export default function HostLobby() {
                 /* PLAYLIST SELECTION CARD */
                 <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[420px] w-full max-w-full overflow-hidden">
                   <h3 className="text-sm font-black text-black uppercase border-b-2 border-black pb-2 mb-4 text-cyan-950">
-                    Playlist & Sélection des musiques
+                    Playlist & Sélection des vidéos
                   </h3>
 
                   {/* Search Playlist ID */}
@@ -631,7 +670,7 @@ export default function HostLobby() {
                       onClick={() => setPlaylistTab('validated')}
                       className={`flex-1 py-2.5 sm:py-3 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 ${playlistTab === 'validated'
                         ? 'bg-playlist text-black font-black'
-                        : 'bg-white text-black hover:bg-slate-100'
+                        : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                         }`}
                     >
                       <span className="uppercase">Playlists vérifiées ({playlists.validated.length})</span>
@@ -641,7 +680,7 @@ export default function HostLobby() {
                       onClick={() => setPlaylistTab('community')}
                       className={`flex-1 py-2.5 sm:py-3 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${playlistTab === 'community'
                         ? 'bg-playlist text-black font-black'
-                        : 'bg-white text-black hover:bg-slate-100'
+                        : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                         }`}
                     >
                       <span className="uppercase">Playlists de la communauté ({playlists.community.length})</span>
@@ -663,7 +702,7 @@ export default function HostLobby() {
                             onClick={() => setSelectedPlaylistId(p.id)}
                             className={`p-2.5 sm:p-3 border-2 rounded-xl transition cursor-pointer flex justify-between items-center gap-2 sm:gap-4 ${isSelected
                               ? 'border-4 border-black bg-yellow-100'
-                              : 'border-black bg-white hover:bg-slate-50'
+                              : 'border-black bg-white hover:bg-slate-50 focus:bg-slate-50 focus-visible:bg-slate-50'
                               }`}
                           >
                             <div className="text-left flex-1 min-w-0 truncate">
@@ -692,7 +731,7 @@ export default function HostLobby() {
                                   Sélectionnée
                                 </span>
                               ) : (
-                                <span className="text-[8px] bg-white text-slate-500 hover:text-black px-1.5 py-0.5 rounded border border-black font-black uppercase">
+                                <span className="text-[8px] bg-white text-slate-500 hover:text-black focus:text-black focus-visible:text-black px-1.5 py-0.5 rounded border border-black font-black uppercase">
                                   Sélectionner
                                 </span>
                               )}
@@ -706,10 +745,10 @@ export default function HostLobby() {
                   {/* Tracks list inside selected playlist with toggles */}
                   <div className="flex-1 border-2 border-black bg-white p-2.5 sm:p-3 rounded-xl max-h-56 overflow-y-auto mb-4">
                     <p className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2">
-                      Musiques de la Playlist (Décocher pour exclure)
+                      Vidéos de la Playlist (Décocher pour exclure)
                     </p>
                     {selectedPlaylistTracks.length === 0 ? (
-                      <p className="text-[10px] text-slate-400 py-3 text-center">Chargement des musiques...</p>
+                      <p className="text-[10px] text-slate-400 py-3 text-center">Chargement des vidéos...</p>
                     ) : (
                       <div className="flex flex-col gap-2">
                         {selectedPlaylistTracks.map((track) => {
@@ -842,7 +881,7 @@ export default function HostLobby() {
                 {playersList.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-6 text-center">
                     <UserX className="w-8 h-8 text-slate-400 animate-pulse mb-2" />
-                    <p className="text-xs font-bold text-slate-600 mt-2">En attente de joueurs... <br /> (Si seul, connectez-vous sur un autre onglet pour ne pas influencer votre chat)</p>
+                    <p className="text-xs font-bold text-slate-600 mt-2">En attente de joueurs... <br /> Si seul, veuillez cocher la case "Le Host est un joueur"</p>
                   </div>
                 ) : (
                   <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 max-h-40 overflow-y-auto pr-1">
@@ -908,7 +947,7 @@ export default function HostLobby() {
           <div className="flex flex-wrap items-center justify-between border-b-2 border-black pb-3 sm:pb-4 gap-2">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2">
-                <span>Lobby Code:</span>
+                <span>Code de la salle :</span>
                 <span className="font-mono font-black text-black">
                   {showRoomCode ? session.sessionId : '••••••'}
                 </span>
@@ -916,7 +955,7 @@ export default function HostLobby() {
                   type="button"
                   onClick={() => setShowRoomCode(!showRoomCode)}
                   className="btn-action-hover text-xs"
-                  title={showRoomCode ? 'Hide Code' : 'Show Code'}
+                  title={showRoomCode ? 'Cacher le code' : 'Afficher le code'}
                 >
                   {showRoomCode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -925,17 +964,17 @@ export default function HostLobby() {
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+                className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
               >
                 {copiedLink ? (
                   <>
                     <Check className="w-3.5 h-3.5 shrink-0" />
-                    <span>Copied!</span>
+                    <span>Copié !</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 shrink-0" />
-                    <span>Copy Link</span>
+                    <span>Lien copié !</span>
                   </>
                 )}
               </button>
@@ -943,9 +982,9 @@ export default function HostLobby() {
 
             <button
               onClick={handleBackToHome}
-              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0"
+              className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0"
             >
-              <span>Quit Game</span>
+              <span>Quitter la partie</span>
               <LogOut className="w-3.5 h-3.5 shrink-0" />
             </button>
           </div>
@@ -958,18 +997,18 @@ export default function HostLobby() {
               </div>
 
               {/* Navigation controls */}
-              <div className="flex flex-wrap justify-between items-center bg-[#f0ead8] border-4 border-black p-3 sm:p-4 rounded-2xl gap-2">
+              <div className="flex flex-wrap justify-between items-center bg-menu border-10 border-white  p-3 sm:p-4 rounded-2xl gap-2">
                 <button
                   onClick={handlePrev}
                   disabled={session.currentVideoIndex === 0}
-                  className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 inline-flex items-center gap-1.5"
+                  className="px-3 sm:px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 inline-flex items-center gap-1.5"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-                  <span>Prev</span>
+                  <span>Précédent</span>
                 </button>
 
                 <span className="text-xs font-black text-black">
-                  Track {session.currentVideoIndex + 1} / {session.videos?.length}
+                  Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
                 </span>
 
                 {session.phase === 'REVEAL' ? (
@@ -977,7 +1016,7 @@ export default function HostLobby() {
                     onClick={handleProceedAfterReveal}
                     className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
                   >
-                    <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Show Results' : 'Next Theme'}</span>
+                    <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Afficher les résultats' : 'Vidéo suivante'}</span>
                     <ArrowRight className="w-4 h-4 shrink-0" />
                   </button>
                 ) : (
@@ -986,7 +1025,7 @@ export default function HostLobby() {
                     className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
                   >
                     <BarChart2 className="w-4 h-4 shrink-0" />
-                    <span>Show Vote Results</span>
+                    <span>Résultats</span>
                   </button>
                 )}
               </div>
@@ -995,25 +1034,78 @@ export default function HostLobby() {
             {/* Side info & live votes status (1/3) */}
             <div className="lg:col-span-1 flex flex-col gap-6">
               {/* Currently Playing details */}
-              <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Currently playing</span>
+              <div className="info-card border-4 border-black p-4 sm:p-6 rounded-2xl">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Actuellement en cours</span>
                 <h2 className="mt-2 text-xl sm:text-2xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
                   {currentVideo.title}
                 </h2>
                 <p className="text-xs font-bold text-cyan-950">
-                  By {currentVideo.artistName || 'Unknown Artist'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
+                  par {currentVideo.artistName || 'Artiste Non-renseigné'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                 </p>
               </div>
 
+              {/* Mon Vote (Hôte) Voting Widget */}
+              {session.isHostPlayer !== false && (
+                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-3 bg-white">
+                  <div className="flex items-center justify-between border-b border-black pb-2">
+                    <h3 className="text-xs font-black uppercase text-black flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                      <span>Mon Vote (Hôte)</span>
+                    </h3>
+                    {session.votes?.[session.hostPlayerId || ''] !== undefined && (
+                      <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 border border-black px-2 py-0.5 rounded">
+                        Voté : {session.votes[session.hostPlayerId || '']}/5
+                      </span>
+                    )}
+                  </div>
+
+                  {session.phase === 'REVEAL' ? (
+                    <p className="text-xs font-bold text-slate-600 text-center py-2">
+                      Résultats affichés pour cette vidéo
+                    </p>
+                  ) : (
+                    <div className="flex justify-between items-center gap-1.5 pt-1">
+                      {[1, 2, 3, 4, 5].map((val) => {
+                        const hostVote = session.votes?.[session.hostPlayerId || ''];
+                        const isSelected = hostVote === val;
+                        let style = "bg-white border-2 border-black text-black hover:bg-slate-100";
+                        if (isSelected) {
+                          if (val === 1) style = "bg-red-600 border-2 border-black text-white font-black";
+                          else if (val === 2) style = "bg-orange-500 border-2 border-black text-white font-black";
+                          else if (val === 3) style = "bg-yellow-400 border-2 border-black text-black font-black";
+                          else if (val === 4) style = "bg-emerald-500 border-2 border-black text-white font-black";
+                          else if (val === 5) style = "bg-[#24B3F1] border-2 border-black text-black font-black";
+                        }
+                        return (
+                          <button
+                            key={val}
+                            onClick={async () => {
+                              try {
+                                await submitVote(val);
+                              } catch (err: any) {
+                                showBanner(err.message || 'Erreur lors du vote', 'error');
+                              }
+                            }}
+                            className={`h-10 w-10 sm:h-11 sm:w-11 rounded-full text-sm font-black transition flex items-center justify-center cursor-pointer ${style}`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Twitch Live votes tracking */}
               {session.twitchChannel && (
-                <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-2">
+                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-2">
                   <h3 className="text-xs font-black uppercase text-purple-700 flex items-center gap-1.5 border-b border-purple-200 pb-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse border border-black" />
-                    Twitch Chat Votes
+                    Votes Twitch
                   </h3>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-slate-700 font-bold">Votes received:</span>
+                    <span className="text-xs text-slate-700 font-bold">Votes reçus :</span>
                     <span className="text-lg font-black text-black font-mono">
                       {Object.keys(session.twitchVotes || {}).length}
                     </span>
@@ -1022,18 +1114,18 @@ export default function HostLobby() {
               )}
 
               {/* Live Players Voting details */}
-              <div className="flex-1 bg-[#f0ead8] border-4 border-black p-4 sm:p-6 rounded-2xl flex flex-col">
+              <div className="flex-1 info-card border-4 border-black p-4 sm:p-6 rounded-2xl flex flex-col">
                 <div className="flex items-center justify-between border-b border-black pb-2 mb-4">
                   <h3 className="text-xs font-black uppercase text-black">
-                    Active Votes ({Object.keys(session.votes || {}).length} / {playersList.length})
+                    Joueurs actifs ({Object.keys(session.votes || {}).length} / {playersList.length})
                   </h3>
                   {session.phase === 'REVEAL' ? (
                     <span className="text-[9px] bg-purple-100 text-purple-800 border border-black font-black px-2 py-0.5 rounded-lg">
-                      Ready: {revealSkipsCount}/{activeConnectedPlayers.length}
+                      Prêt : {revealSkipsCount}/{activeConnectedPlayers.length}
                     </span>
                   ) : (
                     <span className="text-[9px] bg-blue-100 text-blue-800 border border-black font-black px-2 py-0.5 rounded-lg">
-                      Skips: {skipsCount}/{activeConnectedPlayers.length}
+                      Skip : {skipsCount}/{activeConnectedPlayers.length}
                     </span>
                   )}
                 </div>
@@ -1059,18 +1151,17 @@ export default function HostLobby() {
                         <div className="flex items-center gap-1.5 shrink-0">
                           {hasSkipped && (
                             <span className="px-1.5 py-0.5 border border-black rounded bg-slate-200 text-slate-800 text-[8px] font-black uppercase flex items-center gap-1">
-                              <span>Skipped</span>
                               <SkipForward className="w-2.5 h-2.5" />
                             </span>
                           )}
                           {hasVoted ? (
                             <span className="px-2 py-0.5 border border-black rounded-lg bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase animate-pulse flex items-center gap-1">
-                              <span>Voted</span>
+                              <span>Voté</span>
                               <Check className="w-2.5 h-2.5" />
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 border border-black rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase">
-                              Voting...
+                              Vote en cours...
                             </span>
                           )}
                         </div>
@@ -1086,64 +1177,52 @@ export default function HostLobby() {
         {/* WarioWare-styled Reveal Modal */}
         {session.phase === 'REVEAL' && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 p-2">
-            <div className="w-full max-w-3xl bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 sm:gap-6 relative overflow-hidden max-h-[92vh] overflow-y-auto">
+            <div className="w-full max-w-3xl info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 sm:gap-6 relative overflow-hidden max-h-[92vh] overflow-y-auto">
               <div className="flex flex-col gap-1 z-10">
-                <span className="text-[10px] uppercase font-black text-slate-600 tracking-wider">Round Results</span>
+                <span className="text-[10px] uppercase font-black text-slate-600 tracking-wider">Résultats de la vidéo</span>
                 <h2 className="text-xl sm:text-3xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-1">
                   {currentVideo.title}
                 </h2>
                 <p className="text-xs sm:text-sm font-black text-cyan-950">
-                  By {currentVideo.artistName || 'Unknown Artist'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
+                  Par {currentVideo.artistName || 'Artiste Non-renseigné'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 mt-1 z-10">
+              <div className={`grid gap-4 sm:gap-6 mt-1 z-10 ${session.twitchChannel ? 'sm:grid-cols-2' : 'grid-cols-1 max-w-md mx-auto w-full'}`}>
                 {/* Players Rating Card */}
                 <div className="rounded-2xl border-4 border-black bg-white p-4 sm:p-5 flex flex-col items-center justify-center gap-2">
-                  <span className="text-[10px] uppercase font-black text-cyan-950 tracking-wider">Players Average</span>
+                  <span className="text-[10px] uppercase font-black text-cyan-950 tracking-wider">Moyenne des joueurs</span>
                   <span className="text-4xl sm:text-5xl font-black text-black font-mono leading-none">
                     {pAvg.toFixed(2)}
                   </span>
                   <span className="text-xs text-slate-500 font-bold mt-1">
-                    from {pCount} {pCount === 1 ? 'player' : 'players'}
+                    {pCount} {pCount === 1 ? 'votant' : 'votants'}
                   </span>
                 </div>
 
-                {/* Twitch Rating Card */}
-                <div className="rounded-2xl border-4 border-black bg-white p-4 sm:p-5 flex flex-col items-center justify-center gap-2">
-                  <span className="text-[10px] uppercase font-black text-purple-700 tracking-wider">Twitch Chat Average</span>
-                  {tCount > 0 ? (
-                    <>
-                      <span className="text-4xl sm:text-5xl font-black text-black font-mono leading-none">
-                        {tAvg.toFixed(2)}
-                      </span>
-                      <span className="text-xs text-slate-500 font-bold mt-1">
-                        from {tCount} {tCount === 1 ? 'chat vote' : 'chat votes'}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-2xl font-black text-slate-400 font-mono py-2 mt-1">
-                        N/A
-                      </span>
-                      <span className="text-xs text-slate-400 font-bold">
-                        No Twitch chat votes
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {/* All-Time Historical Average Card */}
-                {currentRoundRes?.historicalAverage !== undefined && (
-                  <div className="sm:col-span-2 rounded-2xl border-2 border-black bg-amber-50 p-3.5 flex items-center justify-between text-left">
-                    <div>
-                      <span className="text-[10px] uppercase font-black text-amber-950 tracking-wider block">All-Time Global Rating</span>
-                      <span className="text-[10px] text-amber-800 font-bold">Based on {currentRoundRes.historicalVotesCount || 0} historical ratings across all room sessions</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-black text-[#faf6eb] px-3 py-1.5 rounded-xl border-2 border-black font-mono font-black text-sm sm:text-base shrink-0">
-                      <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-                      <span>{currentRoundRes.historicalAverage.toFixed(2)} / 5</span>
-                    </div>
+                {/* Twitch Rating Card - Only shown when Twitch is associated */}
+                {session.twitchChannel && (
+                  <div className="rounded-2xl border-4 border-black bg-white p-4 sm:p-5 flex flex-col items-center justify-center gap-2">
+                    <span className="text-[10px] uppercase font-black text-purple-700 tracking-wider">Moyenne du chat</span>
+                    {tCount > 0 ? (
+                      <>
+                        <span className="text-4xl sm:text-5xl font-black text-black font-mono leading-none">
+                          {tAvg.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-slate-500 font-bold mt-1">
+                          par {tCount} {tCount === 1 ? 'vote du chat' : 'votes du chat'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-2xl font-black text-slate-400 font-mono py-2 mt-1">
+                          N/A
+                        </span>
+                        <span className="text-xs text-slate-400 font-bold">
+                          Pas de votes du chat
+                        </span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1153,29 +1232,29 @@ export default function HostLobby() {
                 <h4 className="text-xs font-black uppercase text-black border-b-2 border-black pb-2 mb-3 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Users className="w-4 h-4 text-[#24B3F1]" />
-                    <span>Player Votes Breakdown</span>
+                    <span>Notes mises par les joueurs</span>
                   </span>
-                  <span className="text-[9px] font-mono text-slate-500">({playersList.length} players)</span>
+                  <span className="text-[9px] font-mono text-slate-500">({playersList.length} joueurs)</span>
                 </h4>
                 {playersList.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-2">No connected players</p>
+                  <p className="text-xs text-slate-400 text-center py-2">Pas de joueurs connectés</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
                     {playersList.map((player) => {
                       const playerVote = session.votes?.[player.id];
                       let voteBadge = (
                         <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase flex items-center gap-1">
-                          <span>No vote</span>
+                          <span>Pas de vote</span>
                           <X className="w-3 h-3" />
                         </span>
                       );
                       if (playerVote !== undefined) {
                         const labels: Record<number, { text: string; bg: string; icon: React.ReactNode }> = {
-                          1: { text: '1 Awful', bg: 'bg-red-600 text-white', icon: <Frown className="w-3 h-3" /> },
-                          2: { text: '2 Meh', bg: 'bg-orange-500 text-white', icon: <MehIcon className="w-3 h-3" /> },
-                          3: { text: '3 Good', bg: 'bg-yellow-400 text-black', icon: <Smile className="w-3 h-3" /> },
-                          4: { text: '4 Great', bg: 'bg-emerald-500 text-white', icon: <Sparkles className="w-3 h-3" /> },
-                          5: { text: '5 Masterpiece', bg: 'bg-[#24B3F1] text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
+                          1: { text: '1', bg: 'bg-red-600 text-white', icon: <FastForward className="w-3 h-3" /> },
+                          2: { text: '2', bg: 'bg-orange-500 text-white', icon: <Ghost className="w-3 h-3" /> },
+                          3: { text: '3', bg: 'bg-yellow-400 text-black', icon: <ThumbsUp className="w-3 h-3" /> },
+                          4: { text: '4', bg: 'bg-emerald-500 text-white', icon: <ListPlus className="w-3 h-3" /> },
+                          5: { text: '5', bg: 'bg-[#24B3F1] text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
                         };
                         const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white', icon: null };
                         voteBadge = (
@@ -1201,7 +1280,7 @@ export default function HostLobby() {
                   onClick={handleProceedAfterReveal}
                   className="px-6 sm:px-8 py-3 bg-[#24B3F1] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
                 >
-                  <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Go to Leaderboard' : 'Continue to Next Track'}</span>
+                  <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Voir le classement' : 'Vidéo suivante'}</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
               </div>
@@ -1222,16 +1301,16 @@ export default function HostLobby() {
           <div className="text-center border-b-4 border-black pb-4">
             <h1 className="text-2xl sm:text-4xl font-[#990000] font-black font-title uppercase flex flex-wrap justify-center items-center gap-2 sm:gap-3">
               <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
-              <span>FINAL LEADERBOARD</span>
+              <span>Classement Final</span>
               <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
             </h1>
-            <p className="text-xs font-bold text-slate-700 mt-2">Ranked from the worst average score to the best</p>
+            <p className="text-xs font-bold text-slate-700 mt-2">Classement</p>
           </div>
 
-          <div className="bg-[#f0ead8] border-4 border-black p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-full overflow-hidden">
+          <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-full overflow-hidden">
             {sortedResults.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold text-xs">
-                No votes were recorded during this session.
+                Aucun vote n'ont été enregistrés
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -1265,7 +1344,7 @@ export default function HostLobby() {
                             {result.title}
                           </h3>
                           <p className="text-[10px] font-bold text-slate-600 mt-0.5">
-                            By {result.artistName || 'Unknown Artist'} {result.description ? `— ${result.description}` : ''}
+                            par {result.artistName || 'Artiste Non-Renseigné'} {result.description ? `— ${result.description}` : ''}
                           </p>
                         </div>
                       </div>
@@ -1284,7 +1363,7 @@ export default function HostLobby() {
                                 {result.average.toFixed(2)}
                               </span>
                               <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mt-0.5">
-                                {result.votesCount} {result.votesCount === 1 ? 'player' : 'players'}
+                                {result.votesCount} {result.votesCount === 1 ? 'vote' : 'votes'}
                               </span>
                             </div>
                             <span className="text-xs text-slate-500 font-bold">/5</span>
@@ -1305,7 +1384,7 @@ export default function HostLobby() {
                                   {(result.twitchAverage ?? 0).toFixed(2)}
                                 </span>
                                 <span className="text-[8px] font-black text-purple-600 uppercase tracking-wider mt-0.5">
-                                  {result.twitchVotesCount} {result.twitchVotesCount === 1 ? 'chat vote' : 'chat votes'}
+                                  {result.twitchVotesCount} {result.twitchVotesCount === 1 ? 'vote' : 'votes'}
                                 </span>
                               </div>
                               <span className="text-xs text-slate-500 font-bold">/5</span>
@@ -1325,7 +1404,7 @@ export default function HostLobby() {
                 className="px-8 py-3.5 bg-[#24B3F1] border-2 border-black text-black font-black text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
               >
                 <Home className="w-4 h-4" />
-                <span>Back to Homepage</span>
+                <span>Retour à l'accueil</span>
               </button>
             </div>
           </div>

@@ -1,30 +1,31 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
+import { validateRating, broadcastRoomUpdate } from '../utils/security.js';
 
 export function registerVoteHandlers(io, socket) {
   // Player submits a vote
   socket.on('game:vote', async ({ voteValue }, callback) => {
-    const { sessionId, playerId } = socket.data;
-
-    if (!sessionId || !playerId) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized: You are not in a room session' });
-      }
-      return;
-    }
-
     try {
-      const parsedVote = parseInt(voteValue, 10);
-      if (isNaN(parsedVote) || parsedVote < 1 || parsedVote > 5) {
-        throw new Error('Vote value must be an integer between 1 and 5');
+      const { sessionId, playerId } = socket.data;
+
+      if (!sessionId || !playerId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : vous n\'êtes pas dans une session de salle' });
+        }
+        return;
+      }
+
+      const parsedVote = validateRating(voteValue);
+      if (parsedVote === null) {
+        throw new Error('La note doit être un nombre entier entre 1 et 5');
       }
 
       const session = await getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        throw new Error('Session introuvable');
       }
 
       if (session.status !== 'PLAYING') {
-        throw new Error('Voting is only active during playback');
+        throw new Error('Le vote est uniquement actif pendant la lecture');
       }
 
       // Record player's vote
@@ -35,12 +36,25 @@ export function registerVoteHandlers(io, socket) {
         session.players[playerId].vote = parsedVote;
       }
 
+      // If results were already accumulated for the current video (e.g. during REVEAL phase), update them too
+      const currentVideo = session.videos?.[session.currentVideoIndex];
+      if (currentVideo && session.results?.[currentVideo.id]) {
+        const resObj = session.results[currentVideo.id];
+        resObj.playerVotes = resObj.playerVotes || {};
+        resObj.playerVotes[playerId] = parsedVote;
+
+        const votesList = Object.values(session.votes);
+        const sum = votesList.reduce((acc, v) => acc + v, 0);
+        resObj.average = votesList.length > 0 ? parseFloat((sum / votesList.length).toFixed(2)) : 0;
+        resObj.votesCount = votesList.length;
+      }
+
       await saveSession(session);
 
       console.log(`Room ${sessionId}: Player ${playerId} voted ${parsedVote}`);
 
-      // Broadcast updated session state to all clients in the room
-      io.to(`session:${sessionId}`).emit('room:update', session);
+      // Securely broadcast updated session state to all clients in the room (with voting masking)
+      broadcastRoomUpdate(io, session);
 
       if (typeof callback === 'function') {
         callback({ success: true, vote: parsedVote });

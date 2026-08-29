@@ -139,7 +139,9 @@ button {
 .btn-action-hover {
   transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), background-color 0.15s ease-in-out, color 0.15s ease-in-out;
 }
-.btn-action-hover:hover:not(:disabled) {
+.btn-action-hover:hover:not(:disabled),
+.btn-action-hover:focus:not(:disabled),
+.btn-action-hover:focus-visible:not(:disabled) {
   transform: translate(-3px, -3px);
 }
 .btn-action-hover:active:not(:disabled) {
@@ -168,7 +170,9 @@ button {
   pointer-events: none;
   border-radius: 9999px;
 }
-.btn-choice-hover:hover span::after {
+.btn-choice-hover:hover span::after,
+.btn-choice-hover:focus span::after,
+.btn-choice-hover:focus-visible span::after {
   width: 100%;
 }
 .btn-choice-hover:focus-visible {

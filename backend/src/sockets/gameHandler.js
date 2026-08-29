@@ -1,14 +1,21 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
+import { filterVideosByMalList } from '../services/malMatcher.js';
+import {
+  sanitizeText,
+  validateMalUsername,
+  broadcastRoomUpdate,
+  sanitizeSessionForSocket,
+} from '../utils/security.js';
 
 async function recordAndFetchVideoRatings(session, currentVideo) {
   if (!session || !currentVideo) return;
 
   const videoId = parseInt(currentVideo.id, 10) || null;
   const youtubeId = currentVideo.youtubeId;
-  const playlistId = session.playlistId;
-  const sessionId = session.sessionId;
+  const playlistId = sanitizeText(session.playlistId, 50);
+  const sessionId = sanitizeText(session.sessionId, 50);
 
   // Track recorded rounds on session to avoid inserting twice for same session & video
   session.savedRatingsMap = session.savedRatingsMap || {};
@@ -21,7 +28,8 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
     for (const pid in session.votes) {
       const ratingVal = session.votes[pid];
       if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
-        const playerName = session.players?.[pid]?.name || 'Anonymous Player';
+        const rawPlayerName = session.players?.[pid]?.name || 'Anonymous Player';
+        const playerName = sanitizeText(rawPlayerName, 100);
         try {
           await pool.query(
             `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
@@ -35,9 +43,10 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
     }
 
     // 2. Insert Twitch votes
-    for (const username in session.twitchVotes) {
-      const ratingVal = session.twitchVotes[username];
+    for (const rawUsername in session.twitchVotes) {
+      const ratingVal = session.twitchVotes[rawUsername];
       if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
+        const username = sanitizeText(rawUsername, 100);
         try {
           await pool.query(
             `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
@@ -108,11 +117,12 @@ export async function checkAndAdvanceSkip(io, session) {
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
+          playerVotes: { ...(session.votes || {}) },
         };
         await recordAndFetchVideoRatings(session, currentVideo);
       }
       await saveSession(session);
-      io.to(`session:${session.sessionId}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
       return true;
     }
   } else if (phase === 'REVEAL') {
@@ -135,7 +145,7 @@ export async function checkAndAdvanceSkip(io, session) {
       }
 
       await saveSession(session);
-      io.to(`session:${session.sessionId}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
       return true;
     }
   }
@@ -146,27 +156,27 @@ export async function checkAndAdvanceSkip(io, session) {
 export function registerGameHandlers(io, socket) {
   // Start the game session
   socket.on('game:start', async (payload, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized: Only the Host can start the game' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut démarrer la partie' });
+        }
+        return;
+      }
+
       const session = await getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        throw new Error('Session introuvable');
       }
 
       const { malUsername, playlistId } = payload || {};
       let videos = [];
-      let activePlaylistId = playlistId || 'anime-classics';
+      let activePlaylistId = sanitizeText(playlistId, 50) || 'anime-classics';
+      const username = validateMalUsername(malUsername);
 
-      if (malUsername && malUsername.trim()) {
-        const username = malUsername.trim();
+      if (username) {
         console.log(`Filtering playlist using MyAnimeList completed list of: ${username}`);
         activePlaylistId = 'mal-custom';
         try {
@@ -174,35 +184,13 @@ export function registerGameHandlers(io, socket) {
           if (malTitles.length > 0) {
             // Get all videos in DB to match
             const allVideosResult = await pool.query(
-              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
+              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
                FROM videos
                ORDER BY order_index ASC`
             );
 
-            // Filter videos whose description, title, or artist matches
-            const matchedVideos = allVideosResult.rows.filter(video => {
-              const textToSearch = `${video.description || ''} ${video.artistName || ''} ${video.title || ''}`.toLowerCase().trim();
-              
-              return malTitles.some(entry => {
-                const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
-                const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
-                
-                return (
-                  (titleLower && textToSearch.includes(titleLower)) ||
-                  (engTitleLower && textToSearch.includes(engTitleLower))
-                );
-              });
-            });
-
-            // Remove duplicate tracks by youtubeId
-            const seenYoutubeIds = new Set();
-            videos = matchedVideos.filter(video => {
-              if (seenYoutubeIds.has(video.youtubeId)) {
-                return false;
-              }
-              seenYoutubeIds.add(video.youtubeId);
-              return true;
-            });
+            // Filter videos using malMatcher helper
+            videos = filterVideosByMalList(allVideosResult.rows, malTitles);
 
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
@@ -217,7 +205,7 @@ export function registerGameHandlers(io, socket) {
           activePlaylistId = 'anime-classics';
         }
         const result = await pool.query(
-          `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
+          `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
            FROM videos 
            WHERE playlist_id = $1 
            ORDER BY order_index ASC`,
@@ -231,7 +219,7 @@ export function registerGameHandlers(io, socket) {
       videos = videos.filter(video => !disabledIds[video.id]);
 
       if (videos.length === 0) {
-        throw new Error('No active videos left (all videos in the playlist are disabled).');
+        throw new Error('Plus aucune vidéo active disponible (toutes les vidéos de la playlist sont désactivées).');
       }
 
       // Increment played_count and set last_played for the selected playlist
@@ -266,11 +254,14 @@ export function registerGameHandlers(io, socket) {
 
       console.log(`Game started for room ${sessionId} with ${session.videos.length} videos`);
 
-      // Notify all clients in the room
-      io.to(`session:${sessionId}`).emit('room:update', session);
+      // Broadcast update to all clients
+      broadcastRoomUpdate(io, session);
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
     } catch (error) {
       console.error('Error starting game:', error);
@@ -280,19 +271,21 @@ export function registerGameHandlers(io, socket) {
     }
   });
 
-  // Reveal vote results for current round
+  // Reveal vote results for current round (HOST ONLY)
   socket.on('game:show_results', async (payload, callback) => {
-    const { sessionId } = socket.data;
-    if (!sessionId) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      // Ensure only host can reveal results
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut afficher les résultats' });
+        }
+        return;
+      }
+
       const session = await getSession(sessionId);
-      if (!session) throw new Error('Session not found');
+      if (!session) throw new Error('Session introuvable');
 
       session.phase = 'REVEAL';
 
@@ -319,15 +312,19 @@ export function registerGameHandlers(io, socket) {
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
+          playerVotes: { ...(session.votes || {}) },
         };
         await recordAndFetchVideoRatings(session, currentVideo);
       }
 
       await saveSession(session);
-      io.to(`session:${sessionId}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
     } catch (error) {
       console.error('Error showing results:', error);
@@ -339,19 +336,19 @@ export function registerGameHandlers(io, socket) {
 
   // Active player toggles skip status
   socket.on('game:player_skip', async (payload, callback) => {
-    const { sessionId, playerId } = socket.data;
-
-    if (!sessionId || !playerId) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized: You are not in a room session' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, playerId } = socket.data;
+
+      if (!sessionId || !playerId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : vous n\'êtes pas dans une session de salle' });
+        }
+        return;
+      }
+
       const session = await getSession(sessionId);
-      if (!session) throw new Error('Session not found');
-      if (session.status !== 'PLAYING') throw new Error('Game is not playing');
+      if (!session) throw new Error('Session introuvable');
+      if (session.status !== 'PLAYING') throw new Error('La partie n\'est pas en cours');
 
       const currentPhase = session.phase || 'VOTING';
 
@@ -369,7 +366,7 @@ export function registerGameHandlers(io, socket) {
       const advanced = await checkAndAdvanceSkip(io, session);
       if (!advanced) {
         await saveSession(session);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        broadcastRoomUpdate(io, session);
       }
 
       if (typeof callback === 'function') {
@@ -386,25 +383,25 @@ export function registerGameHandlers(io, socket) {
     }
   });
 
-  // Advance to next video
+  // Advance to next video (HOST ONLY)
   socket.on('game:next', async (payload, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut passer à la vidéo suivante' });
+        }
+        return;
+      }
+
       const session = await getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        throw new Error('Session introuvable');
       }
 
       if (!session.videos || session.videos.length === 0) {
-        throw new Error('No videos found in session');
+        throw new Error('Aucune vidéo trouvée dans la session');
       }
 
       // Accumulate votes for the current video before advancing if not accumulated yet
@@ -431,6 +428,7 @@ export function registerGameHandlers(io, socket) {
           votesCount: count,
           twitchAverage,
           twitchVotesCount: twitchCount,
+          playerVotes: { ...(session.votes || {}) },
         };
         await recordAndFetchVideoRatings(session, currentVideo);
       }
@@ -455,10 +453,13 @@ export function registerGameHandlers(io, socket) {
       }
 
       await saveSession(session);
-      io.to(`session:${sessionId}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
     } catch (error) {
       console.error('Error advancing video:', error);
@@ -468,21 +469,21 @@ export function registerGameHandlers(io, socket) {
     }
   });
 
-  // Navigate to previous video
+  // Navigate to previous video (HOST ONLY)
   socket.on('game:previous', async (payload, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut revenir à la vidéo précédente' });
+        }
+        return;
+      }
+
       const session = await getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        throw new Error('Session introuvable');
       }
 
       if (session.currentVideoIndex > 0) {
@@ -499,12 +500,15 @@ export function registerGameHandlers(io, socket) {
         }
 
         await saveSession(session);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        broadcastRoomUpdate(io, session);
         console.log(`Game in room ${sessionId} reverted to video index ${session.currentVideoIndex}`);
       }
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
     } catch (error) {
       console.error('Error going to previous video:', error);

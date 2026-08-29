@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSocket } from '@/lib/useSocket';
 import HostButton from '@/components/HostButton';
 import JoinCard from '@/components/JoinCard';
@@ -53,7 +54,7 @@ export default function Home() {
       router.push('/host');
     } catch (err: any) {
       console.error(err);
-      showBanner(err.message || 'Failed to create room session', 'error');
+      showBanner(err.message || 'Échec de la création de la salle', 'error');
       setIsCreating(false);
     }
   };
@@ -61,11 +62,11 @@ export default function Home() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) {
-      showBanner('Please enter your player nickname', 'error');
+      showBanner('Veuillez entrer un pseudonyme valide', 'warning');
       return;
     }
     if (!roomCode.trim() || roomCode.length !== 6) {
-      showBanner('Please enter a valid 6-character room code', 'error');
+      showBanner('Veuillez entrer un code de salle valide', 'warning');
       return;
     }
 
@@ -77,7 +78,7 @@ export default function Home() {
       router.push('/play');
     } catch (err: any) {
       console.error(err);
-      showBanner(err.message || 'Room not found. Please check your 6-character room code.', 'error');
+      showBanner(err.message || 'Salle introuvable, veuillez vérifier le code de la salle.', 'error');
       setIsJoining(false);
     }
   };
@@ -151,12 +152,24 @@ export default function Home() {
         </div>
 
         {/* Create Playlist Button (Spans full length under the two main buttons) */}
-        <div className="w-full my-8 flex items-center justify-center">
+        <div className="w-full mt-4 mb-2 flex items-center justify-center">
           <CreatePlaylistButton
             onClick={() => router.push('/playlists/new')}
             disabled={isCreating || isJoining}
           />
         </div>
+
+        {/* Footer Link: CGU & Crédits */}
+        <footer className="mt-6 mb-2 flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-slate-800 select-none">
+          <Link
+            href="/cgu"
+            className="hover:text-black focus:text-black underline underline-offset-4 decoration-slate-400 hover:decoration-black transition-colors"
+          >
+            Conditions Générales d'Utilisation & Crédits
+          </Link>
+          <span className="text-slate-400">•</span>
+          <span className="text-slate-600">Rate It © {new Date().getFullYear()}</span>
+        </footer>
       </div>
     </div>
   );

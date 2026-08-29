@@ -3,9 +3,9 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { checkDbConnection, initializeDatabase } from './db/db.js';
-import { connectRedis } from './store/redis.js';
-
+import pool, { checkDbConnection, initializeDatabase } from './db/db.js';
+import redisClient, { connectRedis } from './store/redis.js';
+import { isAllowedOrigin } from './utils/security.js';
 import { onConnection } from './sockets/index.js';
 
 dotenv.config();
@@ -13,8 +13,40 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
-app.use(express.json());
+// Security HTTP Headers Middleware
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.youtube.com; connect-src 'self' ws: wss: https:;"
+  );
+  next();
+});
+
+// Configure CORS Origin Verification Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : [];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin, allowedOrigins)) {
+        callback(null, true);
+      } else {
+        console.warn(`Blocked HTTP request from unauthorized origin: ${origin}`);
+        callback(new Error('Cross-Origin Request Blocked'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: '1mb' }));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -28,10 +60,28 @@ app.get('/health', async (req, res) => {
 
 const httpServer = createServer(app);
 
+// Configure Socket.io with CSRF / Origin Verification
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Allow all origins for local development, can be configured later
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin, allowedOrigins)) {
+        callback(null, true);
+      } else {
+        console.warn(`Blocked Socket CORS request from unauthorized origin: ${origin}`);
+        callback(new Error('Cross-Origin Socket Request Blocked'), false);
+      }
+    },
     methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  allowRequest: (req, callback) => {
+    const origin = req.headers.origin || req.headers.referer;
+    if (isAllowedOrigin(origin, allowedOrigins)) {
+      callback(null, true);
+    } else {
+      console.warn(`CSurf protection: Blocked socket handshake from origin ${origin}`);
+      callback('Forbidden origin', false);
+    }
   },
 });
 
@@ -52,8 +102,57 @@ async function startServer() {
     });
   } catch (error) {
     console.error('Failed to start server due to connection error:', error);
-    // In production, we might want to fail fast. For local dev, let's log it.
   }
 }
 
+// Graceful Shutdown on termination signals
+let isShuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+
+  try {
+    io.close(() => {
+      console.log('Socket.io server closed.');
+    });
+
+    httpServer.close(async () => {
+      console.log('HTTP server closed.');
+
+      try {
+        await pool.end();
+        console.log('PostgreSQL connection pool closed.');
+      } catch (err) {
+        console.error('Error closing PostgreSQL pool:', err);
+      }
+
+      try {
+        if (redisClient.isOpen) {
+          await redisClient.quit();
+          console.log('Redis client disconnected.');
+        }
+      } catch (err) {
+        console.error('Error closing Redis client:', err);
+      }
+
+      console.log('Graceful shutdown completed successfully.');
+      process.exit(0);
+    });
+
+    // Force shutdown after 10s if connections hang
+    setTimeout(() => {
+      console.error('Forced shutdown due to timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  } catch (err) {
+    console.error('Error during graceful shutdown:', err);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 startServer();
+

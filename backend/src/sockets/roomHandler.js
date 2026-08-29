@@ -1,6 +1,14 @@
 import { getSession, saveSession, deleteSession } from '../store/sessionStore.js';
 import { disconnectFromTwitchChat } from '../services/twitchService.js';
 import { checkAndAdvanceSkip } from './gameHandler.js';
+import {
+  sanitizeText,
+  validateRoomCode,
+  generateSecureToken,
+  safeTimingCompare,
+  broadcastRoomUpdate,
+  sanitizeSessionForSocket,
+} from '../utils/security.js';
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -13,7 +21,7 @@ function generateRoomCode() {
 
 export function registerRoomHandlers(io, socket) {
   // Host creates a room
-  socket.on('room:create', async (payload, callback) => {
+  socket.on('room:create', async (payload = {}, callback) => {
     try {
       let code;
       let existingSession = null;
@@ -27,12 +35,20 @@ export function registerRoomHandlers(io, socket) {
       } while (existingSession && attempts < 10);
 
       if (existingSession) {
-        throw new Error('Could not generate a unique room code');
+        throw new Error('Impossible de générer un code de salle unique');
       }
+
+      const isHostPlayer = payload.isHostPlayer !== false; // default true
+      const hostPlayerId = sanitizeText(payload.playerId, 50) || `host_${code}`;
+      const hostName = sanitizeText(payload.hostName, 50) || 'Hôte';
+      const hostToken = generateSecureToken(32);
 
       const session = {
         sessionId: code,
         hostSocketId: socket.id,
+        hostPlayerId: hostPlayerId,
+        hostToken: hostToken,
+        isHostPlayer: isHostPlayer,
         status: 'LOBBY',
         playlistId: '',
         currentVideoIndex: 0,
@@ -40,16 +56,31 @@ export function registerRoomHandlers(io, socket) {
         votes: {},
       };
 
+      if (isHostPlayer) {
+        session.players[hostPlayerId] = {
+          id: hostPlayerId,
+          name: hostName,
+          isConnected: true,
+          isHost: true,
+        };
+      }
+
       await saveSession(session);
 
       socket.data.sessionId = code;
       socket.data.isHost = true;
+      socket.data.playerId = hostPlayerId;
       socket.join(`session:${code}`);
 
-      console.log(`Room created: ${code} by Host ${socket.id}`);
+      console.log(`Room created: ${code} by Host ${socket.id} (isHostPlayer: ${isHostPlayer})`);
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        // Return hostToken exclusively to the room creator in direct callback
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+          hostToken,
+        });
       }
     } catch (error) {
       console.error('Error creating room:', error);
@@ -60,35 +91,111 @@ export function registerRoomHandlers(io, socket) {
   });
 
   // Host reconnects to room
-  socket.on('room:reconnect_host', async ({ sessionId }, callback) => {
+  socket.on('room:reconnect_host', async (payload = {}, callback) => {
     try {
-      if (!sessionId) {
-        throw new Error('Missing room code');
+      const formattedCode = validateRoomCode(payload.sessionId);
+      if (!formattedCode) {
+        throw new Error('Code de salle invalide');
       }
 
-      const formattedCode = sessionId.trim().toUpperCase();
       const session = await getSession(formattedCode);
 
       if (!session) {
-        throw new Error('Room not found');
+        throw new Error('Salle introuvable');
       }
 
+      // Verify host token to prevent unauthorized host session hijacking
+      const providedHostToken = payload.hostToken;
+      if (!providedHostToken || !session.hostToken || !safeTimingCompare(String(providedHostToken), String(session.hostToken))) {
+        throw new Error('Authentification de l\'hôte échouée (token invalide ou manquant)');
+      }
+
+      const hostPlayerId = session.hostPlayerId || payload.playerId || `host_${formattedCode}`;
       session.hostSocketId = socket.id;
+      session.hostPlayerId = hostPlayerId;
+
+      if (session.isHostPlayer) {
+        session.players = session.players || {};
+        if (session.players[hostPlayerId]) {
+          session.players[hostPlayerId].isConnected = true;
+        } else {
+          session.players[hostPlayerId] = {
+            id: hostPlayerId,
+            name: payload.hostName || 'Hôte',
+            isConnected: true,
+            isHost: true,
+          };
+        }
+      }
+
       await saveSession(session);
 
       socket.data.sessionId = formattedCode;
       socket.data.isHost = true;
+      socket.data.playerId = hostPlayerId;
       socket.join(`session:${formattedCode}`);
 
-      console.log(`Host ${socket.id} reconnected to room ${formattedCode}`);
+      console.log(`Host ${socket.id} securely reconnected to room ${formattedCode}`);
 
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
 
-      io.to(`session:${formattedCode}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
     } catch (error) {
       console.error('Error reconnecting host:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Host toggles host player setting in lobby
+  socket.on('room:toggle_host_player', async ({ isHostPlayer, hostName }, callback) => {
+    try {
+      const { sessionId, isHost } = socket.data;
+      if (!sessionId || !isHost) {
+        throw new Error('Non autorisé');
+      }
+
+      const session = await getSession(sessionId);
+      if (!session) {
+        throw new Error('Session introuvable');
+      }
+
+      const hostPlayerId = session.hostPlayerId || `host_${sessionId}`;
+      session.isHostPlayer = !!isHostPlayer;
+      session.hostPlayerId = hostPlayerId;
+
+      const cleanHostName = sanitizeText(hostName, 50);
+      if (isHostPlayer) {
+        session.players[hostPlayerId] = {
+          id: hostPlayerId,
+          name: cleanHostName || session.players[hostPlayerId]?.name || 'Hôte',
+          isConnected: true,
+          isHost: true,
+        };
+      } else {
+        delete session.players[hostPlayerId];
+        delete session.votes[hostPlayerId];
+        if (session.skips) delete session.skips[hostPlayerId];
+        if (session.revealSkips) delete session.revealSkips[hostPlayerId];
+      }
+
+      await saveSession(session);
+      broadcastRoomUpdate(io, session);
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling host player:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
@@ -98,25 +205,31 @@ export function registerRoomHandlers(io, socket) {
   // Player joins a room
   socket.on('room:join', async ({ sessionId, playerName, playerId }, callback) => {
     try {
-      if (!sessionId || !playerName || !playerId) {
-        throw new Error('Missing room code, player name, or player ID');
+      const formattedCode = validateRoomCode(sessionId);
+      if (!formattedCode) {
+        throw new Error('Code de salle invalide');
       }
 
-      const formattedCode = sessionId.trim().toUpperCase();
+      const cleanPlayerName = sanitizeText(playerName, 50);
+      const cleanPlayerId = sanitizeText(playerId, 50);
+      if (!cleanPlayerName || !cleanPlayerId) {
+        throw new Error('Pseudonyme ou ID joueur invalide');
+      }
+
       const session = await getSession(formattedCode);
 
       if (!session) {
-        throw new Error('Room not found');
+        throw new Error('Salle introuvable');
       }
 
       // Update session state with player info
-      if (session.players[playerId]) {
-        session.players[playerId].isConnected = true;
-        session.players[playerId].name = playerName;
+      if (session.players[cleanPlayerId]) {
+        session.players[cleanPlayerId].isConnected = true;
+        session.players[cleanPlayerId].name = cleanPlayerName;
       } else {
-        session.players[playerId] = {
-          id: playerId,
-          name: playerName,
+        session.players[cleanPlayerId] = {
+          id: cleanPlayerId,
+          name: cleanPlayerName,
           isConnected: true,
         };
       }
@@ -124,19 +237,22 @@ export function registerRoomHandlers(io, socket) {
       await saveSession(session);
 
       socket.data.sessionId = formattedCode;
-      socket.data.playerId = playerId;
+      socket.data.playerId = cleanPlayerId;
       socket.data.isHost = false;
       socket.join(`session:${formattedCode}`);
 
-      console.log(`Player ${playerName} (${playerId}) joined room ${formattedCode}`);
+      console.log(`Player ${cleanPlayerName} (${cleanPlayerId}) joined room ${formattedCode}`);
 
-      // Notify player they successfully joined
+      // Notify player they successfully joined with sanitized view
       if (typeof callback === 'function') {
-        callback({ success: true, session });
+        callback({
+          success: true,
+          session: sanitizeSessionForSocket(session, socket.data),
+        });
       }
 
-      // Broadcast updated session state to all clients in the room (including host)
-      io.to(`session:${formattedCode}`).emit('room:update', session);
+      // Broadcast updated session state to all clients in the room
+      broadcastRoomUpdate(io, session);
     } catch (error) {
       console.error('Error joining room:', error);
       if (typeof callback === 'function') {
@@ -147,22 +263,21 @@ export function registerRoomHandlers(io, socket) {
 
   // Host deletes a room session
   socket.on('room:delete', async (payload, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized: Only the host can delete the room' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : seul l\'hôte peut supprimer la salle' });
+        }
+        return;
+      }
       disconnectFromTwitchChat(sessionId);
       await deleteSession(sessionId);
 
       // Broadcast to all clients in the room session that it was deleted
       io.to(`session:${sessionId}`).emit('room:deleted');
-      console.log(`Room ${sessionId} deleted by host ${socket.id}`);
+      console.log(`Room ${sessionId} deleted by host ${socket.id} - socket disconnected properly`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -176,28 +291,31 @@ export function registerRoomHandlers(io, socket) {
   });
 
   // Handle disconnection cleanup
-  socket.on('disconnect', async () => {
+  socket.on('disconnect', async (reason) => {
     const { sessionId, playerId, isHost } = socket.data;
 
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.log(`Socket ${socket.id} disconnected (reason: ${reason})`);
+      return;
+    }
 
     try {
       const session = await getSession(sessionId);
       if (!session) return;
 
       if (isHost) {
-        console.log(`Host ${socket.id} disconnected from room ${sessionId}`);
+        console.log(`Host ${socket.id} disconnected properly from room ${sessionId} (reason: ${reason})`);
         session.hostSocketId = null;
         await saveSession(session);
         disconnectFromTwitchChat(sessionId);
-        io.to(`session:${sessionId}`).emit('room:update', session);
+        broadcastRoomUpdate(io, session);
       } else if (playerId && session.players[playerId]) {
-        console.log(`Player ${playerId} disconnected from room ${sessionId}`);
+        console.log(`Player ${playerId} disconnected properly from room ${sessionId} (reason: ${reason})`);
         session.players[playerId].isConnected = false;
         await saveSession(session);
         const advanced = await checkAndAdvanceSkip(io, session);
         if (!advanced) {
-          io.to(`session:${sessionId}`).emit('room:update', session);
+          broadcastRoomUpdate(io, session);
         }
       }
     } catch (error) {

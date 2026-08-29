@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rate-it-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Veuillez definir POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rate_it}
+    volumes:
+      # Persistent named volume - NEVER deleted on container restart or code update
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rate-it-network
+    # Kept in internal network; no ports exposed publicly for security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-rate_it}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: rate-it-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      # Persistent Redis storage (AOF enabled)
+      - redis_data:/data
+    networks:
+      - rate-it-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rate-it-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rate_it}
+      REDIS_URL: redis://redis:6379
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Veuillez definir ADMIN_PASSWORD dans .env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://rate-it.fr,https://www.rate-it.fr}
+      SPECIAL_TWITCH_USER: ${SPECIAL_TWITCH_USER:-ryrynoceros_}
+    ports:
+      # Binds to localhost only for reverse proxy access (Nginx/Caddy/Cloudflare)
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rate-it-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://rate-it.fr}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://rate-it.fr}
+    container_name: rate-it-frontend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      # Binds to localhost only for reverse proxy access
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - rate-it-network
+
+volumes:
+  # Named volumes stored safely in Docker volume storage
+  postgres_data:
+    name: rate_it_postgres_data
+  redis_data:
+    name: rate_it_redis_data
+
+networks:
+  rate-it-network:
+    name: rate_it_network
+    driver: bridge

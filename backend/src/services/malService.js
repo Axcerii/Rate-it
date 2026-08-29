@@ -1,11 +1,16 @@
+import { validateMalUsername } from '../utils/security.js';
+
 /**
  * Service to fetch public completed anime list for a MyAnimeList username.
  * Uses the public unauthenticated load.json endpoint.
  */
 export async function fetchUserCompletedAnime(username) {
-  if (!username) return [];
+  const cleanUsername = validateMalUsername(username);
+  if (!cleanUsername) {
+    throw new Error('Nom d\'utilisateur MyAnimeList invalide (2-20 caractères alphanumériques)');
+  }
 
-  const url = `https://myanimelist.net/animelist/${encodeURIComponent(username)}/load.json?status=2`;
+  const url = `https://myanimelist.net/animelist/${encodeURIComponent(cleanUsername)}/load.json?status=2`;
 
   try {
     const controller = new AbortController();
@@ -21,24 +26,25 @@ export async function fetchUserCompletedAnime(username) {
 
     if (!response.ok) {
       if (response.status === 404) {
-        throw new Error('MAL Username not found');
+        throw new Error('Nom d\'utilisateur MAL introuvable');
       }
-      throw new Error(`MAL API returned status ${response.status}`);
+      throw new Error(`L'API MAL a renvoyé le statut ${response.status}`);
     }
 
     const data = await response.json();
     
     if (!Array.isArray(data)) {
-      throw new Error('Invalid response format from MyAnimeList (possibly private profile)');
+      throw new Error('Format de réponse invalide de MyAnimeList (profil peut-être privé)');
     }
 
-    // Extract titles (both original romaji and English title if present)
+    // Extract titles and MAL anime_id (both original romaji, English title, and MAL ID)
     return data.map((entry) => ({
+      animeId: entry.anime_id,
       title: entry.anime_title,
       englishTitle: entry.anime_title_eng,
     }));
   } catch (error) {
-    console.error(`Error fetching MAL list for user ${username}:`, error);
-    throw new Error(error.message || 'Failed to fetch MyAnimeList profile');
+    console.error(`Error fetching MAL list for user ${cleanUsername}:`, error);
+    throw new Error(error.message || 'Échec de la récupération du profil MyAnimeList');
   }
 }

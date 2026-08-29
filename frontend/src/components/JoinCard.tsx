@@ -35,7 +35,7 @@ export default function JoinCard({
       {/* Background Card Container (styled matching Join.png with exact dark purple #7d0c52) */}
       <form
         onSubmit={onSubmit}
-        className={`relative w-full aspect-auto sm:aspect-[1.5/1] min-h-[260px] sm:min-h-0 rounded-3xl bg-[#D936C5] border-4 border-[#7d0c52] transition-all duration-300 ease-out p-4 sm:p-5 flex flex-col justify-between overflow-hidden sm:overflow-visible ${isActive
+        className={`relative w-full aspect-auto sm:aspect-[1.5/1] min-h-[260px] sm:min-h-0 rounded-3xl bg-[#D936C5] border-4 border-[#7d0c52] transition-all duration-300 ease-out p-4 sm:p-5 flex flex-col justify-between overflow-visible ${isActive
           ? 'scale-[1.02] shadow-[8px_8px_0px_0px_#7d0c52] ring-6 ring-[#A855F7] bg-[#E442D0]'
           : 'scale-100 shadow-none ring-0 ring-transparent'
           }`}
@@ -111,8 +111,8 @@ export default function JoinCard({
                 type="button"
                 onClick={() => setShowRoomCode(!showRoomCode)}
                 tabIndex={-1}
-                title={showRoomCode ? 'Hide Code' : 'Show Code'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1 rounded focus:outline-none flex items-center justify-center"
+                title={showRoomCode ? 'Cacher le code' : 'Afficher le code'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 focus:text-slate-900 focus-visible:text-slate-900 p-1 rounded focus:outline-none flex items-center justify-center"
               >
                 {showRoomCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -124,7 +124,7 @@ export default function JoinCard({
         <button
           type="submit"
           disabled={disabled || loading}
-          aria-label={loading ? 'Joining game lobby...' : 'Join game lobby'}
+          aria-label={loading ? 'Connexion en cours...' : 'Rejoindre la partie'}
           aria-busy={loading}
           onMouseEnter={() => setIsJoinHovered(true)}
           onMouseLeave={() => setIsJoinHovered(false)}

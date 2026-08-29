@@ -4,6 +4,7 @@ export interface Player {
   vote?: number; // 1 to 5, or undefined if not voted yet
   hasSkipped?: boolean;
   isConnected: boolean;
+  isHost?: boolean;
 }
 
 export interface Video {
@@ -12,6 +13,8 @@ export interface Video {
   youtubeId: string;
   artistName?: string;  // Artist Name
   description?: string; // Description
+  malAnimeId?: number;  // Optional MyAnimeList Anime ID
+  malTitle?: string;    // Optional MyAnimeList Anime Title
 }
 
 export interface Playlist {
@@ -28,12 +31,15 @@ export interface VideoResult {
   youtubeId: string;
   artistName?: string;
   description?: string;
+  malAnimeId?: number;
+  malTitle?: string;
   average: number;
   votesCount: number;
   twitchAverage?: number;
   twitchVotesCount?: number;
   historicalAverage?: number;
   historicalVotesCount?: number;
+  playerVotes?: Record<string, number>;
 }
 
 export interface TrackStats {
@@ -55,6 +61,9 @@ export interface TrackStats {
 export interface GameSession {
   sessionId: string;
   hostSocketId?: string;
+  hostPlayerId?: string;
+  hostToken?: string;
+  isHostPlayer?: boolean;
   status: 'LOBBY' | 'PLAYING' | 'LEADERBOARD';
   phase?: 'VOTING' | 'REVEAL'; // Phase within PLAYING status
   playlistId: string;
@@ -74,3 +83,4 @@ export interface VotePayload {
   playerId: string;
   voteValue: number; // 1 to 5
 }
+

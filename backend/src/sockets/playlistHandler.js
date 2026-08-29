@@ -1,8 +1,36 @@
 import pool from '../db/db.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
+import { filterVideosByMalList } from '../services/malMatcher.js';
+import {
+  sanitizeText,
+  escapeLikePattern,
+  validateYoutubeId,
+  verifyYoutubeVideo,
+  safeTimingCompare,
+  checkAdminRateLimit,
+  recordAdminAttempt,
+  sanitizeVideoId,
+  validateMalUsername,
+  broadcastRoomUpdate,
+} from '../utils/security.js';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+function verifyAdminAuth(password, socket) {
+  const clientKey = socket?.handshake?.address || socket?.id || 'admin';
+  const rateLimit = checkAdminRateLimit(clientKey);
+  if (!rateLimit.allowed) {
+    throw new Error(`Trop de tentatives administratives incorrectes. Verrouillé pour encore ${rateLimit.remainingSec}s.`);
+  }
+
+  const configuredPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const isValid = safeTimingCompare(String(password || ''), configuredPassword);
+
+  recordAdminAttempt(clientKey, isValid);
+
+  if (!isValid) {
+    throw new Error('Mot de passe administrateur invalide');
+  }
+}
 
 function generatePlaylistId() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -48,12 +76,19 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
-  // 2. Create custom playlist
+  // 2. Create custom playlist (Bounded to max 200 tracks to prevent DoS)
   socket.on('playlist:create', async ({ name, description, videos }, callback) => {
     const client = await pool.connect();
     try {
-      if (!name || !Array.isArray(videos) || videos.length === 0) {
-        throw new Error('Playlist name and at least one track are required.');
+      const cleanName = sanitizeText(name, 100);
+      const cleanDescription = sanitizeText(description, 1000);
+
+      if (!cleanName || !Array.isArray(videos) || videos.length === 0) {
+        throw new Error('Le nom de la playlist et au moins un titre sont requis.');
+      }
+
+      if (videos.length > 200) {
+        throw new Error('Une playlist ne peut pas contenir plus de 200 pistes.');
       }
 
       await client.query('BEGIN');
@@ -64,24 +99,39 @@ export function registerPlaylistHandlers(io, socket) {
       await client.query(
         `INSERT INTO playlists (id, name, description, is_custom, is_validated)
          VALUES ($1, $2, $3, TRUE, FALSE)`,
-        [playlistId, name.trim(), description ? description.trim() : '']
+        [playlistId, cleanName, cleanDescription]
       );
 
-      // Insert videos
+      // Insert videos with YouTube availability check
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
-        if (!video.title || !video.youtubeId) {
-          throw new Error(`Track at index ${i} is missing title or YouTube URL.`);
+        const cleanTitle = sanitizeText(video.title, 255);
+        const validYtId = validateYoutubeId(video.youtubeId);
+        const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
+        const cleanVideoDesc = sanitizeText(video.description, 1000);
+        const cleanMalTitle = sanitizeText(video.malTitle, 255);
+
+        if (!cleanTitle || !validYtId) {
+          throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
         }
+
+        // Verify that the video is valid and public on YouTube
+        const ytCheck = await verifyYoutubeVideo(validYtId);
+        if (!ytCheck.valid) {
+          throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+        }
+
         await client.query(
-          `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, order_index)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
             playlistId,
-            video.title.trim(),
-            video.youtubeId.trim(),
-            video.artistName ? video.artistName.trim() : 'Unknown Artist',
-            video.description ? video.description.trim() : '',
+            cleanTitle,
+            validYtId,
+            cleanArtistName,
+            cleanVideoDesc,
+            video.malAnimeId ? parseInt(video.malAnimeId, 10) : null,
+            cleanMalTitle || null,
             i,
           ]
         );
@@ -107,25 +157,26 @@ export function registerPlaylistHandlers(io, socket) {
   // 3. Get single playlist details (including tracks)
   socket.on('playlist:get', async ({ id }, callback) => {
     try {
-      if (!id) {
-        throw new Error('Playlist ID is required');
+      const cleanId = sanitizeText(id, 50);
+      if (!cleanId) {
+        throw new Error('L\'ID de la playlist est requis');
       }
 
       const playlistRes = await pool.query(
         'SELECT * FROM playlists WHERE id = $1',
-        [id]
+        [cleanId]
       );
 
       if (playlistRes.rows.length === 0) {
-        throw new Error('Playlist not found');
+        throw new Error('Playlist introuvable');
       }
 
       const videosRes = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, order_index
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle", order_index
          FROM videos
          WHERE playlist_id = $1
          ORDER BY order_index ASC`,
-        [id]
+        [cleanId]
       );
 
       if (typeof callback === 'function') {
@@ -146,13 +197,18 @@ export function registerPlaylistHandlers(io, socket) {
   // 4. Search existing database videos
   socket.on('playlist:search_videos', async ({ query }, callback) => {
     try {
-      const searchQuery = `%${(query || '').trim()}%`;
+      const rawQuery = sanitizeText(query, 100);
+      if (!rawQuery) {
+        if (typeof callback === 'function') callback({ success: true, results: [] });
+        return;
+      }
+      const escapedPattern = `%${escapeLikePattern(rawQuery)}%`;
       const result = await pool.query(
-        `SELECT DISTINCT ON (youtube_id) title, youtube_id as "youtubeId", artist_name as "artistName", description
+        `SELECT DISTINCT ON (youtube_id) title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
          FROM videos
-         WHERE artist_name ILIKE $1 OR title ILIKE $1 OR description ILIKE $1
+         WHERE artist_name ILIKE $1 ESCAPE '\\' OR title ILIKE $1 ESCAPE '\\' OR description ILIKE $1 ESCAPE '\\' OR mal_title ILIKE $1 ESCAPE '\\'
          LIMIT 15`,
-        [searchQuery]
+        [escapedPattern]
       );
 
       if (typeof callback === 'function') {
@@ -168,30 +224,35 @@ export function registerPlaylistHandlers(io, socket) {
 
   // 5. Toggle track status in active session
   socket.on('playlist:toggle_video', async ({ videoId }, callback) => {
-    const { sessionId, isHost } = socket.data;
-
-    if (!sessionId || !isHost) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Unauthorized' });
-      }
-      return;
-    }
-
     try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Unauthorized' });
+        }
+        return;
+      }
+
+      const cleanVideoId = sanitizeVideoId(videoId);
+      if (!cleanVideoId) {
+        throw new Error('ID vidéo invalide');
+      }
+
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session not found');
       }
 
       session.disabledVideoIds = session.disabledVideoIds || {};
-      if (session.disabledVideoIds[videoId]) {
-        delete session.disabledVideoIds[videoId];
+      if (session.disabledVideoIds[cleanVideoId]) {
+        delete session.disabledVideoIds[cleanVideoId];
       } else {
-        session.disabledVideoIds[videoId] = true;
+        session.disabledVideoIds[cleanVideoId] = true;
       }
 
       await saveSession(session);
-      io.to(`session:${sessionId}`).emit('room:update', session);
+      broadcastRoomUpdate(io, session);
 
       if (typeof callback === 'function') {
         callback({ success: true, disabledVideoIds: session.disabledVideoIds });
@@ -207,16 +268,17 @@ export function registerPlaylistHandlers(io, socket) {
   // 6. Admin: Toggle validation status
   socket.on('playlist:validate', async ({ id, isValidated, password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
-      }
+      verifyAdminAuth(password, socket);
+
+      const cleanId = sanitizeText(id, 50);
+      if (!cleanId) throw new Error('ID de playlist invalide');
 
       await pool.query(
         'UPDATE playlists SET is_validated = $1 WHERE id = $2',
-        [isValidated, id]
+        [!!isValidated, cleanId]
       );
 
-      console.log(`Admin validation updated for playlist ${id}: ${isValidated}`);
+      console.log(`Admin validation updated for playlist ${cleanId}: ${!!isValidated}`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -232,12 +294,13 @@ export function registerPlaylistHandlers(io, socket) {
   // 7. Admin: Delete playlist
   socket.on('playlist:delete', async ({ id, password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
-      }
+      verifyAdminAuth(password, socket);
 
-      await pool.query('DELETE FROM playlists WHERE id = $1', [id]);
-      console.log(`Admin deleted playlist: ${id}`);
+      const cleanId = sanitizeText(id, 50);
+      if (!cleanId) throw new Error('ID de playlist invalide');
+
+      await pool.query('DELETE FROM playlists WHERE id = $1', [cleanId]);
+      console.log(`Admin deleted playlist: ${cleanId}`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -253,9 +316,7 @@ export function registerPlaylistHandlers(io, socket) {
   // 8. Admin: Clean stale playlists (played_count <= 1 AND older than 30 days)
   socket.on('playlist:clean_stale', async ({ password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
-      }
+      verifyAdminAuth(password, socket);
 
       const result = await pool.query(
         `DELETE FROM playlists 
@@ -283,55 +344,27 @@ export function registerPlaylistHandlers(io, socket) {
   // 9. Match and return MAL videos for lobby preview
   socket.on('playlist:get_mal_videos', async ({ username }, callback) => {
     try {
-      if (!username || !username.trim()) {
-        throw new Error('Username is required');
+      const cleanUsername = validateMalUsername(username);
+      if (!cleanUsername) {
+        throw new Error('Nom d\'utilisateur MyAnimeList invalide (2-20 caractères alphanumériques)');
       }
 
-      console.log(`Lobby fetching MAL list for user: ${username}`);
-      const malTitles = await fetchUserCompletedAnime(username.trim());
+      console.log(`Lobby fetching MAL list for user: ${cleanUsername}`);
+      const malTitles = await fetchUserCompletedAnime(cleanUsername);
       
       if (malTitles.length === 0) {
-        throw new Error('No completed anime found on this MyAnimeList profile.');
+        throw new Error('Aucun animé terminé trouvé sur ce profil MyAnimeList.');
       }
 
       // Fetch all videos from the database
       const allVideosResult = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
          FROM videos
          ORDER BY order_index ASC`
       );
 
-      const ANIME_SYNONYMS = {
-        'neon genesis evangelion': ['neon genesis evangelion', 'evangelion', 'shinseiki evangelion'],
-        'attack on titan': ['attack on titan', 'shingeki no kyojin', 'snk'],
-        'naruto shippuden': ['naruto shippuden', 'naruto shippuuden', 'naruto: shippuuden', 'naruto'],
-        'tokyo ghoul': ['tokyo ghoul', 'tokyo kushushu']
-      };
-
-      // Filter videos whose description, title, or artist matches
-      const matchedVideos = allVideosResult.rows.filter(video => {
-        const textToSearch = `${video.description || ''} ${video.artistName || ''} ${video.title || ''}`.toLowerCase().trim();
-        
-        return malTitles.some(entry => {
-          const titleLower = entry.title ? entry.title.toLowerCase().trim() : '';
-          const engTitleLower = entry.englishTitle ? entry.englishTitle.toLowerCase().trim() : '';
-          
-          return (
-            (titleLower && textToSearch.includes(titleLower)) ||
-            (engTitleLower && textToSearch.includes(engTitleLower))
-          );
-        });
-      });
-
-      // Remove duplicate tracks by youtubeId
-      const seenYoutubeIds = new Set();
-      const uniqueMatchedVideos = matchedVideos.filter(video => {
-        if (seenYoutubeIds.has(video.youtubeId)) {
-          return false;
-        }
-        seenYoutubeIds.add(video.youtubeId);
-        return true;
-      });
+      // Filter videos using malMatcher helper
+      const uniqueMatchedVideos = filterVideosByMalList(allVideosResult.rows, malTitles);
 
       if (typeof callback === 'function') {
         callback({
@@ -348,38 +381,51 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // Admin: Add video to playlist
-  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, artistName, description, password }, callback) => {
+  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
+      verifyAdminAuth(password, socket);
+
+      const cleanPlaylistId = sanitizeText(playlistId, 50);
+      const cleanTitle = sanitizeText(title, 255);
+      const validYtId = validateYoutubeId(youtubeId);
+      const cleanArtistName = sanitizeText(artistName, 255) || 'Unknown Artist';
+      const cleanVideoDesc = sanitizeText(description, 1000);
+      const cleanMalTitle = sanitizeText(malTitle, 255);
+
+      if (!cleanPlaylistId || !cleanTitle || !validYtId) {
+        throw new Error('Playlist ID, Titre et ID YouTube valide sont requis');
       }
-      if (!playlistId || !title || !youtubeId) {
-        throw new Error('Playlist ID, Title, and YouTube ID are required');
+
+      const ytCheck = await verifyYoutubeVideo(validYtId);
+      if (!ytCheck.valid) {
+        throw new Error(`La vidéo (${validYtId}) est indisponible sur YouTube : ${ytCheck.error}`);
       }
 
       // Check order_index max
       const maxIndexRes = await pool.query(
         'SELECT COALESCE(MAX(order_index), 0) as max FROM videos WHERE playlist_id = $1',
-        [playlistId]
+        [cleanPlaylistId]
       );
       const nextIndex = maxIndexRes.rows[0].max + 1;
 
       // Insert video
       const insertRes = await pool.query(
-        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, order_index)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id::text`,
         [
-          playlistId,
-          title.trim(),
-          youtubeId.trim(),
-          artistName ? artistName.trim() : 'Unknown Artist',
-          description ? description.trim() : '',
+          cleanPlaylistId,
+          cleanTitle,
+          validYtId,
+          cleanArtistName,
+          cleanVideoDesc,
+          malAnimeId ? parseInt(malAnimeId, 10) : null,
+          cleanMalTitle || null,
           nextIndex
         ]
       );
 
-      console.log(`Admin added video ${insertRes.rows[0].id} to playlist ${playlistId}`);
+      console.log(`Admin added video ${insertRes.rows[0].id} to playlist ${cleanPlaylistId}`);
 
       if (typeof callback === 'function') {
         callback({ success: true, videoId: insertRes.rows[0].id });
@@ -395,19 +441,20 @@ export function registerPlaylistHandlers(io, socket) {
   // Admin: Delete video from playlist
   socket.on('playlist:admin_delete_video', async ({ playlistId, videoId, password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
-      }
-      if (!playlistId || !videoId) {
-        throw new Error('Playlist ID and Video ID are required');
+      verifyAdminAuth(password, socket);
+
+      const cleanPlaylistId = sanitizeText(playlistId, 50);
+      const cleanVideoId = parseInt(videoId, 10);
+      if (!cleanPlaylistId || isNaN(cleanVideoId)) {
+        throw new Error('Playlist ID et ID Vidéo valides sont requis');
       }
 
       await pool.query(
         'DELETE FROM videos WHERE playlist_id = $1 AND id = $2',
-        [playlistId, parseInt(videoId, 10)]
+        [cleanPlaylistId, cleanVideoId]
       );
 
-      console.log(`Admin deleted video ${videoId} from playlist ${playlistId}`);
+      console.log(`Admin deleted video ${cleanVideoId} from playlist ${cleanPlaylistId}`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -420,11 +467,161 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
+  // Admin: Delete video directly by ID
+  socket.on('playlist:admin_delete_video_direct', async ({ videoId, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanVideoId = parseInt(videoId, 10);
+      if (isNaN(cleanVideoId)) {
+        throw new Error('ID Vidéo valide requis');
+      }
+
+      await pool.query('DELETE FROM videos WHERE id = $1', [cleanVideoId]);
+      console.log(`Admin deleted video ${cleanVideoId} directly`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error('Error deleting video directly as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Admin: Update existing video details
+  socket.on('playlist:admin_update_video', async ({ videoId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanVideoId = parseInt(videoId, 10);
+      const cleanTitle = sanitizeText(title, 255);
+      const validYtId = validateYoutubeId(youtubeId);
+      const cleanArtistName = sanitizeText(artistName, 255) || 'Unknown Artist';
+      const cleanVideoDesc = sanitizeText(description, 1000);
+      const cleanMalTitle = sanitizeText(malTitle, 255);
+
+      if (isNaN(cleanVideoId) || !cleanTitle || !validYtId) {
+        throw new Error('ID Vidéo, Titre et ID YouTube valide sont requis');
+      }
+
+      const ytCheck = await verifyYoutubeVideo(validYtId);
+      if (!ytCheck.valid) {
+        throw new Error(`La vidéo (${validYtId}) est indisponible sur YouTube : ${ytCheck.error}`);
+      }
+
+      const updateRes = await pool.query(
+        `UPDATE videos
+         SET title = $1,
+             youtube_id = $2,
+             artist_name = $3,
+             description = $4,
+             mal_anime_id = $5,
+             mal_title = $6
+         WHERE id = $7
+         RETURNING id::text, playlist_id as "playlistId", title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"`,
+        [
+          cleanTitle,
+          validYtId,
+          cleanArtistName,
+          cleanVideoDesc,
+          malAnimeId ? parseInt(malAnimeId, 10) : null,
+          cleanMalTitle || null,
+          cleanVideoId,
+        ]
+      );
+
+      if (updateRes.rows.length === 0) {
+        throw new Error('Vidéo introuvable dans la base de données');
+      }
+
+      console.log(`Admin updated video ${cleanVideoId}: "${cleanTitle}"`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, video: updateRes.rows[0] });
+      }
+    } catch (error) {
+      console.error('Error updating video as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Admin: Search across all videos in database
+  socket.on('playlist:admin_search_all_videos', async ({ query = '', limit = 100, offset = 0, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanQuery = escapeLikePattern(query);
+      const searchPattern = `%${cleanQuery}%`;
+      const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
+      let sql = `
+        SELECT v.id::text, v.playlist_id as "playlistId", COALESCE(p.name, 'Sans playlist') as "playlistName",
+               v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName",
+               v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle",
+               v.order_index as "orderIndex"
+        FROM videos v
+        LEFT JOIN playlists p ON v.playlist_id = p.id
+      `;
+
+      const params = [];
+      if (cleanQuery) {
+        sql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
+                    OR v.artist_name ILIKE $1 ESCAPE '\\' 
+                    OR v.mal_title ILIKE $1 ESCAPE '\\' 
+                    OR v.youtube_id ILIKE $1 ESCAPE '\\'
+                    OR p.name ILIKE $1 ESCAPE '\\'`;
+        params.push(searchPattern);
+        params.push(parsedLimit);
+        params.push(parsedOffset);
+        sql += ` ORDER BY v.id DESC LIMIT $2 OFFSET $3`;
+      } else {
+        params.push(parsedLimit);
+        params.push(parsedOffset);
+        sql += ` ORDER BY v.id DESC LIMIT $1 OFFSET $2`;
+      }
+
+      const res = await pool.query(sql, params);
+
+      // Total count
+      let countSql = `SELECT COUNT(*)::int as total FROM videos v LEFT JOIN playlists p ON v.playlist_id = p.id`;
+      let countParams = [];
+      if (cleanQuery) {
+        countSql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
+                         OR v.artist_name ILIKE $1 ESCAPE '\\' 
+                         OR v.mal_title ILIKE $1 ESCAPE '\\' 
+                         OR v.youtube_id ILIKE $1 ESCAPE '\\'
+                         OR p.name ILIKE $1 ESCAPE '\\'`;
+        countParams.push(searchPattern);
+      }
+      const countRes = await pool.query(countSql, countParams);
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          videos: res.rows,
+          total: countRes.rows[0].total,
+        });
+      }
+    } catch (error) {
+      console.error('Error searching all videos as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
   // Get rating statistics for a specific video
   socket.on('video:get_stats', async ({ youtubeId }, callback) => {
     try {
-      if (!youtubeId) {
-        throw new Error('YouTube ID is required');
+      const validYtId = validateYoutubeId(youtubeId);
+      if (!validYtId) {
+        throw new Error('YouTube ID valide requis');
       }
 
       const res = await pool.query(
@@ -438,12 +635,12 @@ export function registerPlaylistHandlers(io, socket) {
            COUNT(CASE WHEN rating = 5 THEN 1 END)::int as r5
          FROM ratings
          WHERE youtube_id = $1`,
-        [youtubeId]
+        [validYtId]
       );
 
       const row = res.rows[0];
       const stats = {
-        youtubeId,
+        youtubeId: validYtId,
         totalVotes: row.total,
         averageRating: parseFloat(parseFloat(row.avg).toFixed(2)),
         distribution: {
@@ -469,9 +666,7 @@ export function registerPlaylistHandlers(io, socket) {
   // Admin: Get global ratings statistics and top/worst rated tracks
   socket.on('admin:get_global_stats', async ({ password }, callback) => {
     try {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin password');
-      }
+      verifyAdminAuth(password, socket);
 
       // 1. Overall aggregated counts
       const overallRes = await pool.query(
@@ -539,6 +734,29 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error fetching global ratings stats:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 10. Verify YouTube video availability live (for UI forms)
+  socket.on('video:verify', async ({ youtubeId }, callback) => {
+    try {
+      const validYtId = validateYoutubeId(youtubeId);
+      if (!validYtId) {
+        throw new Error('Identifiant ou lien YouTube invalide');
+      }
+
+      const result = await verifyYoutubeVideo(validYtId);
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          youtubeId: validYtId,
+          ...result,
+        });
+      }
+    } catch (error) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

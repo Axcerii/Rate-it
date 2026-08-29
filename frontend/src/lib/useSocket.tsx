@@ -4,11 +4,13 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { io, Socket } from 'socket.io-client';
 import { GameSession } from '../../../shared/types';
 
+export type BannerType = 'error' | 'announcement' | 'info' | 'success' | 'warning';
+
 export interface BannerNotice {
   id: string;
   message: string;
   sender?: string;
-  type?: 'error' | 'announcement' | 'info';
+  type?: BannerType;
 }
 
 interface SocketContextType {
@@ -18,9 +20,10 @@ interface SocketContextType {
   isHost: boolean;
   playerId: string;
   banner: BannerNotice | null;
-  showBanner: (message: string, type?: 'error' | 'announcement' | 'info', duration?: number) => void;
+  showBanner: (message: string, type?: BannerType, duration?: number, sender?: string) => void;
   hideBanner: () => void;
-  createRoom: () => Promise<GameSession>;
+  createRoom: (options?: { isHostPlayer?: boolean; hostName?: string }) => Promise<GameSession>;
+  toggleHostPlayer: (isHostPlayer: boolean, hostName?: string) => Promise<GameSession>;
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
   leaveRoom: () => void;
   deleteRoom: () => Promise<void>;
@@ -43,8 +46,12 @@ interface SocketContextType {
   getMalVideos: (username: string) => Promise<any[]>;
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
-  adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, password?: string) => Promise<string>;
+  adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string) => Promise<string>;
   adminDeleteVideo: (playlistId: string, videoId: string, password?: string) => Promise<void>;
+  adminDeleteVideoDirect: (videoId: string | number, password?: string) => Promise<void>;
+  adminUpdateVideo: (videoId: string | number, videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string }, password?: string) => Promise<any>;
+  adminSearchVideos: (query?: string, limit?: number, offset?: number, password?: string) => Promise<{ videos: any[]; total: number }>;
+  verifyVideo: (youtubeId: string) => Promise<{ valid: boolean; title?: string; author?: string; error?: string }>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -70,7 +77,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const showBanner = (message: string, type: 'error' | 'announcement' | 'info' = 'error', duration = 12000) => {
+  const showBanner = (
+    message: string,
+    type: BannerType = 'error',
+    duration = 12000,
+    sender?: string
+  ) => {
     if (bannerTimerRef.current) {
       clearTimeout(bannerTimerRef.current);
     }
@@ -78,6 +90,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       id: Math.random().toString(36).substring(2, 9),
       message,
       type,
+      sender,
     });
 
     if (duration > 0) {
@@ -130,20 +143,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('Connected to socket server');
       
       const hostSessionId = localStorage.getItem('rate_it_host_session_id');
+      const hostToken = localStorage.getItem('rate_it_host_token');
       const playerSessionId = localStorage.getItem('rate_it_player_session_id');
       const name = playerNameRef.current || localStorage.getItem('rate_it_player_name');
       const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
 
-      if (hostSessionId) {
+      if (hostSessionId && hostToken) {
         console.log(`Auto-restoring Host session: ${hostSessionId}`);
         isHostRef.current = true;
         setIsHost(true);
-        socketInstance.emit('room:reconnect_host', { sessionId: hostSessionId }, (response: any) => {
+        socketInstance.emit('room:reconnect_host', { sessionId: hostSessionId, hostToken, playerId: id }, (response: any) => {
           if (response.success) {
             setSession(response.session);
           } else {
             console.log('Failed to restore Host session, clearing storage');
             localStorage.removeItem('rate_it_host_session_id');
+            localStorage.removeItem('rate_it_host_token');
             isHostRef.current = false;
             setIsHost(false);
           }
@@ -167,9 +182,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    const onDisconnect = () => {
+    const onDisconnect = (reason: string) => {
       setIsConnected(false);
-      console.log('Disconnected from socket server');
+      console.log('Socket disconnected properly from server:', reason || 'disconnected');
     };
 
     const onRoomUpdate = (updatedSession: GameSession) => {
@@ -177,19 +192,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSession(updatedSession);
     };
 
-    const onBannerBroadcast = (data: { message: string; sender?: string; type?: 'error' | 'announcement' | 'info' }) => {
+    const onBannerBroadcast = (data: { message: string; sender?: string; type?: BannerType }) => {
       console.log('Received banner broadcast:', data);
-      const text = data.sender ? `[${data.sender}]: ${data.message}` : data.message;
-      showBanner(text, data.type || 'announcement', 12000);
+      showBanner(data.message, data.type || 'announcement', 12000, data.sender);
     };
 
     const onRoomDeleted = () => {
-      console.log('Received room:deleted broadcast');
-      showBanner('The host has closed this room session.', 'info');
+      console.log('Received room:deleted broadcast: host closed room, socket disconnected properly');
+      showBanner('L\'hôte a fermé la session de cette salle.', 'info');
       isHostRef.current = false;
       setIsHost(false);
       playerNameRef.current = '';
       localStorage.removeItem('rate_it_host_session_id');
+      localStorage.removeItem('rate_it_host_token');
       localStorage.removeItem('rate_it_player_session_id');
       setSession(null);
     };
@@ -210,14 +225,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  const createRoom = (): Promise<GameSession> => {
+  const createRoom = (options?: { isHostPlayer?: boolean; hostName?: string }): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       isHostRef.current = true;
       setIsHost(true);
-      socket.emit('room:create', {}, (response: any) => {
+      const isHostPlayer = options?.isHostPlayer !== false;
+      const hostName = options?.hostName || 'Hôte';
+      const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
+      socket.emit('room:create', { isHostPlayer, hostName, playerId: id }, (response: any) => {
         if (response.success) {
           localStorage.setItem('rate_it_host_session_id', response.session.sessionId);
+          if (response.hostToken) {
+            localStorage.setItem('rate_it_host_token', response.hostToken);
+          }
           localStorage.removeItem('rate_it_player_session_id');
           setSession(response.session);
           resolve(response.session);
@@ -225,6 +246,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           isHostRef.current = false;
           setIsHost(false);
           reject(new Error(response.error || 'Failed to create room'));
+        }
+      });
+    });
+  };
+
+  const toggleHostPlayer = (isHostPlayer: boolean, hostName?: string): Promise<GameSession> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('room:toggle_host_player', { isHostPlayer, hostName }, (response: any) => {
+        if (response.success) {
+          setSession(response.session);
+          resolve(response.session);
+        } else {
+          reject(new Error(response.error || 'Failed to toggle host player setting'));
         }
       });
     });
@@ -241,6 +276,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (response.success) {
           localStorage.setItem('rate_it_player_session_id', response.session.sessionId);
           localStorage.removeItem('rate_it_host_session_id');
+          localStorage.removeItem('rate_it_host_token');
           setSession(response.session);
           resolve(response.session);
         } else {
@@ -253,10 +289,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const leaveRoom = () => {
     if (socket && session) {
+      console.log(`Leaving room ${session.sessionId}: socket is disconnected properly`);
       isHostRef.current = false;
       setIsHost(false);
       playerNameRef.current = '';
       localStorage.removeItem('rate_it_host_session_id');
+      localStorage.removeItem('rate_it_host_token');
       localStorage.removeItem('rate_it_player_session_id');
       socket.disconnect();
       socket.connect();
@@ -270,9 +308,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         leaveRoom();
         return resolve();
       }
+      const code = session.sessionId;
+      console.log(`Closing room ${code}: socket is disconnecting properly...`);
       socket.emit('room:delete', {}, (response: any) => {
         leaveRoom();
         if (response && response.success) {
+          console.log(`Room ${code} deleted: socket disconnected properly`);
           resolve();
         } else {
           reject(new Error(response?.error || 'Failed to delete room'));
@@ -287,7 +328,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       const timeoutId = setTimeout(() => {
         reject(new Error('Start game request timed out. Please try again.'));
-      }, 7000);
+      }, 12000);
 
       socket.emit('game:start', { malUsername, playlistId }, (response: any) => {
         clearTimeout(timeoutId);
@@ -548,10 +589,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const adminAddVideo = (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, password?: string): Promise<string> => {
+  const adminAddVideo = (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:admin_add_video', { playlistId, title, youtubeId, artistName, description, password }, (response: any) => {
+      socket.emit('playlist:admin_add_video', { playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, (response: any) => {
         if (response.success) {
           resolve(response.videoId);
         } else {
@@ -574,6 +615,67 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const adminDeleteVideoDirect = (videoId: string | number, password?: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:admin_delete_video_direct', { videoId, password }, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to delete video as admin'));
+        }
+      });
+    });
+  };
+
+  const adminUpdateVideo = (
+    videoId: string | number,
+    videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string },
+    password?: string
+  ): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:admin_update_video', { videoId, ...videoData, password }, (response: any) => {
+        if (response.success) {
+          resolve(response.video);
+        } else {
+          reject(new Error(response.error || 'Failed to update video'));
+        }
+      });
+    });
+  };
+
+  const adminSearchVideos = (query = '', limit = 100, offset = 0, password?: string): Promise<{ videos: any[]; total: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:admin_search_all_videos', { query, limit, offset, password }, (response: any) => {
+        if (response.success) {
+          resolve({ videos: response.videos || [], total: response.total || 0 });
+        } else {
+          reject(new Error(response.error || 'Failed to search videos'));
+        }
+      });
+    });
+  };
+
+  const verifyVideo = (youtubeId: string): Promise<{ valid: boolean; title?: string; author?: string; error?: string }> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('video:verify', { youtubeId }, (response: any) => {
+        if (response && response.success) {
+          resolve({
+            valid: response.valid,
+            title: response.title,
+            author: response.author,
+            error: response.error,
+          });
+        } else {
+          reject(new Error(response?.error || 'Échec de la vérification de la vidéo'));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -586,6 +688,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         showBanner,
         hideBanner,
         createRoom,
+        toggleHostPlayer,
         joinRoom,
         leaveRoom,
         deleteRoom,
@@ -610,6 +713,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getGlobalStats,
         adminAddVideo,
         adminDeleteVideo,
+        adminDeleteVideoDirect,
+        adminUpdateVideo,
+        adminSearchVideos,
+        verifyVideo,
       }}
     >
       {children}

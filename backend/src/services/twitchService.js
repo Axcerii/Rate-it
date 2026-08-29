@@ -1,4 +1,5 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
+import { sanitizeText, broadcastRoomUpdate } from '../utils/security.js';
 
 // Map to hold active Twitch WS connections by sessionId
 const twitchConnections = new Map();
@@ -49,12 +50,14 @@ export function connectToTwitchChat(io, sessionId, channelName) {
           if (user.toLowerCase() === specialUser) {
             const quoteMatch = text.match(/^["“](.+)["”]$/);
             if (quoteMatch) {
-              const bannerMessage = quoteMatch[1].trim();
+              const rawBanner = quoteMatch[1].trim();
+              const bannerMessage = sanitizeText(rawBanner, 300);
+              const cleanUser = sanitizeText(user, 50);
               if (bannerMessage) {
-                console.log(`Room ${sessionId} [Twitch Banner Broadcast] from ${user}: "${bannerMessage}"`);
+                console.log(`Room ${sessionId} [Twitch Banner Broadcast] from ${cleanUser}: "${bannerMessage}"`);
                 io.to(`session:${sessionId}`).emit('banner:broadcast', {
                   message: bannerMessage,
-                  sender: user,
+                  sender: cleanUser,
                   type: 'announcement'
                 });
               }
@@ -118,8 +121,8 @@ async function registerTwitchVote(io, sessionId, user, vote) {
 
     console.log(`Room ${sessionId} [Twitch]: Viewer ${user} voted ${vote}`);
 
-    // Broadcast update so Host screen updates vote counts in real-time
-    io.to(`session:${sessionId}`).emit('room:update', session);
+    // Broadcast update securely to room
+    broadcastRoomUpdate(io, session);
   } catch (error) {
     console.error('Error saving Twitch chat vote:', error);
   }
