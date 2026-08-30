@@ -58,20 +58,26 @@ const SocketContext = createContext<SocketContextType | null>(null);
 
 const getSocketUrl = () => {
   if (typeof window !== 'undefined') {
-    const isLocalhost =
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1';
+    const { hostname, port, protocol } = window.location;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
 
+    // 1. If accessing frontend directly on port 3000 (dev server or direct container)
+    // the backend Socket.io server is on port 4000
+    if (port === '3000') {
+      return `${protocol}//${hostname}:4000`;
+    }
+
+    // 2. If explicit NEXT_PUBLIC_WS_URL is set
     if (process.env.NEXT_PUBLIC_WS_URL) {
-      if (!isLocalhost && process.env.NEXT_PUBLIC_WS_URL.includes('localhost')) {
+      const envUrl = process.env.NEXT_PUBLIC_WS_URL;
+      if (!isLocalhost && envUrl.includes('localhost')) {
         return window.location.origin;
       }
-      return process.env.NEXT_PUBLIC_WS_URL;
+      return envUrl;
     }
 
-    if (!isLocalhost) {
-      return window.location.origin;
-    }
+    // 3. Production behind reverse proxy (Nginx on port 80/443)
+    return window.location.origin;
   }
   return process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
 };

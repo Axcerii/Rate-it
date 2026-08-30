@@ -287,6 +287,7 @@ export function isAllowedOrigin(origin, allowedList = []) {
       hostname === '127.0.0.1' ||
       hostname.startsWith('192.168.') ||
       hostname.startsWith('10.') ||
+      hostname.startsWith('172.') ||
       hostname.endsWith('.local')
     ) {
       return true;
