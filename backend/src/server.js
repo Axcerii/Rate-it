@@ -2,13 +2,19 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pool, { checkDbConnection, initializeDatabase } from './db/db.js';
 import redisClient, { connectRedis } from './store/redis.js';
 import { isAllowedOrigin } from './utils/security.js';
 import { onConnection } from './sockets/index.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from cwd or global root .env
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 4000;

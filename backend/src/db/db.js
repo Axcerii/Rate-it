@@ -5,10 +5,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pg;
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load environment variables from cwd or global root .env
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

@@ -56,7 +56,25 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType | null>(null);
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
+const getSocketUrl = () => {
+  if (typeof window !== 'undefined') {
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      if (!isLocalhost && process.env.NEXT_PUBLIC_WS_URL.includes('localhost')) {
+        return window.location.origin;
+      }
+      return process.env.NEXT_PUBLIC_WS_URL;
+    }
+
+    if (!isLocalhost) {
+      return window.location.origin;
+    }
+  }
+  return process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
+};
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -131,9 +149,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [playerId]);
 
   useEffect(() => {
-    const socketInstance = io(SOCKET_URL, {
+    const targetUrl = getSocketUrl();
+    console.log(`[Socket] Connecting to: ${targetUrl}`);
+    const socketInstance = io(targetUrl, {
       autoConnect: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      transports: ['websocket', 'polling'],
     });
 
     setSocket(socketInstance);
@@ -184,7 +206,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const onDisconnect = (reason: string) => {
       setIsConnected(false);
-      console.log('Socket disconnected properly from server:', reason || 'disconnected');
+      console.log('Socket disconnected from server:', reason || 'disconnected');
+    };
+
+    const onConnectError = (err: any) => {
+      console.error('Socket connection error:', err?.message || err);
     };
 
     const onRoomUpdate = (updatedSession: GameSession) => {
@@ -211,6 +237,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socketInstance.on('connect', onConnect);
     socketInstance.on('disconnect', onDisconnect);
+    socketInstance.on('connect_error', onConnectError);
     socketInstance.on('room:update', onRoomUpdate);
     socketInstance.on('banner:broadcast', onBannerBroadcast);
     socketInstance.on('room:deleted', onRoomDeleted);
@@ -218,6 +245,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       socketInstance.off('connect', onConnect);
       socketInstance.off('disconnect', onDisconnect);
+      socketInstance.off('connect_error', onConnectError);
       socketInstance.off('room:update', onRoomUpdate);
       socketInstance.off('banner:broadcast', onBannerBroadcast);
       socketInstance.off('room:deleted', onRoomDeleted);
@@ -227,14 +255,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const createRoom = (options?: { isHostPlayer?: boolean; hostName?: string }): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
+      if (!socket) return reject(new Error('Connexion WebSocket non initialisée.'));
+      if (!socket.connected) {
+        return reject(new Error('Serveur inaccessible ou non connecté (WebSocket déconnecté). Vérifiez votre connexion.'));
+      }
+      
+      const timeoutId = setTimeout(() => {
+        isHostRef.current = false;
+        setIsHost(false);
+        reject(new Error('Délai d\'attente dépassé (timeout) lors de la création de la salle.'));
+      }, 8000);
+
       isHostRef.current = true;
       setIsHost(true);
       const isHostPlayer = options?.isHostPlayer !== false;
       const hostName = options?.hostName || 'Hôte';
       const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
       socket.emit('room:create', { isHostPlayer, hostName, playerId: id }, (response: any) => {
-        if (response.success) {
+        clearTimeout(timeoutId);
+        if (response && response.success) {
           localStorage.setItem('rate_it_host_session_id', response.session.sessionId);
           if (response.hostToken) {
             localStorage.setItem('rate_it_host_token', response.hostToken);
@@ -245,7 +284,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } else {
           isHostRef.current = false;
           setIsHost(false);
-          reject(new Error(response.error || 'Failed to create room'));
+          reject(new Error(response?.error || 'Échec de la création de la salle'));
         }
       });
     });
@@ -253,7 +292,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const toggleHostPlayer = (isHostPlayer: boolean, hostName?: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
+      if (!socket) return reject(new Error('Socket non initialisé'));
       socket.emit('room:toggle_host_player', { isHostPlayer, hostName }, (response: any) => {
         if (response.success) {
           setSession(response.session);
@@ -267,13 +306,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const joinRoom = (sessionId: string, playerName: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
-      if (!playerId) return reject(new Error('Player ID not ready'));
+      if (!socket) return reject(new Error('Connexion WebSocket non initialisée.'));
+      if (!playerId) return reject(new Error('Identifiant joueur manquant.'));
+      if (!socket.connected) {
+        return reject(new Error('Serveur inaccessible ou non connecté (WebSocket déconnecté). Vérifiez votre connexion.'));
+      }
+
+      const timeoutId = setTimeout(() => {
+        playerNameRef.current = '';
+        reject(new Error('Délai d\'attente dépassé (timeout) pour rejoindre la salle.'));
+      }, 8000);
+
       isHostRef.current = false;
       setIsHost(false);
       playerNameRef.current = playerName;
       socket.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
-        if (response.success) {
+        clearTimeout(timeoutId);
+        if (response && response.success) {
           localStorage.setItem('rate_it_player_session_id', response.session.sessionId);
           localStorage.removeItem('rate_it_host_session_id');
           localStorage.removeItem('rate_it_host_token');
@@ -281,7 +330,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           resolve(response.session);
         } else {
           playerNameRef.current = '';
-          reject(new Error(response.error || 'Failed to join room'));
+          reject(new Error(response?.error || 'Échec lors de la tentative de rejoindre la salle'));
         }
       });
     });

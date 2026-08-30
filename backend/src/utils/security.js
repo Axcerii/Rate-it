@@ -240,14 +240,48 @@ export function sanitizeVideoId(id) {
 export function isAllowedOrigin(origin, allowedList = []) {
   if (!origin) return true; // Same-origin or non-browser request (e.g. mobile app, curl, server-to-server)
 
-  if (allowedList.length > 0 && allowedList.includes(origin)) {
+  // Normalize allowed origins (strip trailing slashes, extract hostnames)
+  const normalizedAllowed = allowedList
+    .filter(Boolean)
+    .flatMap((item) => {
+      const trimmed = item.trim().replace(/\/+$/, '');
+      if (!trimmed) return [];
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        return [trimmed, `http://${trimmed}`, `https://${trimmed}`];
+      }
+      return [trimmed];
+    });
+
+  const cleanOrigin = origin.trim().replace(/\/+$/, '');
+  if (normalizedAllowed.length > 0 && normalizedAllowed.includes(cleanOrigin)) {
     return true;
   }
 
-  // Allow localhost / local network IP development origins
+  // Parse origin or referer URL
   try {
     const url = new URL(origin);
     const hostname = url.hostname;
+    const originWithoutPath = url.origin;
+    const hostWithPort = url.host;
+
+    // Check if hostname, host with port, or origin without path matches allowed list
+    if (
+      normalizedAllowed.some((item) => {
+        return (
+          item === originWithoutPath ||
+          item === hostname ||
+          item === hostWithPort ||
+          item === `http://${hostWithPort}` ||
+          item === `https://${hostWithPort}` ||
+          item === `http://${hostname}` ||
+          item === `https://${hostname}`
+        );
+      })
+    ) {
+      return true;
+    }
+
+    // Allow localhost / local network IP development origins
     if (
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||
