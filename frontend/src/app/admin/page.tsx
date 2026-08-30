@@ -38,6 +38,7 @@ export default function AdminConsole() {
     adminUpdateVideo,
     adminSearchVideos,
     verifyVideo,
+    verifyAdminPassword,
     getGlobalStats,
     isConnected,
   } = useSocket();
@@ -147,35 +148,39 @@ export default function AdminConsole() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!adminPassword) {
+    if (!adminPassword.trim()) {
       setError('Mot de passe administrateur obligatoire.');
       return;
     }
 
     try {
+      await verifyAdminPassword(adminPassword.trim());
       const { validated, community } = await getPlaylists();
       setValidatedLists(validated);
       setCommunityLists(community);
       setIsAuthenticated(true);
-      localStorage.setItem('rate_it_admin_password', adminPassword);
+      localStorage.setItem('rate_it_admin_password', adminPassword.trim());
     } catch (err: any) {
-      setError('Mot de passe administrateur incorrect ou erreur de connexion.');
+      setError(err.message || 'Mot de passe administrateur incorrect.');
+      setIsAuthenticated(false);
     }
   };
 
-  // Restore password on mount
+  // Restore password on mount with verification
   useEffect(() => {
     const savedPassword = localStorage.getItem('rate_it_admin_password');
-    if (savedPassword) {
+    if (savedPassword && isConnected) {
       setAdminPassword(savedPassword);
-      getPlaylists()
-        .then(({ validated, community }) => {
+      verifyAdminPassword(savedPassword)
+        .then(async () => {
+          const { validated, community } = await getPlaylists();
           setValidatedLists(validated);
           setCommunityLists(community);
           setIsAuthenticated(true);
         })
         .catch(() => {
           localStorage.removeItem('rate_it_admin_password');
+          setIsAuthenticated(false);
         });
     }
   }, [isConnected]);

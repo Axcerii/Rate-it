@@ -42,6 +42,20 @@ function generatePlaylistId() {
 }
 
 export function registerPlaylistHandlers(io, socket) {
+  // 0. Verify Admin Password
+  socket.on('admin:verify', async ({ password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+      if (typeof callback === 'function') {
+        callback({ success: true, message: 'Mot de passe administrateur validé avec succès' });
+      }
+    } catch (error) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message || 'Mot de passe administrateur invalide' });
+      }
+    }
+  });
+
   // 1. Get all playlists (Validated & Community)
   socket.on('playlist:list', async (payload, callback) => {
     try {
