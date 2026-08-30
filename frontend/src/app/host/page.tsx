@@ -30,7 +30,8 @@ import {
   ThumbsUp,
   ListPlus,
   Sparkles,
-  Crown
+  Crown,
+  Shuffle
 } from 'lucide-react';
 
 export default function HostLobby() {
@@ -91,6 +92,8 @@ export default function HostLobby() {
   const [malConnectedUser, setMalConnectedUser] = useState<string | null>(null);
 
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+
+  const [isShuffleEnabled, setIsShuffleEnabled] = useState(true);
 
   // Generate QR Code join URL once we have window.location
   useEffect(() => {
@@ -249,7 +252,7 @@ export default function HostLobby() {
       }, 3000);
 
       try {
-        await startGame(username, undefined);
+        await startGame(username, undefined, isShuffleEnabled);
       } catch (error: any) {
         clearTimeout(t1);
         clearTimeout(t2);
@@ -260,7 +263,7 @@ export default function HostLobby() {
     } else {
       setLoadingMessage('Récupération de la playlist...');
       try {
-        await startGame(undefined, selectedPlaylistId);
+        await startGame(undefined, selectedPlaylistId, isShuffleEnabled);
       } catch (error: any) {
         showBanner(error.message || 'Erreur : Impossible de commencer la partie.', 'error');
       } finally {
@@ -542,37 +545,73 @@ export default function HostLobby() {
                 )}
               </div>
 
-              {/* Host Player Option Toggle Card */}
-              <div className="info-card p-3.5 sm:p-5 rounded-2xl flex items-center justify-between gap-3 w-full max-w-full !overflow-visible z-20">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
-                    <input
-                      type="checkbox"
-                      id="hostIsPlayerLobbyToggle"
-                      checked={session.isHostPlayer !== false}
-                      onChange={async (e) => {
-                        try {
-                          await toggleHostPlayer(e.target.checked);
-                        } catch (err) {
-                          console.error(err);
-                        }
-                      }}
-                      className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
-                    />
-                    <span>Le Host est un joueur</span>
-                  </label>
+              {/* Host Options Card */}
+              <div className="info-card p-3.5 sm:p-5 rounded-2xl flex flex-col gap-3.5 w-full max-w-full !overflow-visible z-20">
+                {/* Host Player Option */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                      <input
+                        type="checkbox"
+                        id="hostIsPlayerLobbyToggle"
+                        checked={session.isHostPlayer !== false}
+                        onChange={async (e) => {
+                          try {
+                            await toggleHostPlayer(e.target.checked);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                      />
+                      <span>Le Host est un joueur</span>
+                    </label>
 
-                  {/* Hoverable Tooltip "?" */}
-                  <div className="group relative inline-flex items-center justify-center">
-                    <span
-                      tabIndex={0}
-                      className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
-                    >
-                      ?
-                    </span>
-                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 bg-black text-white text-[10px] font-bold rounded-lg shadow-xl text-center leading-snug z-50">
-                      Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vrai vie.
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                    {/* Hoverable Tooltip "?" */}
+                    <div className="group relative inline-flex items-center justify-center">
+                      <span
+                        tabIndex={0}
+                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
+                      >
+                        ?
+                      </span>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 bg-black text-white text-[10px] font-bold rounded-lg shadow-xl text-center leading-snug z-50">
+                        Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vrai vie.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shuffle Random Order Option */}
+                <div className="flex items-center justify-between gap-3 border-t border-black/15 pt-3">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="shuffleOpeningsToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                      <input
+                        type="checkbox"
+                        id="shuffleOpeningsToggle"
+                        checked={isShuffleEnabled}
+                        onChange={(e) => setIsShuffleEnabled(e.target.checked)}
+                        className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                      />
+                      <span className="flex items-center gap-1.5">
+                        <Shuffle className="w-3.5 h-3.5 text-black shrink-0" />
+                        <span>Ordre aléatoire des openings (Shuffle)</span>
+                      </span>
+                    </label>
+
+                    {/* Hoverable Tooltip "?" */}
+                    <div className="group relative inline-flex items-center justify-center">
+                      <span
+                        tabIndex={0}
+                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
+                      >
+                        ?
+                      </span>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 bg-black text-white text-[10px] font-bold rounded-lg shadow-xl text-center leading-snug z-50">
+                        Mélange l'ordre de passage des openings au démarrage de la partie (activé par défaut).
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -305,6 +305,53 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
+  // 6b. Admin: Update playlist metadata (Name, Description, is_validated, is_custom)
+  socket.on('playlist:admin_update_playlist', async ({ id, name, description, isValidated, isCustom, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanId = sanitizeText(id, 50);
+      const cleanName = sanitizeText(name, 100);
+      const cleanDesc = sanitizeText(description, 1000);
+
+      if (!cleanId || !cleanName) {
+        throw new Error('ID et Nom de playlist obligatoires');
+      }
+
+      const updateRes = await pool.query(
+        `UPDATE playlists 
+         SET name = $1,
+             description = $2,
+             is_validated = COALESCE($3, is_validated),
+             is_custom = COALESCE($4, is_custom)
+         WHERE id = $5
+         RETURNING id, name, description, is_custom as "isCustom", is_validated as "isValidated", played_count as "playedCount", last_played as "lastPlayed"`,
+        [
+          cleanName,
+          cleanDesc,
+          typeof isValidated === 'boolean' ? isValidated : null,
+          typeof isCustom === 'boolean' ? isCustom : null,
+          cleanId
+        ]
+      );
+
+      if (updateRes.rows.length === 0) {
+        throw new Error('Playlist introuvable');
+      }
+
+      console.log(`Admin updated playlist ${cleanId}: "${cleanName}"`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, playlist: updateRes.rows[0] });
+      }
+    } catch (error) {
+      console.error(`Error updating playlist ${id} as admin:`, error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
   // 7. Admin: Delete playlist
   socket.on('playlist:delete', async ({ id, password }, callback) => {
     try {
@@ -446,6 +493,69 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error adding video as admin:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Admin: Add existing video from database to playlist
+  socket.on('playlist:admin_add_existing_video', async ({ playlistId, videoId, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanPlaylistId = sanitizeText(playlistId, 50);
+      const cleanVideoId = parseInt(videoId, 10);
+
+      if (!cleanPlaylistId || isNaN(cleanVideoId)) {
+        throw new Error('Playlist ID et ID Vidéo valides requis');
+      }
+
+      // Fetch source video details
+      const sourceRes = await pool.query(
+        `SELECT title, youtube_id, artist_name, description, mal_anime_id, mal_title
+         FROM videos
+         WHERE id = $1`,
+        [cleanVideoId]
+      );
+
+      if (sourceRes.rows.length === 0) {
+        throw new Error('Vidéo source introuvable dans la base de données');
+      }
+
+      const src = sourceRes.rows[0];
+
+      // Check max order_index
+      const maxIndexRes = await pool.query(
+        'SELECT COALESCE(MAX(order_index), 0) as max FROM videos WHERE playlist_id = $1',
+        [cleanPlaylistId]
+      );
+      const nextIndex = maxIndexRes.rows[0].max + 1;
+
+      // Insert duplicate video row associated to target playlist
+      const insertRes = await pool.query(
+        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id::text`,
+        [
+          cleanPlaylistId,
+          src.title,
+          src.youtube_id,
+          src.artist_name,
+          src.description,
+          src.mal_anime_id,
+          src.mal_title,
+          nextIndex
+        ]
+      );
+
+      console.log(`Admin added existing video ${cleanVideoId} (new id: ${insertRes.rows[0].id}) to playlist ${cleanPlaylistId}`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, videoId: insertRes.rows[0].id });
+      }
+    } catch (error) {
+      console.error('Error adding existing video as admin:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

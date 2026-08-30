@@ -17,11 +17,11 @@ import {
   Gamepad2,
   Search,
   ExternalLink,
-  Film,
-  CheckCircle2,
-  XCircle,
   RefreshCw,
   Layers,
+  Sliders,
+  Database,
+  PlusCircle,
 } from 'lucide-react';
 
 export default function AdminConsole() {
@@ -32,7 +32,9 @@ export default function AdminConsole() {
     deletePlaylist,
     cleanStalePlaylists,
     getPlaylistDetails,
+    adminUpdatePlaylist,
     adminAddVideo,
+    adminAddExistingVideo,
     adminDeleteVideo,
     adminDeleteVideoDirect,
     adminUpdateVideo,
@@ -51,6 +53,22 @@ export default function AdminConsole() {
   const [validatedLists, setValidatedLists] = useState<any[]>([]);
   const [communityLists, setCommunityLists] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'validated' | 'all' | 'videos' | 'analytics'>('pending');
+
+  // Playlist Metadata Edit Modal state
+  const [modalPlaylist, setModalPlaylist] = useState<any | null>(null);
+  const [editPlaylistName, setEditPlaylistName] = useState('');
+  const [editPlaylistDesc, setEditPlaylistDesc] = useState('');
+  const [editPlaylistIsValidated, setEditPlaylistIsValidated] = useState(false);
+  const [editPlaylistIsCustom, setEditPlaylistIsCustom] = useState(true);
+  const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
+  const [editPlaylistError, setEditPlaylistError] = useState<string | null>(null);
+
+  // In-editor track add mode ('new' or 'existing')
+  const [trackAddMode, setTrackAddMode] = useState<'new' | 'existing'>('new');
+  const [existingVideoSearchQuery, setExistingVideoSearchQuery] = useState('');
+  const [existingVideoResults, setExistingVideoResults] = useState<any[]>([]);
+  const [isSearchingExistingVideos, setIsSearchingExistingVideos] = useState(false);
+  const [addingExistingId, setAddingExistingId] = useState<string | number | null>(null);
 
   // Video Maintenance / Search State
   const [adminVideos, setAdminVideos] = useState<any[]>([]);
@@ -233,6 +251,77 @@ export default function AdminConsole() {
     }
   };
 
+  const handleOpenPlaylistModal = (playlist: any) => {
+    setModalPlaylist(playlist);
+    setEditPlaylistName(playlist.name || '');
+    setEditPlaylistDesc(playlist.description || '');
+    setEditPlaylistIsValidated(!!playlist.is_validated);
+    setEditPlaylistIsCustom(playlist.is_custom !== false);
+    setEditPlaylistError(null);
+  };
+
+  const handleSaveModalPlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalPlaylist) return;
+    if (!editPlaylistName.trim()) {
+      setEditPlaylistError('Le nom de la playlist est obligatoire.');
+      return;
+    }
+
+    setIsSavingPlaylist(true);
+    setEditPlaylistError(null);
+    try {
+      await adminUpdatePlaylist(
+        modalPlaylist.id,
+        {
+          name: editPlaylistName.trim(),
+          description: editPlaylistDesc.trim(),
+          isValidated: editPlaylistIsValidated,
+          isCustom: editPlaylistIsCustom,
+        },
+        adminPassword
+      );
+
+      setActionSuccess(`Playlist "${editPlaylistName.trim()}" modifiée avec succès !`);
+      setModalPlaylist(null);
+      await fetchLists();
+    } catch (err: any) {
+      setEditPlaylistError(err.message || 'Échec de la modification de la playlist');
+    } finally {
+      setIsSavingPlaylist(false);
+    }
+  };
+
+  const handleSearchExistingVideos = async (query = '') => {
+    setIsSearchingExistingVideos(true);
+    setError(null);
+    try {
+      const res = await adminSearchVideos(query, 50, 0, adminPassword);
+      setExistingVideoResults(res.videos || []);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Erreur lors de la recherche des vidéos');
+    } finally {
+      setIsSearchingExistingVideos(false);
+    }
+  };
+
+  const handleAddExistingVideoToPlaylist = async (video: any) => {
+    if (!editingPlaylistId) return;
+    setAddingExistingId(video.id);
+    setError(null);
+    try {
+      await adminAddExistingVideo(editingPlaylistId, video.id, adminPassword);
+      const res = await getPlaylistDetails(editingPlaylistId);
+      setEditingPlaylistTracks(res.videos);
+      setActionSuccess(`Vidéo "${video.title}" ajoutée à la playlist !`);
+    } catch (err: any) {
+      setError(err.message || "Échec de l'ajout de la vidéo existante");
+    } finally {
+      setAddingExistingId(null);
+    }
+  };
+
   const extractYoutubeId = (url: string): string => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -245,6 +334,9 @@ export default function AdminConsole() {
     setIsEditingLoading(true);
     setEditingPlaylistId(id);
     setEditingPlaylistName(name);
+    setTrackAddMode('new');
+    setExistingVideoResults([]);
+    setExistingVideoSearchQuery('');
     try {
       const res = await getPlaylistDetails(id);
       setEditingPlaylistTracks(res.videos);
@@ -629,79 +721,171 @@ export default function AdminConsole() {
                     )}
                   </div>
 
-                  {/* Add Track Form */}
-                  <form onSubmit={handleAdminAddTrack} className="border-t border-black pt-3 flex flex-col gap-3">
-                    <p className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Ajouter une nouvelle piste</span>
-                    </p>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Nom de l'Artiste</label>
-                      <input
-                        type="text"
-                        value={newTrackArtist}
-                        onChange={(e) => setNewTrackArtist(e.target.value)}
-                        placeholder="ex: Yoko Takahashi..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
+                  {/* Add Track Section (New YouTube Track OR Existing DB Video) */}
+                  <div className="border-t border-black pt-3 flex flex-col gap-3">
+                    <div className="flex border-2 border-black rounded-lg overflow-hidden bg-slate-100 p-0.5 gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setTrackAddMode('new')}
+                        className={`flex-1 py-1.5 px-2 text-[9px] font-black uppercase rounded flex items-center justify-center gap-1 transition ${
+                          trackAddMode === 'new' ? 'bg-[#BF1539] text-white shadow-sm' : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Lien YouTube</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTrackAddMode('existing');
+                          if (existingVideoResults.length === 0) {
+                            handleSearchExistingVideos('');
+                          }
+                        }}
+                        className={`flex-1 py-1.5 px-2 text-[9px] font-black uppercase rounded flex items-center justify-center gap-1 transition ${
+                          trackAddMode === 'existing' ? 'bg-[#24B3F1] text-black shadow-sm' : 'text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <Database className="w-3 h-3" />
+                        <span>Vidéos en BDD</span>
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Titre de la musique</label>
-                      <input
-                        type="text"
-                        value={newTrackTitle}
-                        onChange={(e) => setNewTrackTitle(e.target.value)}
-                        placeholder="ex: Cruel Angel Thesis..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Description (Optionnelle)</label>
-                      <input
-                        type="text"
-                        value={newTrackDescription}
-                        onChange={(e) => setNewTrackDescription(e.target.value)}
-                        placeholder="ex: Opening de Neon Genesis Evangelion..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Lien ou ID YouTube</label>
-                      <input
-                        type="text"
-                        value={newTrackUrl}
-                        onChange={(e) => setNewTrackUrl(e.target.value)}
-                        placeholder="Lien watch YouTube ou ID à 11 caractères..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Titre MAL de l'Animé (Optionnel)</label>
-                      <input
-                        type="text"
-                        value={newTrackMalTitle}
-                        onChange={(e) => setNewTrackMalTitle(e.target.value)}
-                        placeholder="ex: Attack on Titan..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">ID Animé MyAnimeList (Optionnel)</label>
-                      <input
-                        type="number"
-                        value={newTrackMalAnimeId}
-                        onChange={(e) => setNewTrackMalAnimeId(e.target.value)}
-                        placeholder="ex: 30..."
-                        className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full py-2 bg-[#BF1539] text-white border border-black font-black text-[10px] uppercase rounded-lg btn-action-hover mt-1"
-                    >
-                      Ajouter la piste
-                    </button>
-                  </form>
+
+                    {trackAddMode === 'new' ? (
+                      /* Mode 1: Add New Video Form */
+                      <form onSubmit={handleAdminAddTrack} className="flex flex-col gap-2.5">
+                        <p className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Ajouter une nouvelle piste via YouTube</span>
+                        </p>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Nom de l'Artiste</label>
+                          <input
+                            type="text"
+                            value={newTrackArtist}
+                            onChange={(e) => setNewTrackArtist(e.target.value)}
+                            placeholder="ex: Yoko Takahashi..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Titre de la musique</label>
+                          <input
+                            type="text"
+                            value={newTrackTitle}
+                            onChange={(e) => setNewTrackTitle(e.target.value)}
+                            placeholder="ex: Cruel Angel Thesis..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Description (Optionnelle)</label>
+                          <input
+                            type="text"
+                            value={newTrackDescription}
+                            onChange={(e) => setNewTrackDescription(e.target.value)}
+                            placeholder="ex: Opening de Neon Genesis Evangelion..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Lien ou ID YouTube</label>
+                          <input
+                            type="text"
+                            value={newTrackUrl}
+                            onChange={(e) => setNewTrackUrl(e.target.value)}
+                            placeholder="Lien watch YouTube ou ID à 11 caractères..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Titre MAL de l'Animé (Optionnel)</label>
+                          <input
+                            type="text"
+                            value={newTrackMalTitle}
+                            onChange={(e) => setNewTrackMalTitle(e.target.value)}
+                            placeholder="ex: Attack on Titan..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">ID Animé MyAnimeList (Optionnel)</label>
+                          <input
+                            type="number"
+                            value={newTrackMalAnimeId}
+                            onChange={(e) => setNewTrackMalAnimeId(e.target.value)}
+                            placeholder="ex: 30..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="w-full py-2 bg-[#BF1539] text-white border border-black font-black text-[10px] uppercase rounded-lg btn-action-hover mt-1"
+                        >
+                          Ajouter la piste
+                        </button>
+                      </form>
+                    ) : (
+                      /* Mode 2: Pick Existing Video from DB */
+                      <div className="flex flex-col gap-2.5">
+                        <p className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
+                          <Database className="w-3.5 h-3.5 text-[#24B3F1]" />
+                          <span>Choisir parmi les vidéos de la base</span>
+                        </p>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={existingVideoSearchQuery}
+                            onChange={(e) => {
+                              setExistingVideoSearchQuery(e.target.value);
+                              handleSearchExistingVideos(e.target.value);
+                            }}
+                            placeholder="Rechercher par titre, artiste, anime..."
+                            className="flex-1 min-w-0 px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSearchExistingVideos(existingVideoSearchQuery)}
+                            className="px-2.5 py-1.5 bg-[#24B3F1] border border-black text-black font-black text-[10px] uppercase rounded btn-action-hover shrink-0"
+                          >
+                            <Search className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Existing Videos Results List */}
+                        <div className="border border-black bg-white rounded-lg p-2 max-h-56 overflow-y-auto flex flex-col gap-2">
+                          {isSearchingExistingVideos ? (
+                            <p className="text-[10px] text-slate-500 py-4 text-center font-bold animate-pulse">Recherche en cours...</p>
+                          ) : existingVideoResults.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 py-4 text-center">Aucune vidéo trouvée dans la base.</p>
+                          ) : (
+                            existingVideoResults.map((video) => (
+                              <div
+                                key={video.id}
+                                className="flex items-center justify-between p-2 border border-slate-200 rounded-lg hover:bg-slate-50 gap-2 text-left"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-black text-[11px] text-black truncate">{video.title}</p>
+                                  <p className="text-[9px] text-slate-600 truncate">
+                                    par {video.artistName || 'Inconnu'} {video.malTitle ? `(${video.malTitle})` : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={addingExistingId === video.id}
+                                  onClick={() => handleAddExistingVideoToPlaylist(video)}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white border border-black font-black text-[9px] uppercase rounded btn-action-hover shrink-0 inline-flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Plus className="w-2.5 h-2.5" />
+                                  <span>{addingExistingId === video.id ? '...' : 'Ajouter'}</span>
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -1128,23 +1312,35 @@ export default function AdminConsole() {
                         </div>
 
                         {/* Admin Actions */}
-                        <div className="flex justify-end gap-3 mt-1 border-t border-slate-100 pt-3">
+                        <div className="flex flex-wrap justify-end gap-2 sm:gap-3 mt-1 border-t border-slate-100 pt-3">
                           <button
+                            type="button"
+                            onClick={() => handleOpenPlaylistModal(playlist)}
+                            className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shadow-[2px_2px_0px_#000]"
+                            title="Modifier le titre, la description ou les statuts de la playlist"
+                          >
+                            <Sliders className="w-3.5 h-3.5" />
+                            <span>Modifier Infos</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleSelectEditPlaylist(playlist.id, playlist.name)}
-                            className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                            className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-[2px_2px_0px_#000]"
                           >
                             Éditer Pistes
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleToggleValidation(playlist.id, playlist.is_validated)}
-                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
+                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-[2px_2px_0px_#000] ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
                           >
                             {playlist.is_validated ? 'Invalider' : 'Valider'}
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDelete(playlist.id)}
                             disabled={playlist.id === 'anime-classics'}
-                            className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-30"
+                            className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-30 shadow-[2px_2px_0px_#000]"
                           >
                             Supprimer
                           </button>
@@ -1333,6 +1529,112 @@ export default function AdminConsole() {
                   className="flex-1 py-2.5 bg-[#BF1539] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                 >
                   {isSavingEdit ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* EDIT PLAYLIST MODAL                                                       */}
+      {/* ========================================================================= */}
+      {modalPlaylist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white border-4 border-black p-6 rounded-3xl shadow-[6px_6px_0px_#000] flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto text-left">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b-2 border-black pb-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-[#BF1539]" />
+                <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
+                  Modifier la Playlist ({modalPlaylist.id})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalPlaylist(null)}
+                className="p-1 text-slate-500 hover:text-black border-2 border-black rounded-lg bg-white btn-action-hover"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editPlaylistError && (
+              <div className="p-2.5 bg-red-100 border border-red-500 text-red-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{editPlaylistError}</span>
+              </div>
+            )}
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveModalPlaylist} className="flex flex-col gap-3.5 text-xs font-bold">
+              {/* Name */}
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                  Titre de la Playlist *
+                </label>
+                <input
+                  type="text"
+                  value={editPlaylistName}
+                  onChange={(e) => setEditPlaylistName(e.target.value)}
+                  placeholder="ex: Shonen Masters..."
+                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editPlaylistDesc}
+                  onChange={(e) => setEditPlaylistDesc(e.target.value)}
+                  placeholder="Description détaillée de la playlist..."
+                  rows={3}
+                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                />
+              </div>
+
+              {/* Status Toggles */}
+              <div className="p-3 bg-slate-50 border-2 border-black rounded-2xl flex flex-col gap-3">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-black select-none">
+                  <input
+                    type="checkbox"
+                    checked={editPlaylistIsValidated}
+                    onChange={(e) => setEditPlaylistIsValidated(e.target.checked)}
+                    className="h-4 w-4 accent-emerald-600 cursor-pointer"
+                  />
+                  <span>Playlist Validée par l'administrateur</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-black select-none border-t border-slate-200 pt-2.5">
+                  <input
+                    type="checkbox"
+                    checked={editPlaylistIsCustom}
+                    onChange={(e) => setEditPlaylistIsCustom(e.target.checked)}
+                    className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                  />
+                  <span>Playlist Communautaire / Custom (si décoché = Playlist Officielle)</span>
+                </label>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalPlaylist(null)}
+                  className="flex-1 py-2.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPlaylist}
+                  className="flex-1 py-2.5 bg-[#BF1539] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                >
+                  {isSavingPlaylist ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>
             </form>

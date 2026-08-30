@@ -171,7 +171,7 @@ export function registerGameHandlers(io, socket) {
         throw new Error('Session introuvable');
       }
 
-      const { malUsername, playlistId } = payload || {};
+      const { malUsername, playlistId, shuffle = true } = payload || {};
       let videos = [];
       let activePlaylistId = sanitizeText(playlistId, 50) || 'anime-classics';
       const username = validateMalUsername(malUsername);
@@ -220,6 +220,15 @@ export function registerGameHandlers(io, socket) {
 
       if (videos.length === 0) {
         throw new Error('Plus aucune vidéo active disponible (toutes les vidéos de la playlist sont désactivées).');
+      }
+
+      // Apply random shuffle if enabled (default true)
+      if (shuffle !== false && videos.length > 1) {
+        for (let i = videos.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [videos[i], videos[j]] = [videos[j], videos[i]];
+        }
+        console.log(`Videos randomized (shuffle enabled) for room ${sessionId}`);
       }
 
       // Increment played_count and set last_played for the selected playlist
