@@ -210,7 +210,7 @@ export default function HostLobby() {
 
     // Load YouTube Iframe API script dynamically if not present
     // @ts-ignore
-    if (!window.YT) {
+    if (!window.YT || !window.YT.Player) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
       const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -219,10 +219,7 @@ export default function HostLobby() {
       // @ts-ignore
       window.onYouTubeIframeAPIReady = initializePlayer;
     } else {
-      // @ts-ignore
-      if (window.YT.Player) {
-        initializePlayer;
-      }
+      initializePlayer();
     }
 
     return () => {
