@@ -173,7 +173,7 @@ export function registerGameHandlers(io, socket) {
 
       const { malUsername, playlistId, shuffle = true } = payload || {};
       let videos = [];
-      let activePlaylistId = sanitizeText(playlistId, 50) || 'anime-classics';
+      let activePlaylistId = sanitizeText(playlistId, 50);
       const username = validateMalUsername(malUsername);
 
       if (username) {
@@ -195,14 +195,14 @@ export function registerGameHandlers(io, socket) {
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
         } catch (err) {
-          console.error(`Failed to filter with MAL list for user ${username}, falling back to default:`, err);
+          console.error(`Failed to filter with MAL list for user ${username}:`, err);
         }
       }
 
       // If not MAL, or if MAL query returned 0 matches, fetch from selected playlistId
       if (videos.length === 0) {
-        if (activePlaylistId === 'mal-custom') {
-          activePlaylistId = 'anime-classics';
+        if (!activePlaylistId || activePlaylistId === 'mal-custom') {
+          throw new Error('Veuillez sélectionner une playlist valide pour commencer la partie.');
         }
         const result = await pool.query(
           `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle"

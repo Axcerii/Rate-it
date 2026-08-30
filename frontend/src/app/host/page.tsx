@@ -82,7 +82,7 @@ export default function HostLobby() {
   const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
   const [quizMode, setQuizMode] = useState<'playlist' | 'mal'>('playlist');
   const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
-  const [selectedPlaylistId, setSelectedPlaylistId] = useState('anime-classics');
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
@@ -154,10 +154,14 @@ export default function HostLobby() {
 
   // Fetch selected playlist details
   useEffect(() => {
-    if (session?.status === 'LOBBY' && selectedPlaylistId) {
-      getPlaylistDetails(selectedPlaylistId).then(res => {
-        setSelectedPlaylistTracks(res.videos);
-      }).catch(err => console.error(err));
+    if (session?.status === 'LOBBY') {
+      if (selectedPlaylistId) {
+        getPlaylistDetails(selectedPlaylistId).then(res => {
+          setSelectedPlaylistTracks(res.videos || []);
+        }).catch(err => console.error(err));
+      } else {
+        setSelectedPlaylistTracks([]);
+      }
     }
   }, [session?.status, selectedPlaylistId, getPlaylistDetails]);
 
@@ -217,7 +221,7 @@ export default function HostLobby() {
     } else {
       // @ts-ignore
       if (window.YT.Player) {
-        initializePlayer();
+        initializePlayer;
       }
     }
 
@@ -261,6 +265,10 @@ export default function HostLobby() {
         setLoadingMessage(null);
       }
     } else {
+      if (!selectedPlaylistId) {
+        showBanner('Veuillez sélectionner une playlist pour commencer la partie.', 'warning');
+        return;
+      }
       setLoadingMessage('Récupération de la playlist...');
       try {
         await startGame(undefined, selectedPlaylistId, isShuffleEnabled);
@@ -724,8 +732,8 @@ export default function HostLobby() {
                           <div
                             key={p.id}
                             onClick={() => setSelectedPlaylistId(p.id)}
-                            className={`p-3.5 sm:p-4 border-2 rounded-2xl transition cursor-pointer flex justify-between items-start gap-3 sm:gap-4 ${isSelected
-                              ? 'border-4 border-black bg-yellow-100 shadow-[3px_3px_0px_#000]'
+                            className={`p-3.5 sm:p-4 rounded-2xl transition cursor-pointer flex justify-between items-start gap-3 sm:gap-4 ${isSelected
+                              ? 'border-4 border-black bg-yellow-100'
                               : 'border-2 border-black bg-white hover:bg-slate-50 focus:bg-slate-50 focus-visible:bg-slate-50'
                               }`}
                           >
@@ -746,19 +754,10 @@ export default function HostLobby() {
                               </span>
                             </div>
                             <div className="text-right flex flex-col items-end gap-2 shrink-0">
-                              <span className="text-xs bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded-lg font-black uppercase flex items-center gap-1.5">
+                              <span className="text-xs bg-slate-100 border border-slate-300 text-slate-700 px-2.5 py-1 rounded-lg font-black uppercase flex items-center gap-1.5">
                                 <Gamepad2 className="w-3.5 h-3.5" />
                                 <span>{p.played_count || 0} plays</span>
                               </span>
-                              {isSelected ? (
-                                <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-lg border border-black font-black uppercase shadow-sm">
-                                  Sélectionnée
-                                </span>
-                              ) : (
-                                <span className="text-xs bg-white text-slate-700 hover:text-black focus:text-black focus-visible:text-black px-2.5 py-1 rounded-lg border border-black font-black uppercase">
-                                  Sélectionner
-                                </span>
-                              )}
                             </div>
                           </div>
                         );
@@ -772,7 +771,9 @@ export default function HostLobby() {
                       Vidéos de la Playlist (Décocher pour exclure)
                     </p>
                     {selectedPlaylistTracks.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-4 text-center font-bold">Chargement des vidéos...</p>
+                      <p className="text-xs text-slate-400 py-6 text-center font-bold">
+                        {selectedPlaylistId ? 'Chargement des vidéos...' : 'Sélectionnez une playlist ci-dessus pour afficher et gérer ses vidéos.'}
+                      </p>
                     ) : (
                       <div className="flex flex-col gap-2.5">
                         {selectedPlaylistTracks.map((track) => {

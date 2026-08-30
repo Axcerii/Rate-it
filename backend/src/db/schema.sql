@@ -47,28 +47,4 @@ CREATE INDEX IF NOT EXISTS idx_videos_mal_anime_id ON videos(mal_anime_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_youtube_id ON ratings(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_playlist_id ON ratings(playlist_id);
 
--- Seed Default Playlist if not exists
-INSERT INTO playlists (id, name, description, is_custom, is_validated)
-VALUES ('anime-classics', 'Anime Classics', 'The most iconic anime themes and music of all time.', FALSE, TRUE)
-ON CONFLICT (id) DO NOTHING;
-
--- Seed Videos if not exists
-INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
-VALUES 
-  ('nU21rCWkuJw', 'Cruel Angel Thesis', 'Yoko Takahashi', 'Opening of Neon Genesis Evangelion from 1995', 30, 'Neon Genesis Evangelion'),
-  ('8OkpRK2_gVs', 'Guren no Yumiya', 'Linked Horizon', 'Opening 1 of Attack on Titan from 2013', 16498, 'Attack on Titan'),
-  ('zVgKnfN9i34', 'Silhouette', 'KANA-BOON', 'Opening 16 of Naruto Shippuden from 2014', 1735, 'Naruto Shippuden'),
-  ('7aMOurgDB-o', 'Unravel', 'TK from Ling Tosite Sigure', 'Opening of Tokyo Ghoul from 2014', 22319, 'Tokyo Ghoul')
-ON CONFLICT (youtube_id) DO NOTHING;
-
--- Seed playlist_tracks links for anime-classics
-INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-SELECT 'anime-classics', v.id, 0 FROM videos v WHERE v.youtube_id = 'nU21rCWkuJw' AND NOT EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.playlist_id = 'anime-classics' AND pt.video_id = v.id);
-INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-SELECT 'anime-classics', v.id, 1 FROM videos v WHERE v.youtube_id = '8OkpRK2_gVs' AND NOT EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.playlist_id = 'anime-classics' AND pt.video_id = v.id);
-INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-SELECT 'anime-classics', v.id, 2 FROM videos v WHERE v.youtube_id = 'zVgKnfN9i34' AND NOT EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.playlist_id = 'anime-classics' AND pt.video_id = v.id);
-INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-SELECT 'anime-classics', v.id, 3 FROM videos v WHERE v.youtube_id = '7aMOurgDB-o' AND NOT EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.playlist_id = 'anime-classics' AND pt.video_id = v.id);
-
 
