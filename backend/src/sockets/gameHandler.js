@@ -182,11 +182,11 @@ export function registerGameHandlers(io, socket) {
         try {
           const malTitles = await fetchUserCompletedAnime(username);
           if (malTitles.length > 0) {
-            // Get all videos in DB to match
+            // Get all unique videos in DB to match
             const allVideosResult = await pool.query(
               `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
                FROM videos
-               ORDER BY order_index ASC`
+               ORDER BY id ASC`
             );
 
             // Filter videos using malMatcher helper
@@ -205,10 +205,11 @@ export function registerGameHandlers(io, socket) {
           activePlaylistId = 'anime-classics';
         }
         const result = await pool.query(
-          `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
-           FROM videos 
-           WHERE playlist_id = $1 
-           ORDER BY order_index ASC`,
+          `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle"
+           FROM playlist_tracks pt
+           JOIN videos v ON pt.video_id = v.id
+           WHERE pt.playlist_id = $1 
+           ORDER BY pt.order_index ASC`,
           [activePlaylistId]
         );
         videos = result.rows;

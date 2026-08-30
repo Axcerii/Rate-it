@@ -1046,11 +1046,13 @@ export default function AdminConsole() {
                               <h4 className="font-black text-black text-sm leading-tight truncate max-w-full">
                                 {video.title}
                               </h4>
-                              <span className="text-[9px] font-black bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-300 font-mono">
+                              <span className="text-xs font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg border border-slate-300 font-mono">
                                 ID: {video.id}
                               </span>
-                              <span className="text-[9px] font-black bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300">
-                                {video.playlistName || video.playlistId || 'Sans playlist'}
+                              <span className="text-xs font-black bg-purple-100 text-purple-900 px-2 py-0.5 rounded-lg border border-purple-300">
+                                {typeof video.playlistsCount === 'number'
+                                  ? `${video.playlistsCount} playlist${video.playlistsCount > 1 ? 's' : ''}`
+                                  : (video.playlistName || '1 playlist')}
                               </span>
                             </div>
 

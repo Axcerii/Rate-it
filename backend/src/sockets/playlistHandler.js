@@ -135,19 +135,34 @@ export function registerPlaylistHandlers(io, socket) {
           throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
         }
 
-        await client.query(
-          `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        // Upsert into unique videos catalog
+        const videoUpsertRes = await client.query(
+          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (youtube_id) DO UPDATE SET
+             title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
+             artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
+             description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
+             mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
+             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+           RETURNING id`,
           [
-            playlistId,
-            cleanTitle,
             validYtId,
+            cleanTitle,
             cleanArtistName,
             cleanVideoDesc,
             video.malAnimeId ? parseInt(video.malAnimeId, 10) : null,
             cleanMalTitle || null,
-            i,
           ]
+        );
+
+        const videoId = videoUpsertRes.rows[0].id;
+
+        // Insert link into playlist_tracks
+        await client.query(
+          `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
+           VALUES ($1, $2, $3)`,
+          [playlistId, videoId, i]
         );
       }
 
@@ -186,10 +201,13 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       const videosRes = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle", order_index
-         FROM videos
-         WHERE playlist_id = $1
-         ORDER BY order_index ASC`,
+        `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
+                v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
+                pt.order_index as "orderIndex", pt.id as "trackId"
+         FROM playlist_tracks pt
+         JOIN videos v ON pt.video_id = v.id
+         WHERE pt.playlist_id = $1
+         ORDER BY pt.order_index ASC`,
         [cleanId]
       );
 
@@ -218,7 +236,7 @@ export function registerPlaylistHandlers(io, socket) {
       }
       const escapedPattern = `%${escapeLikePattern(rawQuery)}%`;
       const result = await pool.query(
-        `SELECT DISTINCT ON (youtube_id) title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
          FROM videos
          WHERE artist_name ILIKE $1 ESCAPE '\\' OR title ILIKE $1 ESCAPE '\\' OR description ILIKE $1 ESCAPE '\\' OR mal_title ILIKE $1 ESCAPE '\\'
          LIMIT 15`,
@@ -255,15 +273,14 @@ export function registerPlaylistHandlers(io, socket) {
 
       const session = await getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Session not found' });
+        }
+        return;
       }
 
       session.disabledVideoIds = session.disabledVideoIds || {};
-      if (session.disabledVideoIds[cleanVideoId]) {
-        delete session.disabledVideoIds[cleanVideoId];
-      } else {
-        session.disabledVideoIds[cleanVideoId] = true;
-      }
+      session.disabledVideoIds[cleanVideoId] = !session.disabledVideoIds[cleanVideoId];
 
       await saveSession(session);
       broadcastRoomUpdate(io, session);
@@ -272,7 +289,7 @@ export function registerPlaylistHandlers(io, socket) {
         callback({ success: true, disabledVideoIds: session.disabledVideoIds });
       }
     } catch (error) {
-      console.error('Error toggling lobby video:', error);
+      console.error('Error toggling track:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
@@ -280,7 +297,7 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // 6. Admin: Toggle validation status
-  socket.on('playlist:validate', async ({ id, isValidated, password }, callback) => {
+  socket.on('playlist:validate', async ({ id, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
 
@@ -288,11 +305,11 @@ export function registerPlaylistHandlers(io, socket) {
       if (!cleanId) throw new Error('ID de playlist invalide');
 
       await pool.query(
-        'UPDATE playlists SET is_validated = $1 WHERE id = $2',
-        [!!isValidated, cleanId]
+        'UPDATE playlists SET is_validated = NOT is_validated WHERE id = $1',
+        [cleanId]
       );
 
-      console.log(`Admin validation updated for playlist ${cleanId}: ${!!isValidated}`);
+      console.log(`Admin toggled validation for playlist: ${cleanId}`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -417,11 +434,11 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('Aucun animé terminé trouvé sur ce profil MyAnimeList.');
       }
 
-      // Fetch all videos from the database
+      // Fetch all unique videos from the database
       const allVideosResult = await pool.query(
         `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
          FROM videos
-         ORDER BY order_index ASC`
+         ORDER BY id ASC`
       );
 
       // Filter videos using malMatcher helper
@@ -462,34 +479,46 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error(`La vidéo (${validYtId}) est indisponible sur YouTube : ${ytCheck.error}`);
       }
 
-      // Check order_index max
-      const maxIndexRes = await pool.query(
-        'SELECT COALESCE(MAX(order_index), 0) as max FROM videos WHERE playlist_id = $1',
-        [cleanPlaylistId]
-      );
-      const nextIndex = maxIndexRes.rows[0].max + 1;
-
-      // Insert video
-      const insertRes = await pool.query(
-        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id::text`,
+      // Upsert into unique videos catalog
+      const videoUpsertRes = await pool.query(
+        `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (youtube_id) DO UPDATE SET
+           title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
+           artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
+           description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
+           mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
+           mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+         RETURNING id`,
         [
-          cleanPlaylistId,
-          cleanTitle,
           validYtId,
+          cleanTitle,
           cleanArtistName,
           cleanVideoDesc,
           malAnimeId ? parseInt(malAnimeId, 10) : null,
           cleanMalTitle || null,
-          nextIndex
         ]
       );
+      const videoId = videoUpsertRes.rows[0].id;
 
-      console.log(`Admin added video ${insertRes.rows[0].id} to playlist ${cleanPlaylistId}`);
+      // Check max order_index in playlist_tracks
+      const maxIndexRes = await pool.query(
+        'SELECT COALESCE(MAX(order_index), 0) as max FROM playlist_tracks WHERE playlist_id = $1',
+        [cleanPlaylistId]
+      );
+      const nextIndex = maxIndexRes.rows[0].max + 1;
+
+      // Insert link into playlist_tracks
+      await pool.query(
+        `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
+         VALUES ($1, $2, $3)`,
+        [cleanPlaylistId, videoId, nextIndex]
+      );
+
+      console.log(`Admin added video ${videoId} to playlist ${cleanPlaylistId}`);
 
       if (typeof callback === 'function') {
-        callback({ success: true, videoId: insertRes.rows[0].id });
+        callback({ success: true, videoId: String(videoId) });
       }
     } catch (error) {
       console.error('Error adding video as admin:', error);
@@ -513,7 +542,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch source video details
       const sourceRes = await pool.query(
-        `SELECT title, youtube_id, artist_name, description, mal_anime_id, mal_title
+        `SELECT id, title, youtube_id, artist_name, description, mal_anime_id, mal_title
          FROM videos
          WHERE id = $1`,
         [cleanVideoId]
@@ -523,36 +552,24 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('Vidéo source introuvable dans la base de données');
       }
 
-      const src = sourceRes.rows[0];
-
-      // Check max order_index
+      // Check max order_index in playlist_tracks
       const maxIndexRes = await pool.query(
-        'SELECT COALESCE(MAX(order_index), 0) as max FROM videos WHERE playlist_id = $1',
+        'SELECT COALESCE(MAX(order_index), 0) as max FROM playlist_tracks WHERE playlist_id = $1',
         [cleanPlaylistId]
       );
       const nextIndex = maxIndexRes.rows[0].max + 1;
 
-      // Insert duplicate video row associated to target playlist
-      const insertRes = await pool.query(
-        `INSERT INTO videos (playlist_id, title, youtube_id, artist_name, description, mal_anime_id, mal_title, order_index)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id::text`,
-        [
-          cleanPlaylistId,
-          src.title,
-          src.youtube_id,
-          src.artist_name,
-          src.description,
-          src.mal_anime_id,
-          src.mal_title,
-          nextIndex
-        ]
+      // Insert link into playlist_tracks (zero duplication in videos table!)
+      await pool.query(
+        `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
+         VALUES ($1, $2, $3)`,
+        [cleanPlaylistId, cleanVideoId, nextIndex]
       );
 
-      console.log(`Admin added existing video ${cleanVideoId} (new id: ${insertRes.rows[0].id}) to playlist ${cleanPlaylistId}`);
+      console.log(`Admin linked existing video ${cleanVideoId} to playlist ${cleanPlaylistId}`);
 
       if (typeof callback === 'function') {
-        callback({ success: true, videoId: insertRes.rows[0].id });
+        callback({ success: true, videoId: String(cleanVideoId) });
       }
     } catch (error) {
       console.error('Error adding existing video as admin:', error);
@@ -574,11 +591,11 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       await pool.query(
-        'DELETE FROM videos WHERE playlist_id = $1 AND id = $2',
+        'DELETE FROM playlist_tracks WHERE playlist_id = $1 AND video_id = $2',
         [cleanPlaylistId, cleanVideoId]
       );
 
-      console.log(`Admin deleted video ${cleanVideoId} from playlist ${cleanPlaylistId}`);
+      console.log(`Admin unlinked video ${cleanVideoId} from playlist ${cleanPlaylistId}`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -601,8 +618,9 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('ID Vidéo valide requis');
       }
 
+      // Deletes the video globally from catalog (cascades on playlist_tracks and sets ratings to null)
       await pool.query('DELETE FROM videos WHERE id = $1', [cleanVideoId]);
-      console.log(`Admin deleted video ${cleanVideoId} directly`);
+      console.log(`Admin deleted video ${cleanVideoId} directly from catalog`);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -615,7 +633,7 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
-  // Admin: Update existing video details
+  // Admin: Update existing video details (updates across ALL playlists simultaneously)
   socket.on('playlist:admin_update_video', async ({ videoId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
@@ -645,7 +663,7 @@ export function registerPlaylistHandlers(io, socket) {
              mal_anime_id = $5,
              mal_title = $6
          WHERE id = $7
-         RETURNING id::text, playlist_id as "playlistId", title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"`,
+         RETURNING id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"`,
         [
           cleanTitle,
           validYtId,
@@ -661,7 +679,7 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('Vidéo introuvable dans la base de données');
       }
 
-      console.log(`Admin updated video ${cleanVideoId}: "${cleanTitle}"`);
+      console.log(`Admin updated video ${cleanVideoId}: "${cleanTitle}" across all playlists`);
 
       if (typeof callback === 'function') {
         callback({ success: true, video: updateRes.rows[0] });
@@ -685,12 +703,12 @@ export function registerPlaylistHandlers(io, socket) {
       const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
 
       let sql = `
-        SELECT v.id::text, v.playlist_id as "playlistId", COALESCE(p.name, 'Sans playlist') as "playlistName",
+        SELECT v.id::text,
                v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName",
                v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle",
-               v.order_index as "orderIndex"
+               COUNT(pt.id)::int as "playlistsCount"
         FROM videos v
-        LEFT JOIN playlists p ON v.playlist_id = p.id
+        LEFT JOIN playlist_tracks pt ON v.id = pt.video_id
       `;
 
       const params = [];
@@ -698,13 +716,14 @@ export function registerPlaylistHandlers(io, socket) {
         sql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
                     OR v.artist_name ILIKE $1 ESCAPE '\\' 
                     OR v.mal_title ILIKE $1 ESCAPE '\\' 
-                    OR v.youtube_id ILIKE $1 ESCAPE '\\'
-                    OR p.name ILIKE $1 ESCAPE '\\'`;
+                    OR v.youtube_id ILIKE $1 ESCAPE '\\'`;
+        sql += ` GROUP BY v.id`;
         params.push(searchPattern);
         params.push(parsedLimit);
         params.push(parsedOffset);
         sql += ` ORDER BY v.id DESC LIMIT $2 OFFSET $3`;
       } else {
+        sql += ` GROUP BY v.id`;
         params.push(parsedLimit);
         params.push(parsedOffset);
         sql += ` ORDER BY v.id DESC LIMIT $1 OFFSET $2`;
@@ -712,15 +731,14 @@ export function registerPlaylistHandlers(io, socket) {
 
       const res = await pool.query(sql, params);
 
-      // Total count
-      let countSql = `SELECT COUNT(*)::int as total FROM videos v LEFT JOIN playlists p ON v.playlist_id = p.id`;
+      // Total count of distinct videos
+      let countSql = `SELECT COUNT(*)::int as total FROM videos v`;
       let countParams = [];
       if (cleanQuery) {
         countSql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
                          OR v.artist_name ILIKE $1 ESCAPE '\\' 
                          OR v.mal_title ILIKE $1 ESCAPE '\\' 
-                         OR v.youtube_id ILIKE $1 ESCAPE '\\'
-                         OR p.name ILIKE $1 ESCAPE '\\'`;
+                         OR v.youtube_id ILIKE $1 ESCAPE '\\'`;
         countParams.push(searchPattern);
       }
       const countRes = await pool.query(countSql, countParams);

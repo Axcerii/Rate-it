@@ -34,12 +34,18 @@ export async function checkDbConnection() {
   }
 }
 
+import { runManyToManyMigration } from './migrate_to_many_to_many.js';
+
 export async function initializeDatabase() {
   try {
+    // 1. Run many-to-many migration if needed
+    await runManyToManyMigration();
+
+    // 2. Initialize and verify schema definitions & seed data
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(schemaSql);
-    console.log('Database schema initialized and seeded successfully.');
+    console.log('Database schema initialized and verified successfully.');
     return true;
   } catch (error) {
     console.error('Failed to initialize database schema:', error);
