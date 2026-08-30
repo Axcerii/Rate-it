@@ -55,7 +55,7 @@ services:
       SPECIAL_TWITCH_USER: ${SPECIAL_TWITCH_USER:-ryrynoceros_}
     ports:
       # Binds to localhost only for reverse proxy access (Nginx/Caddy/Cloudflare)
-      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:${BACKEND_PORT:-4000}:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,7 +78,7 @@ services:
       PORT: 3000
     ports:
       # Binds to localhost only for reverse proxy access
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     networks:
