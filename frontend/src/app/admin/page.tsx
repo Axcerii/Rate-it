@@ -22,6 +22,9 @@ import {
   Sliders,
   Database,
   PlusCircle,
+  Film,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 
 export default function AdminConsole() {
