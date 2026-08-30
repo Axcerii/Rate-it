@@ -595,24 +595,9 @@ export default function HostLobby() {
                         className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
                       />
                       <span className="flex items-center gap-1.5">
-                        <Shuffle className="w-3.5 h-3.5 text-black shrink-0" />
-                        <span>Ordre aléatoire des openings (Shuffle)</span>
+                        <span>Les vidéos sont dans un ordre aléatoire</span>
                       </span>
                     </label>
-
-                    {/* Hoverable Tooltip "?" */}
-                    <div className="group relative inline-flex items-center justify-center">
-                      <span
-                        tabIndex={0}
-                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
-                      >
-                        ?
-                      </span>
-                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 bg-black text-white text-[10px] font-bold rounded-lg shadow-xl text-center leading-snug z-50">
-                        Mélange l'ordre de passage des openings au démarrage de la partie (activé par défaut).
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
