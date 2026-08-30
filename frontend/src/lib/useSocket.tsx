@@ -84,6 +84,7 @@ const getSocketUrl = () => {
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<GameSession | null>(null);
   const [playerId, setPlayerId] = useState<string>('');
@@ -124,6 +125,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Helper to ensure socket is connected before emitting
+  const waitForConnection = (timeoutMs = 5000): Promise<Socket> => {
+    return new Promise((resolve, reject) => {
+      const sock = socketRef.current || socket;
+      if (!sock) {
+        return reject(new Error('Connexion WebSocket non initialisée.'));
+      }
+      if (sock.connected) {
+        return resolve(sock);
+      }
+      const timer = setTimeout(() => {
+        sock.off('connect', onConn);
+        reject(new Error('Serveur inaccessible ou non connecté (WebSocket déconnecté). Vérifiez votre connexion.'));
+      }, timeoutMs);
+
+      const onConn = () => {
+        clearTimeout(timer);
+        resolve(sock);
+      };
+
+      sock.once('connect', onConn);
+    });
+  };
+
   // Generate or retrieve player ID on mount
   useEffect(() => {
     let id = localStorage.getItem('rate_it_player_id');
@@ -159,16 +184,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.log(`[Socket] Connecting to: ${targetUrl}`);
     const socketInstance = io(targetUrl, {
       autoConnect: true,
-      reconnectionAttempts: 10,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      transports: ['websocket', 'polling'],
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      transports: ['polling', 'websocket'],
     });
 
     setSocket(socketInstance);
+    socketRef.current = socketInstance;
 
     const onConnect = () => {
       setIsConnected(true);
-      console.log('Connected to socket server');
+      console.log('[Socket] Connected successfully to socket server');
       
       const hostSessionId = localStorage.getItem('rate_it_host_session_id');
       const hostToken = localStorage.getItem('rate_it_host_token');
@@ -212,11 +241,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const onDisconnect = (reason: string) => {
       setIsConnected(false);
-      console.log('Socket disconnected from server:', reason || 'disconnected');
+      console.log('[Socket] Disconnected from server:', reason || 'disconnected');
     };
 
     const onConnectError = (err: any) => {
-      console.error('Socket connection error:', err?.message || err);
+      console.error('[Socket] Connection error:', err?.message || err);
     };
 
     const onRoomUpdate = (updatedSession: GameSession) => {
@@ -259,13 +288,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  const createRoom = (options?: { isHostPlayer?: boolean; hostName?: string }): Promise<GameSession> => {
+  const createRoom = async (options?: { isHostPlayer?: boolean; hostName?: string }): Promise<GameSession> => {
+    const sock = await waitForConnection(5000);
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Connexion WebSocket non initialisée.'));
-      if (!socket.connected) {
-        return reject(new Error('Serveur inaccessible ou non connecté (WebSocket déconnecté). Vérifiez votre connexion.'));
-      }
-      
       const timeoutId = setTimeout(() => {
         isHostRef.current = false;
         setIsHost(false);
@@ -277,7 +302,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const isHostPlayer = options?.isHostPlayer !== false;
       const hostName = options?.hostName || 'Hôte';
       const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
-      socket.emit('room:create', { isHostPlayer, hostName, playerId: id }, (response: any) => {
+      sock.emit('room:create', { isHostPlayer, hostName, playerId: id }, (response: any) => {
         clearTimeout(timeoutId);
         if (response && response.success) {
           localStorage.setItem('rate_it_host_session_id', response.session.sessionId);
@@ -296,10 +321,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const toggleHostPlayer = (isHostPlayer: boolean, hostName?: string): Promise<GameSession> => {
+  const toggleHostPlayer = async (isHostPlayer: boolean, hostName?: string): Promise<GameSession> => {
+    const sock = await waitForConnection(5000);
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket non initialisé'));
-      socket.emit('room:toggle_host_player', { isHostPlayer, hostName }, (response: any) => {
+      sock.emit('room:toggle_host_player', { isHostPlayer, hostName }, (response: any) => {
         if (response.success) {
           setSession(response.session);
           resolve(response.session);
@@ -310,13 +335,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const joinRoom = (sessionId: string, playerName: string): Promise<GameSession> => {
+  const joinRoom = async (sessionId: string, playerName: string): Promise<GameSession> => {
+    const sock = await waitForConnection(5000);
     return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Connexion WebSocket non initialisée.'));
       if (!playerId) return reject(new Error('Identifiant joueur manquant.'));
-      if (!socket.connected) {
-        return reject(new Error('Serveur inaccessible ou non connecté (WebSocket déconnecté). Vérifiez votre connexion.'));
-      }
 
       const timeoutId = setTimeout(() => {
         playerNameRef.current = '';
@@ -326,7 +348,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isHostRef.current = false;
       setIsHost(false);
       playerNameRef.current = playerName;
-      socket.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
+      sock.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
         clearTimeout(timeoutId);
         if (response && response.success) {
           localStorage.setItem('rate_it_player_session_id', response.session.sessionId);
