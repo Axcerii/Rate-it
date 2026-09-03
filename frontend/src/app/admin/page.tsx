@@ -161,10 +161,30 @@ export default function AdminConsole() {
   useEffect(() => {
     if (isAuthenticated && activeTab === 'analytics') {
       fetchGlobalStats();
-    } else if (isAuthenticated && activeTab === 'videos') {
-      fetchAdminVideos(videoSearchQuery);
     }
   }, [activeTab, isAuthenticated]);
+
+  // Debounced live search when checking DB videos in Maintenance tab
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'videos') return;
+
+    const delayDebounce = setTimeout(() => {
+      fetchAdminVideos(videoSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [videoSearchQuery, activeTab, isAuthenticated, fetchAdminVideos]);
+
+  // Debounced search when picking existing DB videos in Playlist Editor
+  useEffect(() => {
+    if (!isAuthenticated || !editingPlaylistId || trackAddMode !== 'existing') return;
+
+    const delayDebounce = setTimeout(() => {
+      handleSearchExistingVideos(existingVideoSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [existingVideoSearchQuery, editingPlaylistId, trackAddMode, isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -839,13 +859,23 @@ export default function AdminConsole() {
                           <input
                             type="text"
                             value={existingVideoSearchQuery}
-                            onChange={(e) => {
-                              setExistingVideoSearchQuery(e.target.value);
-                              handleSearchExistingVideos(e.target.value);
-                            }}
-                            placeholder="Rechercher par titre, artiste, anime..."
+                            onChange={(e) => setExistingVideoSearchQuery(e.target.value)}
+                            placeholder="Rechercher par titre, artiste, anime (ex: Naruto op 2)..."
                             className="flex-1 min-w-0 px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
                           />
+                          {existingVideoSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExistingVideoSearchQuery('');
+                                handleSearchExistingVideos('');
+                              }}
+                              className="px-2 py-1.5 border border-black bg-white hover:bg-slate-100 text-slate-500 hover:text-black text-xs font-bold"
+                              title="Effacer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleSearchExistingVideos(existingVideoSearchQuery)}
@@ -975,9 +1005,22 @@ export default function AdminConsole() {
                     onChange={(e) => {
                       setVideoSearchQuery(e.target.value);
                     }}
-                    placeholder="Rechercher par titre, artiste, anime MAL, ID YouTube..."
-                    className="w-full pl-9 pr-3 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold focus:outline-none"
+                    placeholder="Rechercher par titre, artiste, anime MAL, ID YouTube (ex: Naruto op 2)..."
+                    className="w-full pl-9 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold focus:outline-none shadow-[2px_2px_0px_#000]"
                   />
+                  {videoSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVideoSearchQuery('');
+                        fetchAdminVideos('');
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black p-0.5"
+                      title="Effacer la recherche"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
                 <button
                   type="submit"

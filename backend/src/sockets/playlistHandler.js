@@ -14,6 +14,7 @@ import {
   validateMalUsername,
   broadcastRoomUpdate,
 } from '../utils/security.js';
+import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
 function verifyAdminAuth(password, socket) {
   const clientKey = socket?.handshake?.address || socket?.id || 'admin';
@@ -229,18 +230,18 @@ export function registerPlaylistHandlers(io, socket) {
   // 4. Search existing database videos
   socket.on('playlist:search_videos', async ({ query }, callback) => {
     try {
-      const rawQuery = sanitizeText(query, 100);
-      if (!rawQuery) {
+      const searchCondition = buildVideoSearchConditions(query, 1, 'videos');
+      if (!searchCondition.clause) {
         if (typeof callback === 'function') callback({ success: true, results: [] });
         return;
       }
-      const escapedPattern = `%${escapeLikePattern(rawQuery)}%`;
       const result = await pool.query(
         `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
          FROM videos
-         WHERE artist_name ILIKE $1 ESCAPE '\\' OR title ILIKE $1 ESCAPE '\\' OR description ILIKE $1 ESCAPE '\\' OR mal_title ILIKE $1 ESCAPE '\\'
-         LIMIT 15`,
-        [escapedPattern]
+         WHERE ${searchCondition.clause}
+         ORDER BY id DESC
+         LIMIT 20`,
+        searchCondition.params
       );
 
       if (typeof callback === 'function') {
@@ -697,10 +698,10 @@ export function registerPlaylistHandlers(io, socket) {
     try {
       verifyAdminAuth(password, socket);
 
-      const cleanQuery = escapeLikePattern(query);
-      const searchPattern = `%${cleanQuery}%`;
       const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
       const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
+      const searchCondition = buildVideoSearchConditions(query, 1, 'v');
 
       let sql = `
         SELECT v.id::text,
@@ -711,17 +712,13 @@ export function registerPlaylistHandlers(io, socket) {
         LEFT JOIN playlist_tracks pt ON v.id = pt.video_id
       `;
 
-      const params = [];
-      if (cleanQuery) {
-        sql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
-                    OR v.artist_name ILIKE $1 ESCAPE '\\' 
-                    OR v.mal_title ILIKE $1 ESCAPE '\\' 
-                    OR v.youtube_id ILIKE $1 ESCAPE '\\'`;
+      const params = [...searchCondition.params];
+      if (searchCondition.clause) {
+        sql += ` WHERE ${searchCondition.clause}`;
         sql += ` GROUP BY v.id`;
-        params.push(searchPattern);
         params.push(parsedLimit);
         params.push(parsedOffset);
-        sql += ` ORDER BY v.id DESC LIMIT $2 OFFSET $3`;
+        sql += ` ORDER BY v.id DESC LIMIT $${searchCondition.nextParamIndex} OFFSET $${searchCondition.nextParamIndex + 1}`;
       } else {
         sql += ` GROUP BY v.id`;
         params.push(parsedLimit);
@@ -734,12 +731,9 @@ export function registerPlaylistHandlers(io, socket) {
       // Total count of distinct videos
       let countSql = `SELECT COUNT(*)::int as total FROM videos v`;
       let countParams = [];
-      if (cleanQuery) {
-        countSql += ` WHERE v.title ILIKE $1 ESCAPE '\\' 
-                         OR v.artist_name ILIKE $1 ESCAPE '\\' 
-                         OR v.mal_title ILIKE $1 ESCAPE '\\' 
-                         OR v.youtube_id ILIKE $1 ESCAPE '\\'`;
-        countParams.push(searchPattern);
+      if (searchCondition.clause) {
+        countSql += ` WHERE ${searchCondition.clause}`;
+        countParams = [...searchCondition.params];
       }
       const countRes = await pool.query(countSql, countParams);
 

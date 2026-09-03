@@ -31,7 +31,8 @@ import {
   ListPlus,
   Sparkles,
   Crown,
-  Shuffle
+  Shuffle,
+  Search,
 } from 'lucide-react';
 
 export default function HostLobby() {
@@ -84,6 +85,7 @@ export default function HostLobby() {
   const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<any[]>([]);
+  const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
   const [malTracks, setMalTracks] = useState<any[]>([]);
@@ -94,6 +96,40 @@ export default function HostLobby() {
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(true);
+
+  // Client-side multi-word search filter with op/opening and ed/ending alias support
+  const filterPlaylists = (list: any[]) => {
+    if (!playlistSearchQuery.trim()) return list;
+
+    const processed = playlistSearchQuery
+      .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
+      .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2');
+
+    const tokens = processed
+      .toLowerCase()
+      .split(/[\s,_\-:/\\+]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    if (tokens.length === 0) return list;
+
+    return list.filter((p) => {
+      const corpus = `${p.name || ''} ${p.description || ''} ${p.id || ''}`.toLowerCase();
+
+      return tokens.every((token) => {
+        if (token === 'op' || token === 'opening' || token === 'openings') {
+          return /\b(op[0-9]*|opening[s]?)\b/i.test(corpus);
+        }
+        if (token === 'ed' || token === 'ending' || token === 'endings') {
+          return /\b(ed[0-9]*|ending[s]?)\b/i.test(corpus);
+        }
+        if (token === 'ost' || token === 'soundtrack' || token === 'soundtracks') {
+          return /\b(ost|soundtrack[s]?)\b/i.test(corpus);
+        }
+        return corpus.includes(token);
+      });
+    });
+  };
 
   // Generate QR Code join URL once we have window.location
   useEffect(() => {
@@ -692,6 +728,28 @@ export default function HostLobby() {
                     </p>
                   )}
 
+                  {/* Search / Filter Playlists Bar */}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={playlistSearchQuery}
+                      onChange={(e) => setPlaylistSearchQuery(e.target.value)}
+                      placeholder="Rechercher une playlist par nom, description ou ID..."
+                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-[#faf6eb] shadow-[2px_2px_0px_#000]"
+                    />
+                    {playlistSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setPlaylistSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black p-0.5"
+                        title="Effacer la recherche"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
                   {/* Playlist Tabs (Validated vs Community) */}
                   <div className="flex flex-col sm:flex-row border-2 sm:border-4 border-black rounded-xl sm:rounded-2xl overflow-hidden font-black text-xs sm:text-sm uppercase mb-4 shrink-0">
                     <button
@@ -702,7 +760,9 @@ export default function HostLobby() {
                         : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                         }`}
                     >
-                      <span className="uppercase">Playlists vérifiées ({playlists.validated.length})</span>
+                      <span className="uppercase">
+                        Playlists vérifiées ({playlistSearchQuery.trim() ? `${filterPlaylists(playlists.validated).length}/${playlists.validated.length}` : playlists.validated.length})
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -712,15 +772,54 @@ export default function HostLobby() {
                         : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                         }`}
                     >
-                      <span className="uppercase">Playlists de la communauté ({playlists.community.length})</span>
+                      <span className="uppercase">
+                        Playlists de la communauté ({playlistSearchQuery.trim() ? `${filterPlaylists(playlists.community).length}/${playlists.community.length}` : playlists.community.length})
+                      </span>
                     </button>
                   </div>
 
                   {/* Playlist Cards List (Scrollable box) */}
                   <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-72 sm:max-h-80 overflow-y-auto mb-5 flex flex-col gap-3.5">
                     {(() => {
-                      const activeLists = playlistTab === 'validated' ? playlists.validated : playlists.community;
+                      const filteredValidated = filterPlaylists(playlists.validated);
+                      const filteredCommunity = filterPlaylists(playlists.community);
+                      const activeLists = playlistTab === 'validated' ? filteredValidated : filteredCommunity;
+
                       if (activeLists.length === 0) {
+                        if (playlistSearchQuery.trim()) {
+                          return (
+                            <div className="text-center py-8 flex flex-col items-center gap-2">
+                              <p className="text-xs sm:text-sm text-slate-600 font-bold">
+                                Aucune playlist ne correspond à &quot;{playlistSearchQuery}&quot; dans cet onglet.
+                              </p>
+                              {playlistTab === 'validated' && filteredCommunity.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPlaylistTab('community')}
+                                  className="text-xs font-black text-[#24B3F1] hover:underline"
+                                >
+                                  Voir les {filteredCommunity.length} résultat{filteredCommunity.length > 1 ? 's' : ''} dans la communauté →
+                                </button>
+                              )}
+                              {playlistTab === 'community' && filteredValidated.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPlaylistTab('validated')}
+                                  className="text-xs font-black text-[#24B3F1] hover:underline"
+                                >
+                                  Voir les {filteredValidated.length} résultat{filteredValidated.length > 1 ? 's' : ''} dans les vérifiées →
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setPlaylistSearchQuery('')}
+                                className="mt-1 px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                              >
+                                Réinitialiser la recherche
+                              </button>
+                            </div>
+                          );
+                        }
                         return <p className="text-xs sm:text-sm text-slate-500 font-bold text-center py-8">Aucune playlist n'a été trouvée.</p>;
                       }
                       return activeLists.map((p) => {

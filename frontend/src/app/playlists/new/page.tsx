@@ -352,14 +352,27 @@ export default function NewPlaylist() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher un artiste, titre ou description..."
-                className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
+                placeholder="Rechercher par artiste, titre, anime (ex: Naruto op 2)..."
+                className="w-full pl-3 pr-10 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold"
               />
-              {isSearching && (
-                <span className="absolute right-3 top-2.5">
+              <div className="absolute right-3 top-2.5 flex items-center gap-1">
+                {isSearching && (
                   <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-                </span>
-              )}
+                )}
+                {searchQuery && !isSearching && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }}
+                    className="text-slate-400 hover:text-black p-0.5"
+                    title="Effacer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Search Results Dropdown */}
