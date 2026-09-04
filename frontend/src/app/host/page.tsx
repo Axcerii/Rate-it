@@ -33,6 +33,11 @@ import {
   Crown,
   Shuffle,
   Search,
+  Play,
+  ExternalLink,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from 'lucide-react';
 
 export default function HostLobby() {
@@ -96,6 +101,10 @@ export default function HostLobby() {
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(true);
+
+  // Leaderboard sorting state
+  const [leaderboardSortType, setLeaderboardSortType] = useState<'players' | 'twitch'>('players');
+  const [leaderboardSortDir, setLeaderboardSortDir] = useState<'desc' | 'asc'>('desc');
 
   // Client-side multi-word search filter with op/opening and ed/ending alias support
   const filterPlaylists = (list: any[]) => {
@@ -1414,101 +1423,253 @@ export default function HostLobby() {
 
   // 3. LEADERBOARD VIEW
   if (session.status === 'LEADERBOARD') {
-    const sortedResults = Object.values(session.results || {}).sort((a, b) => a.average - b.average);
+    const isTwitchLinked = Boolean(session.twitchChannel || Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0));
+    const resultsArray = Object.values(session.results || {});
+
+    // Precalculate absolute ranks
+    const rankedByPlayers = [...resultsArray].sort((a, b) => (b.average || 0) - (a.average || 0));
+    const playerRankMap = new Map(rankedByPlayers.map((r, i) => [r.id, i + 1]));
+
+    const rankedByTwitch = [...resultsArray].sort((a, b) => (b.twitchAverage || 0) - (a.twitchAverage || 0));
+    const twitchRankMap = new Map(rankedByTwitch.map((r, i) => [r.id, i + 1]));
+
+    // Sort according to active selection
+    const sortedResults = [...resultsArray].sort((a, b) => {
+      const valA = leaderboardSortType === 'twitch' ? (a.twitchAverage ?? 0) : (a.average ?? 0);
+      const valB = leaderboardSortType === 'twitch' ? (b.twitchAverage ?? 0) : (b.average ?? 0);
+
+      if (valA !== valB) {
+        return leaderboardSortDir === 'desc' ? valB - valA : valA - valB;
+      }
+      const fallbackA = leaderboardSortType === 'twitch' ? (a.average ?? 0) : (a.twitchAverage ?? 0);
+      const fallbackB = leaderboardSortType === 'twitch' ? (b.average ?? 0) : (b.twitchAverage ?? 0);
+      if (fallbackA !== fallbackB) {
+        return leaderboardSortDir === 'desc' ? fallbackB - fallbackA : fallbackA - fallbackB;
+      }
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
 
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-12 font-sans w-full max-w-full overflow-x-hidden">
-        <div className="z-10 w-full max-w-4xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8 justify-center">
-          <div className="text-center border-b-4 border-black pb-4">
-            <h1 className="text-2xl sm:text-4xl font-[#990000] font-black font-title uppercase flex flex-wrap justify-center items-center gap-2 sm:gap-3">
-              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
-              <span>Classement Final</span>
-              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
-            </h1>
-            <p className="text-xs sm:text-sm font-bold text-slate-700 mt-2">Classement</p>
+        <div className="z-10 w-full max-w-5xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8 justify-center">
+          {/* Header with Resultat.png */}
+          <div className="flex flex-col items-center justify-center border-b-4 border-black pb-4 text-center">
+            <img
+              src="/HOST/Resultat.png"
+              alt="Résultats"
+              className="h-14 sm:h-20 md:h-24 w-auto object-contain max-w-full drop-shadow-[2px_2px_0px_#000]"
+            />
+            <p className="text-xs sm:text-sm font-bold text-slate-700 mt-2">
+              Découvrez les notes et le classement final de la session
+            </p>
           </div>
 
-          <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-full overflow-hidden">
+          <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-full !overflow-visible">
+            {/* Sorting Controls Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-black pb-4">
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                Ordre d'affichage :
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Button 1: Players Sort */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (leaderboardSortType !== 'players') {
+                      setLeaderboardSortType('players');
+                      setLeaderboardSortDir('desc');
+                    } else {
+                      setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+                    }
+                  }}
+                  className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-2 btn-action-hover shadow-[2px_2px_0px_#000] ${
+                    leaderboardSortType === 'players'
+                      ? 'bg-[#24B3F1] text-black'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                  title={leaderboardSortType === 'players' ? 'Cliquer pour inverser l\'ordre' : 'Trier par les votes des joueurs'}
+                >
+                  <Trophy className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Joueurs : {leaderboardSortType === 'players' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Meilleur au Pire'}
+                  </span>
+                  {leaderboardSortType === 'players' ? (
+                    leaderboardSortDir === 'desc' ? <ArrowDown className="w-3.5 h-3.5 shrink-0" /> : <ArrowUp className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-3.5 h-3.5 shrink-0 opacity-40" />
+                  )}
+                </button>
+
+                {/* Button 2: Twitch Sort (only visible when Twitch is linked) */}
+                {isTwitchLinked && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (leaderboardSortType !== 'twitch') {
+                        setLeaderboardSortType('twitch');
+                        setLeaderboardSortDir('desc');
+                      } else {
+                        setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+                      }
+                    }}
+                    className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-2 btn-action-hover shadow-[2px_2px_0px_#000] ${
+                      leaderboardSortType === 'twitch'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white text-purple-800 hover:bg-purple-50'
+                    }`}
+                    title={leaderboardSortType === 'twitch' ? 'Cliquer pour inverser l\'ordre' : 'Trier par les votes Twitch'}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-purple-300 animate-pulse shrink-0" />
+                    <span>
+                      Twitch : {leaderboardSortType === 'twitch' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Meilleur au Pire'}
+                    </span>
+                    {leaderboardSortType === 'twitch' ? (
+                      leaderboardSortDir === 'desc' ? <ArrowDown className="w-3.5 h-3.5 shrink-0" /> : <ArrowUp className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 shrink-0 opacity-40" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
             {sortedResults.length === 0 ? (
               <div className="text-center py-12 text-slate-500 font-bold text-xs sm:text-sm">
-                Aucun vote n'ont été enregistrés
+                Aucun vote n'a été enregistré.
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                {sortedResults.map((result, idx) => {
+                {sortedResults.map((result) => {
                   const percent = (result.average / 5) * 100;
+                  const rank = leaderboardSortType === 'twitch' ? (twitchRankMap.get(result.id) ?? 1) : (playerRankMap.get(result.id) ?? 1);
+                  const isWinner = rank === 1;
+                  const isLast = resultsArray.length > 1 && rank === resultsArray.length;
 
                   // Color highlights based on rankings
                   let cardBg = "bg-white";
-                  let borderStyle = "border-2 border-black";
+                  let borderStyle = "border-2 border-black shadow-[2px_2px_0px_#000]";
 
-                  if (idx === sortedResults.length - 1) {
-                    // Winner gets the highlighted bright Wario yellow card
+                  if (isWinner) {
                     cardBg = "bg-[#facc15]";
-                    borderStyle = "border-4 border-black transform rotate-[1deg]";
-                  } else if (idx === 0) {
-                    // Worst rating gets a red tint card
+                    borderStyle = "border-4 border-black shadow-[4px_4px_0px_#000] transform sm:rotate-[0.5deg]";
+                  } else if (isLast) {
                     cardBg = "bg-red-50";
                   }
 
                   return (
                     <div
                       key={result.id}
-                      className={`relative p-5 rounded-2xl ${cardBg} ${borderStyle} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
+                      className={`relative p-4 sm:p-5 rounded-2xl ${cardBg} ${borderStyle} flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all !overflow-visible z-10 hover:z-30`}
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-xl border-2 border-black bg-black text-[#faf6eb] flex items-center justify-center font-black text-lg">
-                          #{sortedResults.length - idx}
+                      {/* Left: Rank badge & Title info with hover preview and click redirect */}
+                      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                        <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 border-black bg-black text-[#faf6eb] flex items-center justify-center font-black text-base sm:text-lg shrink-0 shadow-[2px_2px_0px_#000] relative">
+                          #{rank}
+                          {isWinner && (
+                            <span className="absolute -top-3 -right-2">
+                              <Crown className="w-5 h-5 text-amber-500 fill-amber-400 drop-shadow" />
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <h3 className="font-black text-black text-sm sm:text-base leading-snug">
-                            {result.title}
-                          </h3>
-                          <p className="text-xs font-bold text-slate-600 mt-1 leading-relaxed">
-                            par {result.artistName || 'Artiste Non-Renseigné'} {result.description ? `— ${result.description}` : ''}
+
+                        <div className="min-w-0 flex-1 text-left">
+                          {/* Title with hover thumbnail preview and click redirect to YouTube */}
+                          <div className="relative group/title inline-block max-w-full">
+                            <a
+                              href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 font-black text-black text-sm sm:text-base leading-snug hover:text-[#BF1539] hover:underline transition-colors max-w-full"
+                              title="Ouvrir la vidéo sur YouTube"
+                            >
+                              <span className="truncate">{result.title}</span>
+                              <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover/title:opacity-100 shrink-0 text-slate-700 group-hover/title:text-[#BF1539]" />
+                            </a>
+
+                            {/* Floating hover preview popover */}
+                            <div className="pointer-events-none absolute bottom-full left-0 mb-3 hidden group-hover/title:flex flex-col w-60 sm:w-68 p-2.5 bg-white border-2 border-black rounded-2xl shadow-[6px_6px_0px_#000] z-50 animate-in fade-in zoom-in-95 duration-150">
+                              <div className="relative aspect-video w-full bg-black rounded-xl overflow-hidden border border-black mb-2">
+                                <img
+                                  src={`https://img.youtube.com/vi/${result.youtubeId}/mqdefault.jpg`}
+                                  alt={result.title}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                                  <div className="w-9 h-9 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-lg">
+                                    <Play className="w-4 h-4 fill-white ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="font-black text-xs text-black truncate">{result.title}</p>
+                              <p className="text-[10px] text-slate-500 font-bold truncate mt-0.5">
+                                par {result.artistName || 'Artiste inconnu'}
+                              </p>
+                              <span className="text-[10px] font-black text-[#BF1539] uppercase mt-1.5 flex items-center gap-1 border-t border-slate-100 pt-1.5">
+                                <span>Cliquer pour ouvrir sur YouTube</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </span>
+                              {/* Bottom arrow */}
+                              <div className="absolute top-full left-6 -mt-[1px] border-4 border-transparent border-t-black" />
+                            </div>
+                          </div>
+
+                          <p className="text-xs font-bold text-slate-600 mt-0.5 leading-relaxed truncate">
+                            par <span className="text-black">{result.artistName || 'Artiste Non-Renseigné'}</span>
+                            {result.description ? ` — ${result.description}` : ''}
                           </p>
                         </div>
                       </div>
 
-                      {/* Score metrics & fills */}
-                      <div className="flex flex-col gap-2 sm:w-1/2 justify-center">
-                        <div className="flex items-center gap-4 justify-between">
-                          {/* Players Flat Score Bar */}
-                          <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                            <div className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${percent}%` }} />
+                      {/* Right: Score Metrics & Progress Bars (Fixed width so all bars have identical size) */}
+                      <div className="flex flex-col gap-2.5 w-full md:w-80 lg:w-96 shrink-0 justify-center border-t md:border-t-0 pt-3 md:pt-0 border-black/10">
+                        {/* Players Flat Score Bar */}
+                        <div className="flex items-center gap-3 w-full">
+                          <span className="text-[11px] font-black uppercase text-slate-700 w-16 shrink-0 text-left">
+                            Joueurs
+                          </span>
+
+                          <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                            <div
+                              className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000"
+                              style={{ width: `${percent}%` }}
+                            />
                           </div>
 
-                          <div className="text-right flex items-center gap-2 min-w-[90px]">
-                            <div className="flex flex-col items-end">
-                              <span className="text-lg font-black text-black font-mono leading-none">
-                                {result.average.toFixed(2)}
-                              </span>
-                              <span className="text-xs font-black text-slate-500 uppercase tracking-wider mt-0.5">
-                                {result.votesCount} {result.votesCount === 1 ? 'vote' : 'votes'}
-                              </span>
-                            </div>
-                            <span className="text-xs text-slate-500 font-bold">/5</span>
+                          <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
+                            <span className="text-base sm:text-lg font-black text-black leading-none">
+                              {result.average.toFixed(2)}
+                            </span>
+                            <span className="text-xs text-slate-400 font-bold">/5</span>
+                            <span className="text-[10px] font-bold text-slate-500 ml-1">
+                              ({result.votesCount})
+                            </span>
                           </div>
                         </div>
 
                         {/* Twitch Chat metrics */}
                         {result.twitchVotesCount !== undefined && result.twitchVotesCount > 0 && (
-                          <div className="flex items-center gap-4 justify-between border-t border-black/10 pt-2">
-                            {/* Twitch Flat Score Bar */}
-                            <div className="hidden sm:block flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                              <div className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000" style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }} />
+                          <div className="flex items-center gap-3 w-full border-t border-black/10 pt-1.5">
+                            <span className="text-[11px] font-black uppercase text-purple-700 w-16 shrink-0 text-left flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full bg-purple-600 shrink-0" />
+                              Twitch
+                            </span>
+
+                            <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                              <div
+                                className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000"
+                                style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }}
+                              />
                             </div>
 
-                            <div className="text-right flex items-center gap-2 min-w-[90px]">
-                              <div className="flex flex-col items-end">
-                                <span className="text-lg font-black text-purple-700 font-mono leading-none">
-                                  {(result.twitchAverage ?? 0).toFixed(2)}
-                                </span>
-                                <span className="text-xs font-black text-purple-600 uppercase tracking-wider mt-0.5">
-                                  {result.twitchVotesCount} {result.twitchVotesCount === 1 ? 'vote' : 'votes'}
-                                </span>
-                              </div>
-                              <span className="text-xs text-slate-500 font-bold">/5</span>
+                            <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
+                              <span className="text-base sm:text-lg font-black text-purple-700 leading-none">
+                                {(result.twitchAverage ?? 0).toFixed(2)}
+                              </span>
+                              <span className="text-xs text-slate-400 font-bold">/5</span>
+                              <span className="text-[10px] font-bold text-purple-600 ml-1">
+                                ({result.twitchVotesCount})
+                              </span>
                             </div>
                           </div>
                         )}
