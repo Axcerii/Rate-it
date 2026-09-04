@@ -636,17 +636,18 @@ export default function HostLobby() {
       const isTop1 = rank === 1;
       const isTop2 = rank === 2;
       const isTop3 = rank === 3;
+      const isFirstCard = idx === 0;
 
       // Alternating roundy entrance:
       // Even index: comes from right/down with positive tilt
       // Odd index: comes from left/down with negative tilt
       const startX = idx % 2 === 0 ? 80 : -80;
-      const startY = 30; // arced curve
+      const startY = 25; // arced curve
       const startRot = idx % 2 === 0 ? 2 : -2; // dynamic roundy tilt
 
       if (isTop1) {
-        // Rank 1: The Grand Finale at the bottom
-        tl.to({}, { duration: 1.0 });
+        // Rank 1: The Grand Finale at the bottom - punchy, smooth slide & spotlight
+        tl.to({}, { duration: 0.2 });
 
         tl.call(() => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -657,39 +658,39 @@ export default function HostLobby() {
           setIsDarkAmbianceActive(true);
         });
 
-        tl.to({}, { duration: 0.6 });
+        tl.to({}, { duration: 0.2 });
 
-        // Make visible and zoom in with overshoot backlash
+        // Make visible and zoom/slide in with backlash
         tl.call(() => {
           gsap.set(el, { visibility: 'visible' });
         });
 
         tl.fromTo(
           el,
-          { opacity: 0, scale: 0.15, rotation: -3, y: 40, x: 0 },
+          { opacity: 0, scale: 0.35, rotation: -2, y: 30, x: 0 },
           {
             opacity: 1,
             scale: 1,
             rotation: 0,
             y: 0,
             x: 0,
-            duration: 1.25,
-            ease: 'back.out(1.7)',
+            duration: 0.75,
+            ease: 'back.out(1.4)',
           }
         );
 
         // Winner basks in spotlight
-        tl.to({}, { duration: 2.4 });
+        tl.to({}, { duration: 1.2 });
 
         // Turn dark ambiance OFF
         tl.call(() => {
           setIsDarkAmbianceActive(false);
         });
 
-        tl.to({}, { duration: 0.6 });
+        tl.to({}, { duration: 0.3 });
       } else if (isTop2) {
-        // Rank 2: Slow down for suspense
-        tl.to({}, { duration: 0.8 });
+        // Rank 2: Smooth, brisk slide
+        tl.to({}, { duration: 0.18 });
 
         tl.call(() => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -701,22 +702,22 @@ export default function HostLobby() {
 
         tl.fromTo(
           el,
-          { opacity: 0, x: startX, y: startY, rotation: startRot, scale: 0.93 },
+          { opacity: 0, x: startX * 1.2, y: 15, rotation: startRot, scale: 0.95 },
           {
             opacity: 1,
             x: 0,
             y: 0,
             rotation: 0,
             scale: 1,
-            duration: 1.15,
-            ease: 'back.out(1.5)',
+            duration: 0.58,
+            ease: 'power3.out',
           }
         );
 
-        tl.to({}, { duration: 0.5 });
+        tl.to({}, { duration: 0.15 });
       } else if (isTop3) {
-        // Rank 3: Slow down
-        tl.to({}, { duration: 0.6 });
+        // Rank 3: Smooth, brisk slide
+        tl.to({}, { duration: 0.15 });
 
         tl.call(() => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -728,21 +729,21 @@ export default function HostLobby() {
 
         tl.fromTo(
           el,
-          { opacity: 0, x: startX, y: startY, rotation: startRot, scale: 0.95 },
+          { opacity: 0, x: startX * 1.2, y: 15, rotation: startRot, scale: 0.96 },
           {
             opacity: 1,
             x: 0,
             y: 0,
             rotation: 0,
             scale: 1,
-            duration: 1.0,
-            ease: 'back.out(1.4)',
+            duration: 0.55,
+            ease: 'power3.out',
           }
         );
 
-        tl.to({}, { duration: 0.4 });
-      } else {
-        // Ranks > 3: Brisk rhythm with roundy arc and backlash
+        tl.to({}, { duration: 0.12 });
+      } else if (isFirstCard) {
+        // First card: Keep original comfortable speed so the audience catches the start
         tl.call(() => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
@@ -766,6 +767,40 @@ export default function HostLobby() {
         );
 
         tl.to({}, { duration: 0.25 });
+      } else {
+        // Middle cards: Progressive acceleration building up rapid momentum
+        const nonPodiumTotal = Math.max(1, revealList.length - 4);
+        const middleIdx = Math.max(0, idx - 1);
+        const progress = Math.min(1, middleIdx / nonPodiumTotal);
+
+        // Progressively accelerates from 0.46s down to 0.26s
+        const cardDuration = 0.46 - (progress * 0.20);
+        // Delay between cards compresses from 0.10s down to 0.04s
+        const cardGap = 0.10 - (progress * 0.06);
+
+        tl.call(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        tl.call(() => {
+          gsap.set(el, { visibility: 'visible' });
+        });
+
+        tl.fromTo(
+          el,
+          { opacity: 0, x: startX, y: startY, rotation: startRot, scale: 0.97 },
+          {
+            opacity: 1,
+            x: 0,
+            y: 0,
+            rotation: 0,
+            scale: 1,
+            duration: cardDuration,
+            ease: 'back.out(1.2)',
+          }
+        );
+
+        tl.to({}, { duration: cardGap });
       }
     });
   };
