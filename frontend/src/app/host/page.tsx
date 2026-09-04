@@ -38,7 +38,124 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  RotateCcw,
 } from 'lucide-react';
+import gsap from 'gsap';
+
+// Dev-only dummy anime music list for testing progressive reveal animations
+// STRICTLY GUARDED: process.env.NODE_ENV !== 'production' ensures it is dead-code eliminated in prod
+const DEV_DUMMY_RESULTS = process.env.NODE_ENV !== 'production' ? [
+  {
+    id: 'dummy-1',
+    youtubeId: '7aMOurgDB-o',
+    title: 'Unravel',
+    artistName: 'TK from Ling tosite sigure',
+    description: 'Tokyo Ghoul - OP 1',
+    average: 4.92,
+    votesCount: 8,
+    twitchAverage: 4.95,
+    twitchVotesCount: 52,
+  },
+  {
+    id: 'dummy-2',
+    youtubeId: '2uq34TeWEdQ',
+    title: 'Again',
+    artistName: 'YUI',
+    description: 'Fullmetal Alchemist: Brotherhood - OP 1',
+    average: 4.81,
+    votesCount: 8,
+    twitchAverage: 4.88,
+    twitchVotesCount: 44,
+  },
+  {
+    id: 'dummy-3',
+    youtubeId: 'CwkzK-F0Y00',
+    title: 'Gurenge',
+    artistName: 'LiSA',
+    description: 'Demon Slayer - OP 1',
+    average: 4.65,
+    votesCount: 8,
+    twitchAverage: 4.70,
+    twitchVotesCount: 48,
+  },
+  {
+    id: 'dummy-4',
+    youtubeId: 'M2cckDmNLMI',
+    title: 'KICK BACK',
+    artistName: 'Kenshi Yonezu',
+    description: 'Chainsaw Man - OP 1',
+    average: 4.45,
+    votesCount: 8,
+    twitchAverage: 4.52,
+    twitchVotesCount: 38,
+  },
+  {
+    id: 'dummy-5',
+    youtubeId: 'CID-sYQNCew',
+    title: 'Shinzou wo Sasageyo!',
+    artistName: 'Linked Horizon',
+    description: 'Attack on Titan Season 2 - OP',
+    average: 4.30,
+    votesCount: 8,
+    twitchAverage: 4.40,
+    twitchVotesCount: 60,
+  },
+  {
+    id: 'dummy-6',
+    youtubeId: 'dlFA0Zq1k2A',
+    title: 'Silhouette',
+    artistName: 'KANA-BOON',
+    description: 'Naruto Shippuden - OP 16',
+    average: 4.12,
+    votesCount: 8,
+    twitchAverage: 4.25,
+    twitchVotesCount: 35,
+  },
+  {
+    id: 'dummy-7',
+    youtubeId: '2S4qGKmzBJE',
+    title: 'The Rumbling',
+    artistName: 'SiM',
+    description: 'Attack on Titan Final Season Part 2 - OP',
+    average: 3.90,
+    votesCount: 8,
+    twitchAverage: 4.05,
+    twitchVotesCount: 30,
+  },
+  {
+    id: 'dummy-8',
+    youtubeId: 'KId6eunoiW8',
+    title: 'Crossing Field',
+    artistName: 'LiSA',
+    description: 'Sword Art Online - OP 1',
+    average: 3.72,
+    votesCount: 8,
+    twitchAverage: 3.80,
+    twitchVotesCount: 25,
+  },
+  {
+    id: 'dummy-9',
+    youtubeId: 'n6jCJZEFIto',
+    title: 'Tank!',
+    artistName: 'Seatbelts',
+    description: 'Cowboy Bebop - OP',
+    average: 3.50,
+    votesCount: 8,
+    twitchAverage: 3.65,
+    twitchVotesCount: 21,
+  },
+  {
+    id: 'dummy-10',
+    youtubeId: '210R0ozmVwg',
+    title: 'Bling-Bang-Bang-Born',
+    artistName: 'Creepy Nuts',
+    description: 'Mashle: Magic and Muscles S2 - OP',
+    average: 3.25,
+    votesCount: 8,
+    twitchAverage: 3.40,
+    twitchVotesCount: 33,
+  },
+] : [];
 
 export default function HostLobby() {
   const router = useRouter();
@@ -105,6 +222,14 @@ export default function HostLobby() {
   // Leaderboard sorting state
   const [leaderboardSortType, setLeaderboardSortType] = useState<'players' | 'twitch'>('players');
   const [leaderboardSortDir, setLeaderboardSortDir] = useState<'desc' | 'asc'>('desc');
+
+  // GSAP Progressive reveal & test animation states
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [isDarkAmbianceActive, setIsDarkAmbianceActive] = useState(false);
+  const [hasAnimatedOnce, setHasAnimatedOnce] = useState(false);
+  const [enableDevDummyData, setEnableDevDummyData] = useState(false);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  const cardRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
 
   // Client-side multi-word search filter with op/opening and ed/ending alias support
   const filterPlaylists = (list: any[]) => {
@@ -432,6 +557,218 @@ export default function HostLobby() {
     }
   };
 
+  // Cleanup GSAP timeline on unmount
+  useEffect(() => {
+    return () => {
+      if (timelineRef.current) {
+        timelineRef.current.kill();
+      }
+    };
+  }, []);
+
+  const triggerLeaderboardReveal = () => {
+    const rawResults = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
+      ? (DEV_DUMMY_RESULTS || [])
+      : Object.values(session?.results || {});
+
+    if (rawResults.length === 0) return;
+
+    if (timelineRef.current) {
+      timelineRef.current.kill();
+    }
+
+    setIsRevealing(true);
+    setIsDarkAmbianceActive(false);
+
+    // Compute player and twitch ranks for reveal order
+    const rankedP = [...rawResults].sort((a: any, b: any) => (b.average || 0) - (a.average || 0));
+    const pMap = new Map(rankedP.map((r: any, i) => [r.id, i + 1]));
+
+    const rankedT = [...rawResults].sort((a: any, b: any) => (b.twitchAverage || 0) - (a.twitchAverage || 0));
+    const tMap = new Map(rankedT.map((r: any, i) => [r.id, i + 1]));
+
+    // Sequence reveals from worst rank to rank 1 (Winner)
+    const revealList = [...rawResults].sort((a: any, b: any) => {
+      const rankA = leaderboardSortType === 'twitch' ? (tMap.get(a.id) ?? 1) : (pMap.get(a.id) ?? 1);
+      const rankB = leaderboardSortType === 'twitch' ? (tMap.get(b.id) ?? 1) : (pMap.get(b.id) ?? 1);
+      return rankB - rankA; // highest rank number (worst) first, rank 1 last
+    });
+
+    const cardElements = revealList
+      .map((r: any) => cardRefs.current[r.id])
+      .filter(Boolean) as HTMLElement[];
+
+    // Set all cards hidden initially
+    gsap.set(cardElements, { opacity: 0, x: 0, scale: 1 });
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setIsRevealing(false);
+        setIsDarkAmbianceActive(false);
+        setHasAnimatedOnce(true);
+        gsap.set(cardElements, { opacity: 1, x: 0, scale: 1, clearProps: 'transform,opacity' });
+      },
+    });
+
+    timelineRef.current = tl;
+
+    // Small initial delay
+    tl.to({}, { duration: 0.35 });
+
+    // Scroll smoothly to the first card to be revealed (lowest rank)
+    if (cardElements.length > 0) {
+      tl.call(() => {
+        cardElements[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    revealList.forEach((result: any, idx) => {
+      const el = cardRefs.current[result.id];
+      if (!el) return;
+
+      const rank = leaderboardSortType === 'twitch'
+        ? (tMap.get(result.id) ?? 1)
+        : (pMap.get(result.id) ?? 1);
+
+      const isTop1 = rank === 1;
+      const isTop2 = rank === 2;
+      const isTop3 = rank === 3;
+
+      // Alternating movement: even index -> right to left (x: 60 -> 0), odd index -> left to right (x: -60 -> 0)
+      const startX = idx % 2 === 0 ? 60 : -60;
+
+      if (isTop1) {
+        // Grand finale: Rank 1
+        tl.to({}, { duration: 0.9 });
+
+        tl.call(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        // Dark ambiance spotlight turns ON
+        tl.call(() => {
+          setIsDarkAmbianceActive(true);
+        });
+
+        tl.to({}, { duration: 0.6 });
+
+        // Zoom on #1 as it appears
+        tl.fromTo(
+          el,
+          { opacity: 0, scale: 0.2, x: 0 },
+          {
+            opacity: 1,
+            scale: 1,
+            duration: 1.1,
+            ease: 'back.out(1.6)',
+          }
+        );
+
+        // Winner basks in spotlight
+        tl.to({}, { duration: 2.2 });
+
+        // Turn dark ambiance OFF
+        tl.call(() => {
+          setIsDarkAmbianceActive(false);
+        });
+
+        tl.to({}, { duration: 0.6 });
+      } else if (isTop2) {
+        // Rank 2: Slow down
+        tl.to({}, { duration: 0.75 });
+
+        tl.call(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        tl.fromTo(
+          el,
+          { opacity: 0, x: startX, scale: 0.95 },
+          {
+            opacity: 1,
+            x: 0,
+            scale: 1,
+            duration: 0.95,
+            ease: 'power2.out',
+          }
+        );
+
+        tl.to({}, { duration: 0.5 });
+      } else if (isTop3) {
+        // Rank 3: Slow down
+        tl.to({}, { duration: 0.5 });
+
+        tl.call(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        tl.fromTo(
+          el,
+          { opacity: 0, x: startX, scale: 0.97 },
+          {
+            opacity: 1,
+            x: 0,
+            scale: 1,
+            duration: 0.8,
+            ease: 'power2.out',
+          }
+        );
+
+        tl.to({}, { duration: 0.35 });
+      } else {
+        // Ranks > 3: Brisk rhythm
+        tl.call(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        tl.fromTo(
+          el,
+          { opacity: 0, x: startX },
+          {
+            opacity: 1,
+            x: 0,
+            duration: 0.55,
+            ease: 'power2.out',
+          }
+        );
+
+        tl.to({}, { duration: 0.2 });
+      }
+    });
+  };
+
+  const handleSkipAnimation = () => {
+    if (timelineRef.current) {
+      timelineRef.current.kill();
+    }
+    setIsDarkAmbianceActive(false);
+    setIsRevealing(false);
+    setHasAnimatedOnce(true);
+    const cardElements = Object.values(cardRefs.current).filter(Boolean) as HTMLElement[];
+    gsap.set(cardElements, { opacity: 1, x: 0, scale: 1, clearProps: 'transform,opacity' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleReplayAnimation = () => {
+    triggerLeaderboardReveal();
+  };
+
+  // Auto-trigger reveal animation when entering LEADERBOARD
+  useEffect(() => {
+    if (session?.status === 'LEADERBOARD' && !hasAnimatedOnce && !isRevealing) {
+      const resultsToUse = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
+        ? (DEV_DUMMY_RESULTS || [])
+        : Object.values(session?.results || {});
+
+      if (resultsToUse.length > 0) {
+        const timer = setTimeout(() => {
+          triggerLeaderboardReveal();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [session?.status, enableDevDummyData]);
+
   if (loadingMessage) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
@@ -745,7 +1082,7 @@ export default function HostLobby() {
                       value={playlistSearchQuery}
                       onChange={(e) => setPlaylistSearchQuery(e.target.value)}
                       placeholder="Rechercher une playlist par nom, description ou ID..."
-                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-[#faf6eb] shadow-[2px_2px_0px_#000]"
+                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-[#faf6eb]"
                     />
                     {playlistSearchQuery && (
                       <button
@@ -1423,8 +1760,15 @@ export default function HostLobby() {
 
   // 3. LEADERBOARD VIEW
   if (session.status === 'LEADERBOARD') {
-    const isTwitchLinked = Boolean(session.twitchChannel || Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0));
-    const resultsArray = Object.values(session.results || {});
+    const isTwitchLinked = Boolean(
+      session.twitchChannel ||
+      (process.env.NODE_ENV !== 'production' && enableDevDummyData) ||
+      Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0)
+    );
+
+    const resultsArray = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
+      ? (DEV_DUMMY_RESULTS || [])
+      : Object.values(session.results || {});
 
     // Precalculate absolute ranks
     const rankedByPlayers = [...resultsArray].sort((a, b) => (b.average || 0) - (a.average || 0));
@@ -1449,10 +1793,38 @@ export default function HostLobby() {
       return String(a.title || '').localeCompare(String(b.title || ''));
     });
 
+    const handleSortClick = (type: 'players' | 'twitch') => {
+      if (isRevealing) {
+        handleSkipAnimation();
+      }
+      if (type === 'players') {
+        if (leaderboardSortType !== 'players') {
+          setLeaderboardSortType('players');
+          setLeaderboardSortDir('desc');
+        } else {
+          setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+        }
+      } else {
+        if (leaderboardSortType !== 'twitch') {
+          setLeaderboardSortType('twitch');
+          setLeaderboardSortDir('desc');
+        } else {
+          setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+        }
+      }
+    };
+
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-10 font-sans w-full max-w-full overflow-x-hidden">
+        {/* Dark Ambiance Backdrop Overlay for Winner #1 Reveal */}
+        <div
+          className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-30 pointer-events-none transition-opacity duration-700 ${
+            isDarkAmbianceActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        />
+
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8 justify-center items-center">
-          {/* Header with BIG Resultat.png that POPs on desktop */}
+          {/* Header with BIG Resultat.png that POPs on desktop + Reveal Controls */}
           <div className="flex flex-col items-center justify-center border-b-4 border-black pb-4 sm:pb-6 text-center w-full">
             <img
               src="/HOST/Resultat.png"
@@ -1462,26 +1834,66 @@ export default function HostLobby() {
             <p className="text-xs sm:text-sm md:text-base font-bold text-slate-800 mt-2">
               Découvrez les notes et le classement final de la session
             </p>
+
+            {/* Animation Control Bar & Dev Testing Toggle */}
+            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-3.5 z-20">
+              {isRevealing ? (
+                <button
+                  type="button"
+                  onClick={handleSkipAnimation}
+                  className="px-4 py-2 bg-black text-white text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Passer l'animation et afficher tous les résultats immédiatement"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>Passer l'animation</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleReplayAnimation}
+                  className="px-4 py-2 bg-white border-2 border-black text-black text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 hover:bg-slate-100 transition-colors btn-action-hover cursor-pointer"
+                  title="Rejouer l'animation progressive du classement"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Rejouer l'animation</span>
+                </button>
+              )}
+
+              {/* Dev Only: Test with 10 anime tracks (strictly eliminated in production) */}
+              {process.env.NODE_ENV !== 'production' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isRevealing) {
+                      handleSkipAnimation();
+                    }
+                    setEnableDevDummyData(prev => !prev);
+                    setHasAnimatedOnce(false);
+                  }}
+                  className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    enableDevDummyData
+                      ? 'bg-emerald-400 text-black'
+                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  }`}
+                  title="Charger 10 musiques d'anime fictives pour tester l'animation (Dev only - jamais inclus en prod)"
+                >
+                  <span>🧪 {enableDevDummyData ? 'Désactiver les 10 musiques test' : 'Tester avec 10 musiques d\'anime'}</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Main Content: Left Wing (Desktop) + Center Leaderboard + Right Wing (Desktop) */}
           <div className="w-full flex flex-col lg:flex-row items-start justify-center gap-4 xl:gap-6">
             {/* Left Side (Desktop): Button for Joueurs */}
-            <div className="hidden lg:flex flex-col items-end w-52 xl:w-60 shrink-0 sticky top-8 gap-3">
+            <div className="hidden lg:flex flex-col items-end w-52 xl:w-60 shrink-0 sticky top-8 gap-3 z-20">
               <div className="bg-white border-2 border-black p-3.5 rounded-2xl w-full text-center">
                 <span className="block text-[11px] font-black uppercase text-slate-600 mb-2 tracking-wider">
                   Classement Joueurs
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (leaderboardSortType !== 'players') {
-                      setLeaderboardSortType('players');
-                      setLeaderboardSortDir('desc');
-                    } else {
-                      setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
-                    }
-                  }}
+                  onClick={() => handleSortClick('players')}
                   className={`w-full py-3 px-3 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
                     leaderboardSortType === 'players'
                       ? 'bg-[#24B3F1] text-black'
@@ -1502,7 +1914,7 @@ export default function HostLobby() {
             </div>
 
             {/* Center: Leaderboard Cards */}
-            <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-4xl !overflow-visible">
+            <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-4xl !overflow-visible z-20">
               {/* Mobile / Tablet Sorting Toolbar (< lg only) */}
               <div className="flex lg:hidden flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-black pb-4">
                 <span className="text-xs font-black uppercase text-slate-700 tracking-wider">
@@ -1513,14 +1925,7 @@ export default function HostLobby() {
                   {/* Mobile Button 1: Joueurs */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (leaderboardSortType !== 'players') {
-                        setLeaderboardSortType('players');
-                        setLeaderboardSortDir('desc');
-                      } else {
-                        setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
-                      }
-                    }}
+                    onClick={() => handleSortClick('players')}
                     className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-2 btn-action-hover ${
                       leaderboardSortType === 'players'
                         ? 'bg-[#24B3F1] text-black'
@@ -1541,14 +1946,7 @@ export default function HostLobby() {
                   {isTwitchLinked && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (leaderboardSortType !== 'twitch') {
-                          setLeaderboardSortType('twitch');
-                          setLeaderboardSortDir('desc');
-                        } else {
-                          setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
-                        }
-                      }}
+                      onClick={() => handleSortClick('twitch')}
                       className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-2 btn-action-hover ${
                         leaderboardSortType === 'twitch'
                           ? 'bg-purple-600 text-white'
@@ -1570,42 +1968,199 @@ export default function HostLobby() {
               </div>
 
               {sortedResults.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 font-bold text-xs sm:text-sm">
-                  Aucun vote n'a été enregistré.
+                <div className="text-center py-12 flex flex-col items-center gap-4 text-slate-500 font-bold text-xs sm:text-sm">
+                  <p>Aucun vote n'a été enregistré pour le moment.</p>
+                  {process.env.NODE_ENV !== 'production' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEnableDevDummyData(true);
+                        setHasAnimatedOnce(false);
+                      }}
+                      className="px-5 py-2.5 bg-emerald-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                    >
+                      🧪 Charger 10 musiques de test (Dev)
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
                   {sortedResults.map((result) => {
                     const percent = (result.average / 5) * 100;
                     const rank = leaderboardSortType === 'twitch' ? (twitchRankMap.get(result.id) ?? 1) : (playerRankMap.get(result.id) ?? 1);
+                    const isTop3 = rank <= 3;
                     const isWinner = rank === 1;
+                    const isSecond = rank === 2;
+                    const isThird = rank === 3;
                     const isLast = resultsArray.length > 1 && rank === resultsArray.length;
 
-                    // Color highlights based on rankings (NO box-shadow on the first card or any card)
+                    // Background and border styling for podium & standard ranks
                     let cardBg = "bg-white";
                     let borderStyle = "border-2 border-black";
 
                     if (isWinner) {
                       cardBg = "bg-[#facc15]";
                       borderStyle = "border-4 border-black transform sm:rotate-[0.5deg]";
+                    } else if (isSecond) {
+                      cardBg = "bg-slate-50";
+                      borderStyle = "border-2 sm:border-3 border-black";
+                    } else if (isThird) {
+                      cardBg = "bg-amber-50/70";
+                      borderStyle = "border-2 sm:border-3 border-black";
                     } else if (isLast) {
                       cardBg = "bg-red-50";
                     }
 
+                    // Card z-index and highlight styling
+                    const winnerSpotlight = isWinner && isDarkAmbianceActive
+                      ? 'ring-4 ring-amber-400 shadow-[0_0_50px_rgba(250,204,21,0.8)] z-50'
+                      : isWinner
+                      ? 'z-40'
+                      : isTop3
+                      ? 'z-20'
+                      : 'z-10 hover:z-25';
+
+                    // RENDER TOP 3: FULL CARD WITH DIRECT PREVIEW THUMBNAIL
+                    if (isTop3) {
+                      return (
+                        <div
+                          key={result.id}
+                          ref={(el) => { cardRefs.current[result.id] = el; }}
+                          style={{ opacity: hasAnimatedOnce || isRevealing ? undefined : 0 }}
+                          className={`relative p-5 sm:p-6 rounded-3xl ${cardBg} ${borderStyle} ${winnerSpotlight} flex flex-col md:flex-row items-stretch md:items-center gap-5 sm:gap-6 transition-all !overflow-visible`}
+                        >
+                          {/* Left: Visible YouTube Thumbnail Preview (No hover required) */}
+                          <div className="relative w-full md:w-52 lg:w-60 aspect-video rounded-2xl overflow-hidden border-2 border-black bg-black shrink-0 group/thumb">
+                            <img
+                              src={`https://img.youtube.com/vi/${result.youtubeId}/mqdefault.jpg`}
+                              alt={result.title}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                              loading="lazy"
+                            />
+                            <a
+                              href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors cursor-pointer group-hover/thumb:opacity-100"
+                              title="Regarder sur YouTube (nouvel onglet)"
+                            >
+                              <div className="w-11 h-11 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-lg transform transition-transform group-hover/thumb:scale-110">
+                                <Play className="w-4 h-4 fill-white ml-0.5" />
+                              </div>
+                              <span className="sr-only">Ouvrir sur YouTube</span>
+                            </a>
+                            <div className="absolute bottom-2 left-2 bg-black/80 text-white text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/20 pointer-events-none">
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>YouTube</span>
+                            </div>
+                          </div>
+
+                          {/* Center: Rank Badge, Podium Tag, Title & Artist */}
+                          <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
+                            <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+                              {/* Rank badge */}
+                              <div className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl border-2 border-black flex items-center justify-center font-black text-base sm:text-lg shrink-0 relative ${
+                                isWinner ? 'bg-black text-[#faf6eb]' : isSecond ? 'bg-slate-200 text-slate-900' : 'bg-amber-200 text-amber-950'
+                              }`}>
+                                #{rank}
+                                {isWinner && (
+                                  <span className="absolute -top-3 -right-2">
+                                    <Crown className="w-5 h-5 text-amber-500 fill-amber-400 drop-shadow" />
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Podium Tag */}
+                              <span className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border border-black ${
+                                isWinner ? 'bg-amber-400 text-black' : isSecond ? 'bg-slate-200 text-black' : 'bg-amber-100 text-amber-950'
+                              }`}>
+                                {isWinner ? '🏆 1ère Place - Vainqueur' : isSecond ? '🥈 2ème Place' : '🥉 3ème Place'}
+                              </span>
+                            </div>
+
+                            {/* Clickable Title redirecting to YouTube */}
+                            <a
+                              href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 font-black text-black text-base sm:text-lg leading-snug hover:text-[#BF1539] hover:underline transition-colors max-w-full group/title"
+                              title="Ouvrir la vidéo sur YouTube"
+                            >
+                              <span className="truncate">{result.title}</span>
+                              <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover/title:opacity-100 shrink-0 text-slate-700 group-hover/title:text-[#BF1539]" />
+                            </a>
+
+                            <p className="text-xs font-bold text-slate-700 mt-1 leading-relaxed truncate">
+                              par <span className="text-black font-black">{result.artistName || 'Artiste Non-Renseigné'}</span>
+                              {result.description ? ` — ${result.description}` : ''}
+                            </p>
+                          </div>
+
+                          {/* Right: Scores & Progress Bars (Fixed width to guarantee alignment) */}
+                          <div className="flex flex-col gap-2.5 w-full md:w-72 lg:w-80 shrink-0 justify-center border-t md:border-t-0 md:border-l border-black/15 pt-3 md:pt-0 md:pl-5">
+                            {/* Players Score Bar */}
+                            <div className="flex items-center gap-3 w-full">
+                              <span className="text-[11px] font-black uppercase text-slate-700 w-16 shrink-0 text-left">
+                                Joueurs
+                              </span>
+                              <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                                <div
+                                  className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000"
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                              <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
+                                <span className="text-base sm:text-lg font-black text-black leading-none">
+                                  {result.average.toFixed(2)}
+                                </span>
+                                <span className="text-xs text-slate-400 font-bold">/5</span>
+                                <span className="text-[10px] font-bold text-slate-500 ml-1">
+                                  ({result.votesCount})
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Twitch Score Bar */}
+                            {result.twitchVotesCount !== undefined && result.twitchVotesCount > 0 && (
+                              <div className="flex items-center gap-3 w-full border-t border-black/10 pt-1.5">
+                                <span className="text-[11px] font-black uppercase text-purple-700 w-16 shrink-0 text-left flex items-center gap-1">
+                                  <span className="h-2 w-2 rounded-full bg-purple-600 shrink-0" />
+                                  Twitch
+                                </span>
+                                <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
+                                  <div
+                                    className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000"
+                                    style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }}
+                                  />
+                                </div>
+                                <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
+                                  <span className="text-base sm:text-lg font-black text-purple-700 leading-none">
+                                    {(result.twitchAverage ?? 0).toFixed(2)}
+                                  </span>
+                                  <span className="text-xs text-slate-400 font-bold">/5</span>
+                                  <span className="text-[10px] font-bold text-purple-600 ml-1">
+                                    ({result.twitchVotesCount})
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // RENDER RANKS 4+: COMPACT CARD WITH HOVER PREVIEW POPOVER
                     return (
                       <div
                         key={result.id}
-                        className={`relative p-4 sm:p-5 rounded-2xl ${cardBg} ${borderStyle} flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all !overflow-visible z-10 hover:z-30`}
+                        ref={(el) => { cardRefs.current[result.id] = el; }}
+                        style={{ opacity: hasAnimatedOnce || isRevealing ? undefined : 0 }}
+                        className={`relative p-4 sm:p-5 rounded-2xl ${cardBg} ${borderStyle} ${winnerSpotlight} flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all !overflow-visible`}
                       >
                         {/* Left: Rank badge & Title info with hover preview and click redirect */}
                         <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                           <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 border-black bg-black text-[#faf6eb] flex items-center justify-center font-black text-base sm:text-lg shrink-0 relative">
                             #{rank}
-                            {isWinner && (
-                              <span className="absolute -top-3 -right-2">
-                                <Crown className="w-5 h-5 text-amber-500 fill-amber-400 drop-shadow" />
-                              </span>
-                            )}
                           </div>
 
                           <div className="min-w-0 flex-1 text-left">
@@ -1728,7 +2283,7 @@ export default function HostLobby() {
             </div>
 
             {/* Right Side (Desktop): Button for Twitch (if linked) + Home Button */}
-            <div className="hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 gap-3">
+            <div className="hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 gap-3 z-20">
               {isTwitchLinked && (
                 <div className="bg-white border-2 border-black p-3.5 rounded-2xl w-full text-center">
                   <span className="block text-[11px] font-black uppercase text-purple-700 mb-2 tracking-wider flex items-center justify-center gap-1.5">
@@ -1737,14 +2292,7 @@ export default function HostLobby() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (leaderboardSortType !== 'twitch') {
-                        setLeaderboardSortType('twitch');
-                        setLeaderboardSortDir('desc');
-                      } else {
-                        setLeaderboardSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
-                      }
-                    }}
+                    onClick={() => handleSortClick('twitch')}
                     className={`w-full py-3 px-3 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
                       leaderboardSortType === 'twitch'
                         ? 'bg-purple-600 text-white'
