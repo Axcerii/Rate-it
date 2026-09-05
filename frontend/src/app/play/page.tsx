@@ -17,12 +17,12 @@ import {
   Sparkles,
   Crown,
   Star,
-  Trophy,
   Home,
   Copy,
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { LeaderboardCard } from '@/components/leaderboard';
 
 export default function PlayView() {
   const router = useRouter();
@@ -463,8 +463,17 @@ export default function PlayView() {
   // 3. LEADERBOARD VIEW
   if (session.status === 'LEADERBOARD') {
     const resultsList = Object.values(session.results || {});
-    // Sort from highest average to lowest average
-    const sortedResults = [...resultsList].sort((a, b) => b.average - a.average);
+
+    // Precalculate absolute ranks (best average is rank 1)
+    const rankedBestFirst = [...resultsList].sort((a, b) => (b.average || 0) - (a.average || 0));
+    const rankMap = new Map(rankedBestFirst.map((r, i) => [r.id, i + 1]));
+
+    // Display order: from worst rank (#N at top) down to rank 1 (Winner at bottom) so no spoiler is possible!
+    const sortedResults = [...resultsList].sort((a, b) => {
+      const rankA = rankMap.get(a.id) ?? 1;
+      const rankB = rankMap.get(b.id) ?? 1;
+      return rankB - rankA;
+    });
 
     // Compute player personal summary
     const votedResults = sortedResults.filter(r => r.playerVotes?.[playerId] !== undefined);
@@ -475,50 +484,25 @@ export default function PlayView() {
     const sessionAvg = sortedResults.length > 0
       ? (sortedResults.reduce((acc, r) => acc + r.average, 0) / sortedResults.length)
       : 0;
-    const overallDiff = playerAvg - sessionAvg;
-
-    let affinityLabel = "En parfait accord";
-    let affinityBg = "bg-purple-100 text-purple-900 border-purple-300";
-    if (playerVotesCount > 0) {
-      if (overallDiff >= 0.25) {
-        affinityLabel = "Plus généreux que la salle";
-        affinityBg = "bg-emerald-100 text-emerald-900 border-emerald-400";
-      } else if (overallDiff <= -0.25) {
-        affinityLabel = "Plus exigeant que la salle";
-        affinityBg = "bg-amber-100 text-amber-900 border-amber-400";
-      }
-    }
-
-    const ratingBadges: Record<number, { label: string; bg: string }> = {
-      1: { label: '1 - Skip, vite !', bg: 'bg-red-600 text-white' },
-      2: { label: '2 - Oubliable', bg: 'bg-orange-500 text-white' },
-      3: { label: '3 - Honnête', bg: 'bg-yellow-400 text-black' },
-      4: { label: '4 - Hop, dans ma playlist', bg: 'bg-emerald-500 text-white' },
-      5: { label: '5 - Aucun défaut', bg: 'bg-[#DD4DCC] text-white' },
-    };
 
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-10 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
         <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl flex flex-col gap-6">
 
-          {/* Header Banner */}
+          {/* Header Banner with Resultat.png */}
           <div className="info-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl text-center flex flex-col items-center gap-4">
-            <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-amber-500 animate-bounce" />
-            <div>
-              <h2 className="text-2xl sm:text-4xl font-black font-title text-black uppercase transform rotate-[-1deg]">
-                Partie terminée !
-              </h2>
-              <p className="text-xs sm:text-sm font-bold text-slate-700 mt-1">
-                Vos votes comparés à la moyenne finale de la session
-              </p>
-            </div>
+            <img
+              src="/HOST/Resultat.png"
+              alt="Résultats"
+              className="h-16 sm:h-24 md:h-32 w-auto object-contain max-w-full"
+            />
 
             {/* Stats Overview */}
             {sortedResults.length > 0 && (
-              <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
+              <div className="w-full grid grid-cols-2 gap-3 mt-1 max-w-md">
                 <div className="p-3 bg-white border-2 border-black rounded-xl text-center">
                   <span className="block text-[10px] font-black text-slate-500 uppercase">Mon vote moyen</span>
-                  <span className="block text-xl sm:text-2xl font-black text-[#DD4DCC] font-mono mt-0.5">
+                  <span className="block text-xl sm:text-2xl font-black text-play font-mono mt-0.5">
                     {playerVotesCount > 0 ? `${playerAvg.toFixed(2)}/5` : 'N/A'}
                   </span>
                   <span className="block text-[9px] font-bold text-slate-400">
@@ -533,13 +517,6 @@ export default function PlayView() {
                   </span>
                   <span className="block text-[9px] font-bold text-slate-400">
                     ({sortedResults.length} thèmes)
-                  </span>
-                </div>
-
-                <div className="col-span-2 sm:col-span-1 p-3 bg-white border-2 border-black rounded-xl text-center flex flex-col justify-center items-center">
-                  <span className="block text-[10px] font-black text-slate-500 uppercase mb-1">Votre tendance</span>
-                  <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border ${affinityBg}`}>
-                    {affinityLabel}
                   </span>
                 </div>
               </div>
@@ -566,79 +543,22 @@ export default function PlayView() {
                 Aucun résultat n'a été enregistré.
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
-                {sortedResults.map((result, idx) => {
-                  const playerVote = result.playerVotes?.[playerId];
-                  const diff = playerVote !== undefined ? playerVote - result.average : null;
-
-                  let cardStyle = "bg-white border-2 border-black";
-                  if (idx === 0) {
-                    cardStyle = "bg-amber-50 border-4 border-black";
-                  }
-
-                  return (
-                    <div
-                      key={result.id}
-                      className={`p-4 rounded-xl ${cardStyle} flex flex-col gap-3`}
-                    >
-                      {/* Track info header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span className="h-8 w-8 rounded-lg bg-black text-white font-mono font-black text-xs flex items-center justify-center shrink-0">
-                            #{idx + 1}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-black text-black text-sm leading-snug truncate">
-                              {result.title}
-                            </h4>
-                            <p className="text-[11px] font-bold text-slate-600 truncate">
-                              {result.artistName || 'Artiste inconnu'} {result.description ? `— ${result.description}` : ''}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Vote vs Session comparison row */}
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-xs">
-                        {/* Player Vote Box */}
-                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-300 flex flex-col gap-1">
-                          <span className="text-[9px] font-black text-slate-500 uppercase">Votre vote</span>
-                          {playerVote !== undefined ? (
-                            <span className={`text-xs font-black px-2 py-0.5 rounded border border-black uppercase w-fit ${ratingBadges[playerVote]?.bg || 'bg-black text-white'}`}>
-                              {ratingBadges[playerVote]?.label || `${playerVote}/5`}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-black text-slate-400 bg-slate-200 px-2 py-0.5 rounded uppercase w-fit">
-                              Pas voté
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Session Average Box */}
-                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-300 flex flex-col gap-1">
-                          <span className="text-[9px] font-black text-slate-500 uppercase">Moyenne Session</span>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-black font-mono text-black">
-                              {result.average.toFixed(2)} <span className="text-[10px] text-slate-500 font-bold">/5</span>
-                            </span>
-
-                            {diff !== null && (
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border border-black uppercase ${
-                                diff > 0.05
-                                  ? 'bg-emerald-200 text-emerald-950'
-                                  : diff < -0.05
-                                  ? 'bg-red-200 text-red-950'
-                                  : 'bg-blue-100 text-blue-950'
-                              }`}>
-                                {diff > 0.05 ? `+${diff.toFixed(2)}` : diff.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex flex-col gap-4">
+                {sortedResults.map((result, idx) => (
+                  <LeaderboardCard
+                    key={result.id}
+                    result={result}
+                    rank={rankMap.get(result.id) ?? 1}
+                    totalItems={sortedResults.length}
+                    hasAnimatedOnce={true}
+                    isTwitchLinked={Boolean(
+                      session.twitchChannel ||
+                      Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0)
+                    )}
+                    playerVote={result.playerVotes?.[playerId]}
+                    showPlayerVoteBadge={true}
+                  />
+                ))}
               </div>
             )}
 

@@ -22,7 +22,6 @@ import {
   BarChart2,
   SkipForward,
   Users,
-  Trophy,
   Home,
   Loader2,
   FastForward,
@@ -41,121 +40,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import gsap from 'gsap';
-
-// Dev-only dummy anime music list for testing progressive reveal animations
-// STRICTLY GUARDED: process.env.NODE_ENV !== 'production' ensures it is dead-code eliminated in prod
-const DEV_DUMMY_RESULTS = process.env.NODE_ENV !== 'production' ? [
-  {
-    id: 'dummy-1',
-    youtubeId: '7aMOurgDB-o',
-    title: 'Unravel',
-    artistName: 'TK from Ling tosite sigure',
-    description: 'Tokyo Ghoul - OP 1',
-    average: 4.92,
-    votesCount: 8,
-    twitchAverage: 4.95,
-    twitchVotesCount: 52,
-  },
-  {
-    id: 'dummy-2',
-    youtubeId: '2uq34TeWEdQ',
-    title: 'Again',
-    artistName: 'YUI',
-    description: 'Fullmetal Alchemist: Brotherhood - OP 1',
-    average: 4.81,
-    votesCount: 8,
-    twitchAverage: 4.88,
-    twitchVotesCount: 44,
-  },
-  {
-    id: 'dummy-3',
-    youtubeId: 'CwkzK-F0Y00',
-    title: 'Gurenge',
-    artistName: 'LiSA',
-    description: 'Demon Slayer - OP 1',
-    average: 4.65,
-    votesCount: 8,
-    twitchAverage: 4.70,
-    twitchVotesCount: 48,
-  },
-  {
-    id: 'dummy-4',
-    youtubeId: 'M2cckDmNLMI',
-    title: 'KICK BACK',
-    artistName: 'Kenshi Yonezu',
-    description: 'Chainsaw Man - OP 1',
-    average: 4.45,
-    votesCount: 8,
-    twitchAverage: 4.52,
-    twitchVotesCount: 38,
-  },
-  {
-    id: 'dummy-5',
-    youtubeId: 'CID-sYQNCew',
-    title: 'Shinzou wo Sasageyo!',
-    artistName: 'Linked Horizon',
-    description: 'Attack on Titan Season 2 - OP',
-    average: 4.30,
-    votesCount: 8,
-    twitchAverage: 4.40,
-    twitchVotesCount: 60,
-  },
-  {
-    id: 'dummy-6',
-    youtubeId: 'dlFA0Zq1k2A',
-    title: 'Silhouette',
-    artistName: 'KANA-BOON',
-    description: 'Naruto Shippuden - OP 16',
-    average: 4.12,
-    votesCount: 8,
-    twitchAverage: 4.25,
-    twitchVotesCount: 35,
-  },
-  {
-    id: 'dummy-7',
-    youtubeId: '2S4qGKmzBJE',
-    title: 'The Rumbling',
-    artistName: 'SiM',
-    description: 'Attack on Titan Final Season Part 2 - OP',
-    average: 3.90,
-    votesCount: 8,
-    twitchAverage: 4.05,
-    twitchVotesCount: 30,
-  },
-  {
-    id: 'dummy-8',
-    youtubeId: 'KId6eunoiW8',
-    title: 'Crossing Field',
-    artistName: 'LiSA',
-    description: 'Sword Art Online - OP 1',
-    average: 3.72,
-    votesCount: 8,
-    twitchAverage: 3.80,
-    twitchVotesCount: 25,
-  },
-  {
-    id: 'dummy-9',
-    youtubeId: 'n6jCJZEFIto',
-    title: 'Tank!',
-    artistName: 'Seatbelts',
-    description: 'Cowboy Bebop - OP',
-    average: 3.50,
-    votesCount: 8,
-    twitchAverage: 3.65,
-    twitchVotesCount: 21,
-  },
-  {
-    id: 'dummy-10',
-    youtubeId: '210R0ozmVwg',
-    title: 'Bling-Bang-Bang-Born',
-    artistName: 'Creepy Nuts',
-    description: 'Mashle: Magic and Muscles S2 - OP',
-    average: 3.25,
-    votesCount: 8,
-    twitchAverage: 3.40,
-    twitchVotesCount: 33,
-  },
-] : [];
+import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
 
 export default function HostLobby() {
   const router = useRouter();
@@ -223,11 +108,11 @@ export default function HostLobby() {
   const [leaderboardSortType, setLeaderboardSortType] = useState<'players' | 'twitch'>('players');
   const [leaderboardSortDir, setLeaderboardSortDir] = useState<'desc' | 'asc'>('asc');
 
-  // GSAP Progressive reveal & test animation states
+  // GSAP Progressive reveal animation states
   const [isRevealing, setIsRevealing] = useState(false);
   const [isDarkAmbianceActive, setIsDarkAmbianceActive] = useState(false);
   const [hasAnimatedOnce, setHasAnimatedOnce] = useState(false);
-  const [enableDevDummyData, setEnableDevDummyData] = useState(false);
+  const [showSidebars, setShowSidebars] = useState(false);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const cardRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
 
@@ -570,9 +455,7 @@ export default function HostLobby() {
     // Ensure the display is always worst at top and best at bottom for the reveal animation
     setLeaderboardSortDir('asc');
 
-    const rawResults = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
-      ? (DEV_DUMMY_RESULTS || [])
-      : Object.values(session?.results || {});
+    const rawResults = Object.values(session?.results || {});
 
     if (rawResults.length === 0) return;
 
@@ -582,6 +465,7 @@ export default function HostLobby() {
 
     setIsRevealing(true);
     setIsDarkAmbianceActive(false);
+    setShowSidebars(false);
 
     // Compute player and twitch ranks for reveal order
     const rankedP = [...rawResults].sort((a: any, b: any) => (b.average || 0) - (a.average || 0));
@@ -608,6 +492,7 @@ export default function HostLobby() {
       onComplete: () => {
         setIsRevealing(false);
         setIsDarkAmbianceActive(false);
+        setShowSidebars(true);
         setHasAnimatedOnce(true);
         gsap.set(cardElements, { opacity: 1, visibility: 'visible', x: 0, y: 0, rotation: 0, scale: 1, clearProps: 'all' });
       },
@@ -682,9 +567,10 @@ export default function HostLobby() {
         // Winner basks in spotlight
         tl.to({}, { duration: 1.2 });
 
-        // Turn dark ambiance OFF
+        // Turn dark ambiance OFF and fade sidebars in after #1 is shown
         tl.call(() => {
           setIsDarkAmbianceActive(false);
+          setShowSidebars(true);
         });
 
         tl.to({}, { duration: 0.3 });
@@ -811,6 +697,7 @@ export default function HostLobby() {
     }
     setIsDarkAmbianceActive(false);
     setIsRevealing(false);
+    setShowSidebars(true);
     setHasAnimatedOnce(true);
     const cardElements = Object.values(cardRefs.current).filter(Boolean) as HTMLElement[];
     gsap.set(cardElements, { opacity: 1, visibility: 'visible', x: 0, y: 0, rotation: 0, scale: 1, clearProps: 'all' });
@@ -819,6 +706,7 @@ export default function HostLobby() {
   const handleReplayAnimation = () => {
     setLeaderboardSortDir('asc');
     setHasAnimatedOnce(false);
+    setShowSidebars(false);
     setTimeout(() => {
       triggerLeaderboardReveal();
     }, 50);
@@ -827,9 +715,7 @@ export default function HostLobby() {
   // Auto-trigger reveal animation when entering LEADERBOARD
   useEffect(() => {
     if (session?.status === 'LEADERBOARD' && !hasAnimatedOnce && !isRevealing) {
-      const resultsToUse = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
-        ? (DEV_DUMMY_RESULTS || [])
-        : Object.values(session?.results || {});
+      const resultsToUse = Object.values(session?.results || {});
 
       if (resultsToUse.length > 0) {
         const timer = setTimeout(() => {
@@ -838,18 +724,18 @@ export default function HostLobby() {
         return () => clearTimeout(timer);
       }
     }
-  }, [session?.status, enableDevDummyData]);
+  }, [session?.status]);
 
   if (loadingMessage) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
         <div className="info-card w-full max-w-md p-8 rounded-3xl flex flex-col gap-6">
-          <Loader2 className="w-10 h-10 animate-spin text-[#24B3F1] mx-auto" />
+          <Loader2 className="w-10 h-10 animate-spin text-host mx-auto" />
           <h2 className="text-2xl font-black text-black font-title uppercase transform rotate-[-1deg]">
             Lancement de la partie
           </h2>
           <div className="py-4 border-t-2 border-b-2 border-black bg-white rounded-xl">
-            <p className="text-sm font-black text-[#24B3F1] uppercase tracking-wide animate-pulse">
+            <p className="text-sm font-black text-host uppercase tracking-wide animate-pulse">
               {loadingMessage}
             </p>
           </div>
@@ -899,13 +785,15 @@ export default function HostLobby() {
               />
               <p className="text-xl font-bold text-black mt-1">Configurez la salle et invitez vos compagnons !</p>
             </div>
-            <button
-              onClick={handleBackToHome}
-              className="px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0"
-            >
-              <X className="w-4 h-4" />
-              <span>Fermer la session</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleBackToHome}
+                className="px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0"
+              >
+                <X className="w-4 h-4" />
+                <span>Fermer la session</span>
+              </button>
+            </div>
           </div>
 
           {/* Quiz Mode Selector (Goofy Wario style) */}
@@ -955,7 +843,7 @@ export default function HostLobby() {
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="px-3 sm:px-4 py-2.5 border-2 border-black bg-[#24B3F1] text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
+                    className="px-3 sm:px-4 py-2.5 border-2 border-black bg-host text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
                   >
                     {copiedLink ? (
                       <>
@@ -997,7 +885,7 @@ export default function HostLobby() {
                     <p className="text-xs text-slate-700 font-bold leading-relaxed max-w-xs mt-1">
                       Scanner le QR Code pour rejoindre la salle :
                       <br />
-                      <span className="text-[#24B3F1] break-all select-all font-mono font-bold">{joinUrl}</span>
+                      <span className="text-host break-all select-all font-mono font-bold">{joinUrl}</span>
                     </p>
                   </div>
                 )}
@@ -1020,7 +908,7 @@ export default function HostLobby() {
                             console.error(err);
                           }
                         }}
-                        className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                        className="h-4 w-4 accent-host cursor-pointer"
                       />
                       <span>Le Host est un joueur</span>
                     </label>
@@ -1050,7 +938,7 @@ export default function HostLobby() {
                         id="shuffleOpeningsToggle"
                         checked={isShuffleEnabled}
                         onChange={(e) => setIsShuffleEnabled(e.target.checked)}
-                        className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                        className="h-4 w-4 accent-host cursor-pointer"
                       />
                       <span className="flex items-center gap-1.5">
                         <span>Les vidéos sont dans un ordre aléatoire</span>
@@ -1080,7 +968,7 @@ export default function HostLobby() {
                       </span>
                       <button
                         onClick={handleDisconnectTwitch}
-                        className="text-xs text-[#990000] hover:text-red-500 focus:text-red-500 focus-visible:text-red-500 font-black shrink-0 btn-action-hover underline"
+                        className="text-xs text-accent-red hover:text-red-500 focus:text-red-500 focus-visible:text-red-500 font-black shrink-0 btn-action-hover underline"
                       >
                         Déconnexion
                       </button>
@@ -1098,14 +986,14 @@ export default function HostLobby() {
                     <button
                       onClick={handleConnectTwitch}
                       disabled={isTwitchConnecting}
-                      className="px-4 py-2.5 bg-[#24B3F1] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0"
+                      className="px-4 py-2.5 bg-host text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0"
                     >
                       {isTwitchConnecting ? '...' : 'Connexion'}
                     </button>
                   </div>
                 )}
                 {twitchError && (
-                  <p className="text-xs text-[#990000] font-black flex items-center gap-1.5">
+                  <p className="text-xs text-accent-red font-black flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span>{twitchError}</span>
                   </p>
@@ -1139,7 +1027,7 @@ export default function HostLobby() {
                     </button>
                   </form>
                   {searchPlaylistError && (
-                    <p className="text-xs text-[#990000] font-black mb-3 flex items-center gap-1.5">
+                    <p className="text-xs text-accent-red font-black mb-3 flex items-center gap-1.5">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
                       <span>{searchPlaylistError}</span>
                     </p>
@@ -1153,7 +1041,7 @@ export default function HostLobby() {
                       value={playlistSearchQuery}
                       onChange={(e) => setPlaylistSearchQuery(e.target.value)}
                       placeholder="Rechercher une playlist par nom, description ou ID..."
-                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-[#faf6eb]"
+                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-cream"
                     />
                     {playlistSearchQuery && (
                       <button
@@ -1213,7 +1101,7 @@ export default function HostLobby() {
                                 <button
                                   type="button"
                                   onClick={() => setPlaylistTab('community')}
-                                  className="text-xs font-black text-[#24B3F1] hover:underline"
+                                  className="text-xs font-black text-host hover:underline"
                                 >
                                   Voir les {filteredCommunity.length} résultat{filteredCommunity.length > 1 ? 's' : ''} dans la communauté →
                                 </button>
@@ -1222,7 +1110,7 @@ export default function HostLobby() {
                                 <button
                                   type="button"
                                   onClick={() => setPlaylistTab('validated')}
-                                  className="text-xs font-black text-[#24B3F1] hover:underline"
+                                  className="text-xs font-black text-host hover:underline"
                                 >
                                   Voir les {filteredValidated.length} résultat{filteredValidated.length > 1 ? 's' : ''} dans les vérifiées →
                                 </button>
@@ -1305,7 +1193,7 @@ export default function HostLobby() {
                                   type="checkbox"
                                   checked={!isDisabled}
                                   onChange={() => handleToggleTrack(track.id)}
-                                  className="h-4 w-4 accent-[#24B3F1] cursor-pointer"
+                                  className="h-4 w-4 accent-host cursor-pointer"
                                 />
                               </label>
                             </div>
@@ -1320,7 +1208,7 @@ export default function HostLobby() {
                 <div className="info-card p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden">
                   {/* Connexion MAL form at the top */}
                   <div className="border-b-2 border-black pb-4 mb-4 flex flex-col gap-2.5">
-                    <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2 text-[#990000]">
+                    <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2 text-accent-red">
                       <span>MyAnimeList connexion</span>
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
@@ -1345,7 +1233,7 @@ export default function HostLobby() {
                     </form>
 
                     {malLoadError && (
-                      <p className="text-xs text-[#990000] font-black flex items-center gap-1.5 mt-1">
+                      <p className="text-xs text-accent-red font-black flex items-center gap-1.5 mt-1">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         <span>{malLoadError}</span>
                       </p>
@@ -1385,7 +1273,7 @@ export default function HostLobby() {
                                       type="checkbox"
                                       checked={!isDisabled}
                                       onChange={() => handleToggleTrack(track.id)}
-                                      className="h-4 w-4 accent-[#990000] cursor-pointer"
+                                      className="h-4 w-4 accent-accent-red cursor-pointer"
                                     />
                                   </label>
                                 </div>
@@ -1398,7 +1286,7 @@ export default function HostLobby() {
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8 text-center">
                       <p className="text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
-                        Rentrez votre pseudo MyAnimeList et cliquez sur <span className="text-[#990000] font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
+                        Rentrez votre pseudo MyAnimeList et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
                       </p>
                     </div>
                   )}
@@ -1410,7 +1298,7 @@ export default function HostLobby() {
                 <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
                   <h3 className="text-sm font-black text-black uppercase flex items-center gap-2">
                     Joueurs connectés
-                    <span className="bg-black text-[#faf6eb] px-2 py-0.5 rounded text-xs font-mono">
+                    <span className="bg-black text-cream px-2 py-0.5 rounded text-xs font-mono">
                       {playersList.length}
                     </span>
                   </h3>
@@ -1442,7 +1330,7 @@ export default function HostLobby() {
                   <button
                     onClick={handleStartGame}
                     disabled={playersList.length === 0}
-                    className="w-full sm:w-auto px-6 py-3 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-6 py-3 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-2"
                   >
                     <span>Commencer la partie ({playersList.length} joueurs)</span>
                     <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1552,7 +1440,7 @@ export default function HostLobby() {
                 {session.phase === 'REVEAL' ? (
                   <button
                     onClick={handleProceedAfterReveal}
-                    className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+                    className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
                   >
                     <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Afficher les résultats' : 'Vidéo suivante'}</span>
                     <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1560,7 +1448,7 @@ export default function HostLobby() {
                 ) : (
                   <button
                     onClick={handleShowResults}
-                    className="px-4 sm:px-5 py-2.5 bg-[#24B3F1] border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+                    className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
                   >
                     <BarChart2 className="w-4 h-4 shrink-0" />
                     <span>Résultats</span>
@@ -1612,7 +1500,7 @@ export default function HostLobby() {
                           else if (val === 2) style = "bg-orange-500 border-2 border-black text-white font-black";
                           else if (val === 3) style = "bg-yellow-400 border-2 border-black text-black font-black";
                           else if (val === 4) style = "bg-emerald-500 border-2 border-black text-white font-black";
-                          else if (val === 5) style = "bg-[#24B3F1] border-2 border-black text-black font-black";
+                          else if (val === 5) style = "bg-host border-2 border-black text-black font-black";
                         }
                         return (
                           <button
@@ -1769,7 +1657,7 @@ export default function HostLobby() {
               <div className="rounded-2xl border-4 border-black bg-white p-3.5 sm:p-4 text-left z-10">
                 <h4 className="text-xs sm:text-sm font-black uppercase text-black border-b-2 border-black pb-2 mb-3 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[#24B3F1]" />
+                    <Users className="w-4 h-4 text-host" />
                     <span>Notes mises par les joueurs</span>
                   </span>
                   <span className="text-xs font-mono text-slate-500 font-bold">({playersList.length} joueurs)</span>
@@ -1792,7 +1680,7 @@ export default function HostLobby() {
                           2: { text: '2', bg: 'bg-orange-500 text-white', icon: <Ghost className="w-3 h-3" /> },
                           3: { text: '3', bg: 'bg-yellow-400 text-black', icon: <ThumbsUp className="w-3 h-3" /> },
                           4: { text: '4', bg: 'bg-emerald-500 text-white', icon: <ListPlus className="w-3 h-3" /> },
-                          5: { text: '5', bg: 'bg-[#24B3F1] text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
+                          5: { text: '5', bg: 'bg-host text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
                         };
                         const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white', icon: null };
                         voteBadge = (
@@ -1816,7 +1704,7 @@ export default function HostLobby() {
               <div className="mt-2 flex justify-center z-10">
                 <button
                   onClick={handleProceedAfterReveal}
-                  className="px-6 sm:px-8 py-3 bg-[#24B3F1] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shadow-[2px_2px_0px_#000]"
+                  className="px-6 sm:px-8 py-3 bg-host text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
                 >
                   <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Voir le classement' : 'Vidéo suivante'}</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1833,13 +1721,10 @@ export default function HostLobby() {
   if (session.status === 'LEADERBOARD') {
     const isTwitchLinked = Boolean(
       session.twitchChannel ||
-      (process.env.NODE_ENV !== 'production' && enableDevDummyData) ||
       Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0)
     );
 
-    const resultsArray = (process.env.NODE_ENV !== 'production' && enableDevDummyData)
-      ? (DEV_DUMMY_RESULTS || [])
-      : Object.values(session.results || {});
+    const resultsArray = Object.values(session.results || {});
 
     // Precalculate absolute ranks
     const rankedByPlayers = [...resultsArray].sort((a, b) => (b.average || 0) - (a.average || 0));
@@ -1860,6 +1745,11 @@ export default function HostLobby() {
       const fallbackB = leaderboardSortType === 'twitch' ? (b.average ?? 0) : (b.twitchAverage ?? 0);
       if (fallbackA !== fallbackB) {
         return leaderboardSortDir === 'desc' ? fallbackB - fallbackA : fallbackA - fallbackB;
+      }
+      const rankA = leaderboardSortType === 'twitch' ? (twitchRankMap.get(a.id) ?? 1) : (playerRankMap.get(a.id) ?? 1);
+      const rankB = leaderboardSortType === 'twitch' ? (twitchRankMap.get(b.id) ?? 1) : (playerRankMap.get(b.id) ?? 1);
+      if (rankA !== rankB) {
+        return leaderboardSortDir === 'desc' ? rankA - rankB : rankB - rankA;
       }
       return String(a.title || '').localeCompare(String(b.title || ''));
     });
@@ -1885,498 +1775,97 @@ export default function HostLobby() {
       }
     };
 
+    const isSidebarVisible = showSidebars || (hasAnimatedOnce && !isRevealing);
+
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-10 font-sans w-full max-w-full overflow-x-hidden">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-10 font-sans w-full max-w-full overflow-x-clip">
         {/* Dark Ambiance Backdrop Overlay for Winner #1 Reveal */}
         <div
-          className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-30 pointer-events-none transition-opacity duration-700 ${
-            isDarkAmbianceActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+          className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-30 pointer-events-none transition-opacity duration-700 ${isDarkAmbianceActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
         />
 
         <div className="w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8 justify-center items-center">
-          {/* Header with BIG Resultat.png that POPs on desktop + Reveal Controls */}
-          <div className="flex flex-col items-center justify-center border-b-4 border-black pb-4 sm:pb-6 text-center w-full">
+          {/* Header with Resultat.png */}
+          <div className="flex flex-col items-center justify-center text-center w-full">
             <img
               src="/HOST/Resultat.png"
               alt="Résultats"
-              className="h-20 sm:h-32 md:h-44 lg:h-52 xl:h-60 w-auto object-contain max-w-full drop-shadow-[4px_4px_0px_#000]"
+              className="h-20 sm:h-32 md:h-44 lg:h-52 xl:h-60 w-auto object-contain max-w-full"
             />
-            <p className="text-xs sm:text-sm md:text-base font-bold text-slate-800 mt-2">
-              Découvrez les notes et le classement final de la session
-            </p>
-
-            {/* Animation Control Bar & Dev Testing Toggle */}
-            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-3.5 z-20">
-              {isRevealing ? (
+            {isRevealing && (
+              <div className="flex items-center justify-center mt-3 z-20">
                 <button
                   type="button"
                   onClick={handleSkipAnimation}
-                  className="px-4 py-2 bg-black text-white text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4 py-2 border-2 border-black bg-white text-black hover:bg-slate-100 focus:bg-slate-100 text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 btn-action-hover cursor-pointer"
                   title="Passer l'animation et afficher tous les résultats immédiatement"
                 >
                   <SkipForward className="w-4 h-4" />
                   <span>Passer l'animation</span>
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleReplayAnimation}
-                  className="px-4 py-2 bg-white border-2 border-black text-black text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 hover:bg-slate-100 transition-colors btn-action-hover cursor-pointer"
-                  title="Rejouer l'animation progressive du classement"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Rejouer l'animation</span>
-                </button>
-              )}
-
-              {/* Dev Only: Test with 10 anime tracks (strictly eliminated in production) */}
-              {process.env.NODE_ENV !== 'production' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isRevealing) {
-                      handleSkipAnimation();
-                    }
-                    setEnableDevDummyData(prev => !prev);
-                    setHasAnimatedOnce(false);
-                  }}
-                  className={`px-3.5 py-2 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                    enableDevDummyData
-                      ? 'bg-emerald-400 text-black'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                  title="Charger 10 musiques d'anime fictives pour tester l'animation (Dev only - jamais inclus en prod)"
-                >
-                  <span>🧪 {enableDevDummyData ? 'Désactiver les 10 musiques test' : 'Tester avec 10 musiques d\'anime'}</span>
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Main Content: Left Wing (Desktop) + Center Leaderboard + Right Wing (Desktop) */}
           <div className="w-full flex flex-col lg:flex-row items-start justify-center gap-4 xl:gap-6">
-            {/* Left Side (Desktop): Sorting Buttons (Both Player and Twitch underneath) */}
-            <div className="hidden lg:flex flex-col items-end w-52 xl:w-60 shrink-0 sticky top-8 gap-3 z-20">
-              <div className="bg-white border-2 border-black p-3.5 rounded-2xl w-full text-center flex flex-col gap-3">
-                <span className="block text-[11px] font-black uppercase text-slate-600 tracking-wider">
-                  Ordre d'affichage
-                </span>
-
-                {/* Player Sort Button */}
-                <button
-                  type="button"
-                  onClick={() => handleSortClick('players')}
-                  className={`w-full py-3 px-3 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
-                    leaderboardSortType === 'players'
-                      ? 'bg-[#24B3F1] text-black'
-                      : 'bg-white text-slate-700 hover:bg-slate-100'
-                  }`}
-                  title={leaderboardSortType === 'players' ? 'Cliquer pour inverser l\'ordre' : 'Trier par les votes des joueurs'}
-                >
-                  <span>
-                    Joueurs : {leaderboardSortType === 'players' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Pire au Meilleur'}
-                  </span>
-                  {leaderboardSortType === 'players' ? (
-                    leaderboardSortDir === 'desc' ? <ArrowDown className="w-4 h-4 shrink-0" /> : <ArrowUp className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <ArrowUpDown className="w-4 h-4 shrink-0 opacity-40" />
-                  )}
-                </button>
-
-                {/* Twitch Sort Button (placed directly underneath the Player button) */}
-                {isTwitchLinked && (
-                  <button
-                    type="button"
-                    onClick={() => handleSortClick('twitch')}
-                    className={`w-full py-3 px-3 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
-                      leaderboardSortType === 'twitch'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white text-purple-800 hover:bg-purple-50'
-                    }`}
-                    title={leaderboardSortType === 'twitch' ? 'Cliquer pour inverser l\'ordre' : 'Trier par les votes Twitch'}
-                  >
-                    <span className="h-2 w-2 rounded-full bg-purple-300 animate-pulse shrink-0" />
-                    <span>
-                      Twitch : {leaderboardSortType === 'twitch' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Pire au Meilleur'}
-                    </span>
-                    {leaderboardSortType === 'twitch' ? (
-                      leaderboardSortDir === 'desc' ? <ArrowDown className="w-4 h-4 shrink-0" /> : <ArrowUp className="w-4 h-4 shrink-0" />
-                    ) : (
-                      <ArrowUpDown className="w-4 h-4 shrink-0 opacity-40" />
-                    )}
-                  </button>
-                )}
-              </div>
+            {/* Left Side (Desktop): Rounded Square Sorting Buttons with Tooltips */}
+            <div className={`hidden lg:flex flex-col items-end w-52 xl:w-60 shrink-0 sticky top-8 self-start gap-3 z-20 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+              <LeaderboardSortButtons
+                layout="vertical"
+                sortType={leaderboardSortType}
+                sortDir={leaderboardSortDir}
+                onSort={handleSortClick}
+                isTwitchLinked={isTwitchLinked}
+              />
             </div>
 
             {/* Center: Leaderboard Cards */}
             <div className="info-card p-4 sm:p-8 rounded-2xl sm:rounded-3xl flex flex-col gap-6 w-full max-w-4xl !overflow-visible !z-auto">
               {/* Mobile / Tablet Sorting Toolbar (< lg only) */}
-              <div className="flex lg:hidden flex-col gap-2.5 border-b-2 border-black pb-4">
-                <span className="text-xs font-black uppercase text-slate-700 tracking-wider">
-                  Ordre d'affichage :
-                </span>
-
-                <div className="flex flex-col gap-2">
-                  {/* Mobile Button 1: Joueurs */}
-                  <button
-                    type="button"
-                    onClick={() => handleSortClick('players')}
-                    className={`w-full px-3.5 py-2.5 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
-                      leaderboardSortType === 'players'
-                        ? 'bg-[#24B3F1] text-black'
-                        : 'bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>
-                      Joueurs : {leaderboardSortType === 'players' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Pire au Meilleur'}
-                    </span>
-                    {leaderboardSortType === 'players' ? (
-                      leaderboardSortDir === 'desc' ? <ArrowDown className="w-3.5 h-3.5 shrink-0" /> : <ArrowUp className="w-3.5 h-3.5 shrink-0" />
-                    ) : (
-                      <ArrowUpDown className="w-3.5 h-3.5 shrink-0 opacity-40" />
-                    )}
-                  </button>
-
-                  {/* Mobile Button 2: Twitch placed directly under the player one */}
-                  {isTwitchLinked && (
-                    <button
-                      type="button"
-                      onClick={() => handleSortClick('twitch')}
-                      className={`w-full px-3.5 py-2.5 border-2 border-black rounded-xl text-xs font-black uppercase inline-flex items-center justify-center gap-2 btn-action-hover ${
-                        leaderboardSortType === 'twitch'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-white text-purple-800 hover:bg-purple-50'
-                      }`}
-                    >
-                      <span className="h-2 w-2 rounded-full bg-purple-300 animate-pulse shrink-0" />
-                      <span>
-                        Twitch : {leaderboardSortType === 'twitch' ? (leaderboardSortDir === 'desc' ? 'Meilleur au Pire' : 'Pire au Meilleur') : 'Pire au Meilleur'}
-                      </span>
-                      {leaderboardSortType === 'twitch' ? (
-                        leaderboardSortDir === 'desc' ? <ArrowDown className="w-3.5 h-3.5 shrink-0" /> : <ArrowUp className="w-3.5 h-3.5 shrink-0" />
-                      ) : (
-                        <ArrowUpDown className="w-3.5 h-3.5 shrink-0 opacity-40" />
-                      )}
-                    </button>
-                  )}
-                </div>
+              <div className={`flex lg:hidden items-center justify-center gap-4 border-b-2 border-black pb-4 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <LeaderboardSortButtons
+                  layout="horizontal"
+                  sortType={leaderboardSortType}
+                  sortDir={leaderboardSortDir}
+                  onSort={handleSortClick}
+                  isTwitchLinked={isTwitchLinked}
+                />
               </div>
 
               {sortedResults.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-4 text-slate-500 font-bold text-xs sm:text-sm">
                   <p>Aucun vote n'a été enregistré pour le moment.</p>
-                  {process.env.NODE_ENV !== 'production' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEnableDevDummyData(true);
-                        setHasAnimatedOnce(false);
-                      }}
-                      className="px-5 py-2.5 bg-emerald-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover"
-                    >
-                      🧪 Charger 10 musiques de test (Dev)
-                    </button>
-                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-4 relative !z-auto">
                   {sortedResults.map((result) => {
-                    const percent = (result.average / 5) * 100;
-                    const rank = leaderboardSortType === 'twitch' ? (twitchRankMap.get(result.id) ?? 1) : (playerRankMap.get(result.id) ?? 1);
-                    const isTop3 = rank <= 3;
-                    const isWinner = rank === 1;
-                    const isSecond = rank === 2;
-                    const isThird = rank === 3;
-                    const isLast = resultsArray.length > 1 && rank === resultsArray.length;
+                    const rank = leaderboardSortType === 'twitch'
+                      ? (twitchRankMap.get(result.id) ?? 1)
+                      : (playerRankMap.get(result.id) ?? 1);
 
-                    // Background and border styling for podium & standard ranks
-                    let cardBg = "bg-white";
-                    let borderStyle = "border-2 border-black";
-
-                    if (isWinner) {
-                      cardBg = "bg-[#facc15]";
-                      borderStyle = "border-4 border-black transform sm:rotate-[0.5deg]";
-                    } else if (isSecond) {
-                      cardBg = "bg-slate-50";
-                      borderStyle = "border-2 sm:border-3 border-black";
-                    } else if (isThird) {
-                      cardBg = "bg-amber-50/70";
-                      borderStyle = "border-2 sm:border-3 border-black";
-                    } else if (isLast) {
-                      cardBg = "bg-red-50";
-                    }
-
-                    // Card z-index and highlight styling: Winner is placed at !z-50 in root context so it is never blurred!
-                    const winnerSpotlight = isWinner
-                      ? isDarkAmbianceActive
-                        ? 'relative !z-50 ring-4 ring-amber-400 shadow-[0_0_60px_rgba(250,204,21,0.9)]'
-                        : 'relative !z-40'
-                      : isTop3
-                      ? 'relative z-20'
-                      : 'relative z-10 hover:z-25';
-
-                    // RENDER TOP 3: FULL CARD WITH DIRECT PREVIEW THUMBNAIL
-                    if (isTop3) {
-                      return (
-                        <div
-                          key={result.id}
-                          ref={(el) => { cardRefs.current[result.id] = el; }}
-                          style={{ opacity: hasAnimatedOnce ? 1 : 0, visibility: hasAnimatedOnce ? 'visible' : 'hidden' }}
-                          className={`p-5 sm:p-6 rounded-3xl ${cardBg} ${borderStyle} ${winnerSpotlight} flex flex-col md:flex-row items-stretch md:items-center gap-5 sm:gap-6 transition-all !overflow-visible`}
-                        >
-                          {/* Left: Visible YouTube Thumbnail Preview (Play button only on hover) */}
-                          <div className="relative w-full md:w-52 lg:w-60 aspect-video rounded-2xl overflow-hidden border-2 border-black bg-black shrink-0 group/thumb">
-                            <img
-                              src={`https://img.youtube.com/vi/${result.youtubeId}/mqdefault.jpg`}
-                              alt={result.title}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
-                              loading="lazy"
-                            />
-                            {/* Red play button shown ONLY when hovering */}
-                            <a
-                              href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-200 cursor-pointer opacity-0 group-hover/thumb:opacity-100"
-                              title="Regarder sur YouTube (nouvel onglet)"
-                            >
-                              <div className="w-11 h-11 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-lg transform transition-transform group-hover/thumb:scale-110">
-                                <Play className="w-4 h-4 fill-white ml-0.5" />
-                              </div>
-                              <span className="sr-only">Ouvrir sur YouTube</span>
-                            </a>
-                            <div className="absolute bottom-2 left-2 bg-black/80 text-white text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/20 pointer-events-none">
-                              <ExternalLink className="w-2.5 h-2.5" />
-                              <span>YouTube</span>
-                            </div>
-                          </div>
-
-                          {/* Center: Rank Badge, Podium Tag, Title & Artist */}
-                          <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
-                            <div className="flex items-center gap-2.5 mb-2 flex-wrap">
-                              {/* Rank badge */}
-                              <div className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl border-2 border-black flex items-center justify-center font-black text-base sm:text-lg shrink-0 relative ${
-                                isWinner ? 'bg-black text-[#faf6eb]' : isSecond ? 'bg-slate-200 text-slate-900' : 'bg-amber-200 text-amber-950'
-                              }`}>
-                                #{rank}
-                                {isWinner && (
-                                  <span className="absolute -top-3 -right-2">
-                                    <Crown className="w-5 h-5 text-amber-500 fill-amber-400 drop-shadow" />
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Podium Tag */}
-                              <span className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border border-black ${
-                                isWinner ? 'bg-amber-400 text-black' : isSecond ? 'bg-slate-200 text-black' : 'bg-amber-100 text-amber-950'
-                              }`}>
-                                {isWinner ? '🏆 1ère Place - Vainqueur' : isSecond ? '🥈 2ème Place' : '🥉 3ème Place'}
-                              </span>
-                            </div>
-
-                            {/* Clickable Title redirecting to YouTube */}
-                            <a
-                              href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 font-black text-black text-base sm:text-lg leading-snug hover:text-[#BF1539] hover:underline transition-colors max-w-full group/title"
-                              title="Ouvrir la vidéo sur YouTube"
-                            >
-                              <span className="truncate">{result.title}</span>
-                              <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover/title:opacity-100 shrink-0 text-slate-700 group-hover/title:text-[#BF1539]" />
-                            </a>
-
-                            <p className="text-xs font-bold text-slate-700 mt-1 leading-relaxed truncate">
-                              par <span className="text-black font-black">{result.artistName || 'Artiste Non-Renseigné'}</span>
-                              {result.description ? ` — ${result.description}` : ''}
-                            </p>
-                          </div>
-
-                          {/* Right: Scores & Progress Bars */}
-                          <div className="flex flex-col gap-2.5 w-full md:w-72 lg:w-80 shrink-0 justify-center border-t md:border-t-0 md:border-l border-black/15 pt-3 md:pt-0 md:pl-5">
-                            {/* Players Score Bar (Hide 'Joueurs' if Twitch not active) */}
-                            <div className="flex items-center gap-3 w-full">
-                              {isTwitchLinked && (
-                                <span className="text-[11px] font-black uppercase text-slate-700 w-16 shrink-0 text-left">
-                                  Joueurs
-                                </span>
-                              )}
-                              <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                                <div
-                                  className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000"
-                                  style={{ width: `${percent}%` }}
-                                />
-                              </div>
-                              <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
-                                <span className="text-base sm:text-lg font-black text-black leading-none">
-                                  {result.average.toFixed(2)}
-                                </span>
-                                <span className="text-xs text-slate-400 font-bold">/5</span>
-                                <span className="text-[10px] font-bold text-slate-500 ml-1">
-                                  ({result.votesCount})
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Twitch Score Bar */}
-                            {result.twitchVotesCount !== undefined && result.twitchVotesCount > 0 && (
-                              <div className="flex items-center gap-3 w-full border-t border-black/10 pt-1.5">
-                                <span className="text-[11px] font-black uppercase text-purple-700 w-16 shrink-0 text-left flex items-center gap-1">
-                                  <span className="h-2 w-2 rounded-full bg-purple-600 shrink-0" />
-                                  Twitch
-                                </span>
-                                <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                                  <div
-                                    className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000"
-                                    style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }}
-                                  />
-                                </div>
-                                <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
-                                  <span className="text-base sm:text-lg font-black text-purple-700 leading-none">
-                                    {(result.twitchAverage ?? 0).toFixed(2)}
-                                  </span>
-                                  <span className="text-xs text-slate-400 font-bold">/5</span>
-                                  <span className="text-[10px] font-bold text-purple-600 ml-1">
-                                    ({result.twitchVotesCount})
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // RENDER RANKS 4+: COMPACT CARD WITH HOVER PREVIEW POPOVER
                     return (
-                      <div
+                      <LeaderboardCard
                         key={result.id}
-                        ref={(el) => { cardRefs.current[result.id] = el; }}
-                        style={{ opacity: hasAnimatedOnce ? 1 : 0, visibility: hasAnimatedOnce ? 'visible' : 'hidden' }}
-                        className={`p-4 sm:p-5 rounded-2xl ${cardBg} ${borderStyle} ${winnerSpotlight} flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all !overflow-visible`}
-                      >
-                        {/* Left: Rank badge & Title info with hover preview and click redirect */}
-                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                          <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 border-black bg-black text-[#faf6eb] flex items-center justify-center font-black text-base sm:text-lg shrink-0 relative">
-                            #{rank}
-                          </div>
-
-                          <div className="min-w-0 flex-1 text-left">
-                            {/* Title with hover thumbnail preview and click redirect to YouTube */}
-                            <div className="relative group/title inline-block max-w-full">
-                              <a
-                                href={`https://www.youtube.com/watch?v=${result.youtubeId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 font-black text-black text-sm sm:text-base leading-snug hover:text-[#BF1539] hover:underline transition-colors max-w-full"
-                                title="Ouvrir la vidéo sur YouTube"
-                              >
-                                <span className="truncate">{result.title}</span>
-                                <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover/title:opacity-100 shrink-0 text-slate-700 group-hover/title:text-[#BF1539]" />
-                              </a>
-
-                              {/* Floating hover preview popover */}
-                              <div className="pointer-events-none absolute bottom-full left-0 mb-3 hidden group-hover/title:flex flex-col w-60 sm:w-68 p-2.5 bg-white border-2 border-black rounded-2xl shadow-[6px_6px_0px_#000] z-50 animate-in fade-in zoom-in-95 duration-150">
-                                <div className="relative aspect-video w-full bg-black rounded-xl overflow-hidden border border-black mb-2">
-                                  <img
-                                    src={`https://img.youtube.com/vi/${result.youtubeId}/mqdefault.jpg`}
-                                    alt={result.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                                    <div className="w-9 h-9 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-lg">
-                                      <Play className="w-4 h-4 fill-white ml-0.5" />
-                                    </div>
-                                  </div>
-                                </div>
-                                <p className="font-black text-xs text-black truncate">{result.title}</p>
-                                <p className="text-[10px] text-slate-500 font-bold truncate mt-0.5">
-                                  par {result.artistName || 'Artiste inconnu'}
-                                </p>
-                                <span className="text-[10px] font-black text-[#BF1539] uppercase mt-1.5 flex items-center gap-1 border-t border-slate-100 pt-1.5">
-                                  <span>Cliquer pour ouvrir sur YouTube</span>
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </span>
-                                {/* Bottom arrow */}
-                                <div className="absolute top-full left-6 -mt-[1px] border-4 border-transparent border-t-black" />
-                              </div>
-                            </div>
-
-                            <p className="text-xs font-bold text-slate-600 mt-0.5 leading-relaxed truncate">
-                              par <span className="text-black">{result.artistName || 'Artiste Non-Renseigné'}</span>
-                              {result.description ? ` — ${result.description}` : ''}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Right: Score Metrics & Progress Bars */}
-                        <div className="flex flex-col gap-2.5 w-full md:w-80 lg:w-96 shrink-0 justify-center border-t md:border-t-0 pt-3 md:pt-0 border-black/10">
-                          {/* Players Flat Score Bar (Hide 'Joueurs' if Twitch not active) */}
-                          <div className="flex items-center gap-3 w-full">
-                            {isTwitchLinked && (
-                              <span className="text-[11px] font-black uppercase text-slate-700 w-16 shrink-0 text-left">
-                                Joueurs
-                              </span>
-                            )}
-
-                            <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                              <div
-                                className="h-full bg-[#24B3F1] border-r-2 border-black rounded-full transition-all duration-1000"
-                                style={{ width: `${percent}%` }}
-                              />
-                            </div>
-
-                            <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
-                              <span className="text-base sm:text-lg font-black text-black leading-none">
-                                {result.average.toFixed(2)}
-                              </span>
-                              <span className="text-xs text-slate-400 font-bold">/5</span>
-                              <span className="text-[10px] font-bold text-slate-500 ml-1">
-                                ({result.votesCount})
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Twitch Chat metrics */}
-                          {result.twitchVotesCount !== undefined && result.twitchVotesCount > 0 && (
-                            <div className="flex items-center gap-3 w-full border-t border-black/10 pt-1.5">
-                              <span className="text-[11px] font-black uppercase text-purple-700 w-16 shrink-0 text-left flex items-center gap-1">
-                                <span className="h-2 w-2 rounded-full bg-purple-600 shrink-0" />
-                                Twitch
-                              </span>
-
-                              <div className="flex-1 bg-[#faf6eb] border-2 border-black rounded-full h-3.5 overflow-hidden">
-                                <div
-                                  className="h-full bg-purple-600 border-r-2 border-black rounded-full transition-all duration-1000"
-                                  style={{ width: `${((result.twitchAverage ?? 0) / 5) * 100}%` }}
-                                />
-                              </div>
-
-                              <div className="text-right flex items-center justify-end gap-1.5 w-24 shrink-0 font-mono">
-                                <span className="text-base sm:text-lg font-black text-purple-700 leading-none">
-                                  {(result.twitchAverage ?? 0).toFixed(2)}
-                                </span>
-                                <span className="text-xs text-slate-400 font-bold">/5</span>
-                                <span className="text-[10px] font-bold text-purple-600 ml-1">
-                                  ({result.twitchVotesCount})
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        result={result}
+                        rank={rank}
+                        totalItems={resultsArray.length}
+                        isDarkAmbianceActive={isDarkAmbianceActive}
+                        hasAnimatedOnce={hasAnimatedOnce}
+                        isTwitchLinked={isTwitchLinked}
+                        cardRef={(el) => { cardRefs.current[result.id] = el; }}
+                      />
                     );
                   })}
                 </div>
               )}
 
               {/* Mobile Back Button */}
-              <div className="flex lg:hidden justify-center border-t-2 border-black pt-6 mt-2">
+              <div className={`flex lg:hidden justify-center border-t-2 border-black pt-6 mt-2 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                 <button
                   onClick={handleBackToHome}
-                  className="px-8 py-3.5 bg-[#24B3F1] border-2 border-black text-black font-black text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
+                  className="px-8 py-3.5 bg-host border-2 border-black text-black font-black text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
                 >
                   <Home className="w-4 h-4" />
                   <span>Retour à l'accueil</span>
@@ -2385,7 +1874,7 @@ export default function HostLobby() {
             </div>
 
             {/* Right Side (Desktop): Home Button Only */}
-            <div className="hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 gap-3 z-20">
+            <div className={`hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 self-start gap-3 z-20 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
               <button
                 onClick={handleBackToHome}
                 className="w-full py-3 px-3 bg-white border-2 border-black text-black hover:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2"
