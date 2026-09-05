@@ -337,6 +337,58 @@ export function recordAdminAttempt(key = 'default', success = false) {
   adminAttempts.set(key, entry);
 }
 
+// =========================================================================
+// PLAYLIST SECRET CODE UTILITIES & RATE LIMITING
+// =========================================================================
+
+/**
+ * Generates a cryptographically secure 44-character secret token for playlist editing.
+ * 'sec_' prefix + 40 random hex characters (160 bits of cryptographic entropy).
+ *
+ * @returns {string} e.g. "sec_39fb3057aa4f3d5502cc7ee8e925f66504066fe0"
+ */
+export function generatePlaylistSecretCode() {
+  return `sec_${crypto.randomBytes(20).toString('hex')}`;
+}
+
+const secretCodeAttempts = new Map();
+const MAX_SECRET_CODE_ATTEMPTS = 10;
+const SECRET_CODE_LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes lockout
+
+export function checkSecretCodeRateLimit(key = 'default') {
+  const now = Date.now();
+  const entry = secretCodeAttempts.get(key);
+
+  if (entry) {
+    if (entry.lockedUntil && now < entry.lockedUntil) {
+      const remainingSec = Math.ceil((entry.lockedUntil - now) / 1000);
+      return { allowed: false, remainingSec };
+    }
+    if (now - entry.lastAttempt > SECRET_CODE_LOCKOUT_MS) {
+      secretCodeAttempts.delete(key);
+    }
+  }
+  return { allowed: true };
+}
+
+export function recordSecretCodeAttempt(key = 'default', success = false) {
+  const now = Date.now();
+  if (success) {
+    secretCodeAttempts.delete(key);
+    return;
+  }
+  let entry = secretCodeAttempts.get(key) || { count: 0, lastAttempt: now };
+  entry.count += 1;
+  entry.lastAttempt = now;
+
+  if (entry.count >= MAX_SECRET_CODE_ATTEMPTS) {
+    entry.lockedUntil = now + SECRET_CODE_LOCKOUT_MS;
+    entry.count = 0;
+  }
+  secretCodeAttempts.set(key, entry);
+}
+
+
 /**
  * Sanitizes the session state object before sending it to a specific client socket.
  * Prevents hostToken leaks and masks hidden vote values during the VOTING phase.

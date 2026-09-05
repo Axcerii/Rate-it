@@ -35,8 +35,10 @@ interface SocketContextType {
   submitVote: (voteValue: number) => Promise<number>;
   connectTwitch: (channelName: string) => Promise<string>;
   disconnectTwitch: () => Promise<void>;
-  getPlaylists: () => Promise<{ validated: any[]; community: any[] }>;
-  createPlaylist: (name: string, description: string, videos: any[]) => Promise<string>;
+  getPlaylists: (password?: string) => Promise<{ validated: any[]; community: any[] }>;
+  createPlaylist: (name: string, description: string, videos: any[]) => Promise<{ playlistId: string; secretCode: string }>;
+  verifyPlaylistSecret: (secretCode: string) => Promise<{ playlist: any; videos: any[] }>;
+  updatePlaylistWithSecret: (id: string, secretCode: string, name: string, description: string, videos: any[]) => Promise<string>;
   getPlaylistDetails: (id: string) => Promise<{ playlist: any; videos: any[] }>;
   searchVideos: (query: string) => Promise<any[]>;
   toggleLobbyVideo: (videoId: string) => Promise<any>;
@@ -516,10 +518,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const getPlaylists = (): Promise<{ validated: any[]; community: any[] }> => {
+  const getPlaylists = (password?: string): Promise<{ validated: any[]; community: any[] }> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:list', {}, (response: any) => {
+      socket.emit('playlist:list', { password }, (response: any) => {
         if (response.success) {
           resolve({ validated: response.validated, community: response.community });
         } else {
@@ -529,14 +531,46 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const createPlaylist = (name: string, description: string, videos: any[]): Promise<string> => {
+  const createPlaylist = (name: string, description: string, videos: any[]): Promise<{ playlistId: string; secretCode: string }> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       socket.emit('playlist:create', { name, description, videos }, (response: any) => {
         if (response.success) {
-          resolve(response.playlistId);
+          resolve({ playlistId: response.playlistId, secretCode: response.secretCode });
         } else {
           reject(new Error(response.error || 'Failed to create playlist'));
+        }
+      });
+    });
+  };
+
+  const verifyPlaylistSecret = (secretCode: string): Promise<{ playlist: any; videos: any[] }> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:verify_secret_code', { secretCode }, (response: any) => {
+        if (response && response.success) {
+          resolve({ playlist: response.playlist, videos: response.videos });
+        } else {
+          reject(new Error(response?.error || 'Code secret invalide'));
+        }
+      });
+    });
+  };
+
+  const updatePlaylistWithSecret = (
+    id: string,
+    secretCode: string,
+    name: string,
+    description: string,
+    videos: any[]
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket non connecté'));
+      socket.emit('playlist:update_with_secret', { id, secretCode, name, description, videos }, (response: any) => {
+        if (response && response.success) {
+          resolve(response.playlistId);
+        } else {
+          reject(new Error(response?.error || 'Échec de la mise à jour de la playlist'));
         }
       });
     });
@@ -829,6 +863,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         disconnectTwitch,
         getPlaylists,
         createPlaylist,
+        verifyPlaylistSecret,
+        updatePlaylistWithSecret,
         getPlaylistDetails,
         searchVideos,
         toggleLobbyVideo,

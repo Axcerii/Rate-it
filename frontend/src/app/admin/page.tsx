@@ -25,6 +25,9 @@ import {
   Film,
   CheckCircle2,
   XCircle,
+  Key,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export default function AdminConsole() {
@@ -63,8 +66,21 @@ export default function AdminConsole() {
   const [editPlaylistDesc, setEditPlaylistDesc] = useState('');
   const [editPlaylistIsValidated, setEditPlaylistIsValidated] = useState(false);
   const [editPlaylistIsCustom, setEditPlaylistIsCustom] = useState(true);
+  const [editPlaylistSecret, setEditPlaylistSecret] = useState('');
   const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
   const [editPlaylistError, setEditPlaylistError] = useState<string | null>(null);
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+
+  const handleCopySecret = async (secret: string, playlistId: string) => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopiedSecretId(playlistId);
+      setActionSuccess(`Code secret de la playlist ${playlistId} copié dans le presse-papier !`);
+      setTimeout(() => setCopiedSecretId(null), 3000);
+    } catch (err) {
+      console.error('Failed to copy secret code:', err);
+    }
+  };
 
   // In-editor track add mode ('new' or 'existing')
   const [trackAddMode, setTrackAddMode] = useState<'new' | 'existing'>('new');
@@ -116,7 +132,7 @@ export default function AdminConsole() {
   const fetchLists = async () => {
     setError(null);
     try {
-      const { validated, community } = await getPlaylists();
+      const { validated, community } = await getPlaylists(adminPassword);
       setValidatedLists(validated);
       setCommunityLists(community);
     } catch (err: any) {
@@ -196,7 +212,7 @@ export default function AdminConsole() {
 
     try {
       await verifyAdminPassword(adminPassword.trim());
-      const { validated, community } = await getPlaylists();
+      const { validated, community } = await getPlaylists(adminPassword.trim());
       setValidatedLists(validated);
       setCommunityLists(community);
       setIsAuthenticated(true);
@@ -214,7 +230,7 @@ export default function AdminConsole() {
       setAdminPassword(savedPassword);
       verifyAdminPassword(savedPassword)
         .then(async () => {
-          const { validated, community } = await getPlaylists();
+          const { validated, community } = await getPlaylists(savedPassword);
           setValidatedLists(validated);
           setCommunityLists(community);
           setIsAuthenticated(true);
@@ -280,6 +296,7 @@ export default function AdminConsole() {
     setEditPlaylistDesc(playlist.description || '');
     setEditPlaylistIsValidated(!!playlist.is_validated);
     setEditPlaylistIsCustom(playlist.is_custom !== false);
+    setEditPlaylistSecret(playlist.secretCode || '');
     setEditPlaylistError(null);
   };
 
@@ -1359,6 +1376,39 @@ export default function AdminConsole() {
                           </span>
                         </div>
 
+                        {/* Secret Code Display & Copy in Card */}
+                        {playlist.secretCode && (
+                          <div className="flex items-center justify-between gap-2 bg-[#FEEC67]/40 border-2 border-white rounded-xl px-3 py-2 mt-1 shadow-none">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <Key className="w-3.5 h-3.5 text-black shrink-0" />
+                              <span className="text-[10px] font-black uppercase text-black shrink-0">
+                                Code Secret :
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-slate-900 truncate select-all">
+                                {playlist.secretCode}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopySecret(playlist.secretCode, playlist.id)}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-black border-2 border-white rounded-lg text-[10px] font-black uppercase inline-flex items-center gap-1 btn-action-hover shrink-0 shadow-none"
+                              title="Copier le code secret d'édition"
+                            >
+                              {copiedSecretId === playlist.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                                  <span>Copié !</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3 text-slate-700" />
+                                  <span>Copier</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+
                         {/* Admin Actions */}
                         <div className="flex flex-wrap justify-end gap-2 sm:gap-3 mt-1 border-t border-slate-100 pt-3">
                           <button
@@ -1407,10 +1457,10 @@ export default function AdminConsole() {
       {/* EDIT VIDEO MODAL                                                          */}
       {/* ========================================================================= */}
       {modalVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white border-4 border-black p-6 rounded-3xl shadow-[6px_6px_0px_#000] flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto text-left">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-7 flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto text-left shadow-none">
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b-2 border-black pb-3">
+            <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-[#BF1539]" />
                 <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
@@ -1420,14 +1470,14 @@ export default function AdminConsole() {
               <button
                 type="button"
                 onClick={() => setModalVideo(null)}
-                className="p-1 text-slate-500 hover:text-black border-2 border-black rounded-lg bg-white btn-action-hover"
+                className="p-1.5 text-black border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {editModalError && (
-              <div className="p-2.5 bg-red-100 border border-red-500 text-red-800 rounded-xl text-xs font-bold flex items-center gap-2">
+              <div className="p-2.5 bg-red-100/90 border-2 border-white text-red-900 rounded-xl text-xs font-bold flex items-center gap-2 shadow-none">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
                 <span>{editModalError}</span>
               </div>
@@ -1437,7 +1487,7 @@ export default function AdminConsole() {
             <form onSubmit={handleSaveModalVideo} className="flex flex-col gap-3.5 text-xs font-bold">
               {/* Title */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
                   Titre du Thème / Musique *
                 </label>
                 <input
@@ -1445,14 +1495,14 @@ export default function AdminConsole() {
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   placeholder="ex: Cruel Angel's Thesis..."
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none shadow-none text-black font-bold"
                   required
                 />
               </div>
 
               {/* Artist */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
                   Nom de l'Artiste / Groupe
                 </label>
                 <input
@@ -1460,21 +1510,21 @@ export default function AdminConsole() {
                   value={editArtist}
                   onChange={(e) => setEditArtist(e.target.value)}
                   placeholder="ex: Yoko Takahashi..."
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none shadow-none text-black font-bold"
                 />
               </div>
 
               {/* YouTube Link / ID + Live Tester */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-[10px] font-black uppercase text-slate-700">
+                  <label className="text-[10px] font-black uppercase text-slate-800">
                     Lien ou ID YouTube (11 caractères) *
                   </label>
                   <button
                     type="button"
                     onClick={handleTestModalLink}
                     disabled={editTestStatus?.checking}
-                    className="text-[9px] font-black text-blue-700 hover:text-blue-900 bg-blue-50 border border-blue-300 px-2 py-0.5 rounded inline-flex items-center gap-1 btn-action-hover"
+                    className="text-[9px] font-black text-black bg-white hover:bg-slate-100 border-2 border-white px-2 py-0.5 rounded-lg inline-flex items-center gap-1 btn-action-hover shadow-none"
                   >
                     <RefreshCw className={`w-2.5 h-2.5 ${editTestStatus?.checking ? 'animate-spin' : ''}`} />
                     <span>{editTestStatus?.checking ? 'Vérification...' : 'Tester le lien'}</span>
@@ -1488,25 +1538,25 @@ export default function AdminConsole() {
                     setEditTestStatus(null);
                   }}
                   placeholder="ex: nU21rCWkuJw ou https://www.youtube.com/watch?v=..."
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl font-mono text-xs focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl font-mono text-xs focus:outline-none shadow-none text-black font-bold"
                   required
                 />
                 {editTestStatus && !editTestStatus.checking && (
                   <div
-                    className={`mt-1.5 p-2 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 ${
+                    className={`mt-1.5 p-2 rounded-xl border-2 border-white text-[11px] font-bold flex items-center gap-1.5 shadow-none ${
                       editTestStatus.valid
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                        : 'bg-red-50 border-red-300 text-red-900'
+                        ? 'bg-emerald-100 text-emerald-950'
+                        : 'bg-red-100 text-red-950'
                     }`}
                   >
                     {editTestStatus.valid ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span>Vidéo valide sur YouTube : "{editTestStatus.title}"</span>
                       </>
                     ) : (
                       <>
-                        <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <XCircle className="w-4 h-4 text-red-700 shrink-0" />
                         <span>Erreur YouTube : {editTestStatus.error || 'Indisponible'}</span>
                       </>
                     )}
@@ -1516,7 +1566,7 @@ export default function AdminConsole() {
 
               {/* Description */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
                   Description / Précisions
                 </label>
                 <textarea
@@ -1524,19 +1574,19 @@ export default function AdminConsole() {
                   onChange={(e) => setEditDescription(e.target.value)}
                   placeholder="ex: Opening 1 de la saison 1..."
                   rows={2}
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none shadow-none text-black font-bold resize-none"
                 />
               </div>
 
               {/* MAL Integration Fields */}
-              <div className="p-3 bg-purple-50 border-2 border-purple-200 rounded-2xl flex flex-col gap-2.5">
-                <span className="text-[10px] font-black uppercase text-purple-900 flex items-center gap-1">
+              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-2.5 shadow-none">
+                <span className="text-[10px] font-black uppercase text-black flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5 text-purple-700" />
                   <span>Liaison MyAnimeList (MAL)</span>
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[9px] font-black uppercase text-purple-800 mb-0.5">
+                    <label className="block text-[9px] font-black uppercase text-slate-700 mb-0.5">
                       Titre Animé MAL
                     </label>
                     <input
@@ -1544,11 +1594,11 @@ export default function AdminConsole() {
                       value={editMalTitle}
                       onChange={(e) => setEditMalTitle(e.target.value)}
                       placeholder="ex: Neon Genesis Evangelion..."
-                      className="w-full px-2.5 py-1.5 border border-purple-300 bg-white rounded-lg text-xs font-bold focus:outline-none"
+                      className="w-full px-2.5 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-bold focus:outline-none shadow-none text-black"
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black uppercase text-purple-800 mb-0.5">
+                    <label className="block text-[9px] font-black uppercase text-slate-700 mb-0.5">
                       ID Animé MAL (Chiffre)
                     </label>
                     <input
@@ -1556,7 +1606,7 @@ export default function AdminConsole() {
                       value={editMalAnimeId}
                       onChange={(e) => setEditMalAnimeId(e.target.value)}
                       placeholder="ex: 30..."
-                      className="w-full px-2.5 py-1.5 border border-purple-300 bg-white rounded-lg text-xs font-bold focus:outline-none"
+                      className="w-full px-2.5 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-bold focus:outline-none shadow-none text-black"
                     />
                   </div>
                 </div>
@@ -1567,14 +1617,14 @@ export default function AdminConsole() {
                 <button
                   type="button"
                   onClick={() => setModalVideo(null)}
-                  className="flex-1 py-2.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                  className="flex-1 py-2.5 border-2 border-white bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="flex-1 py-2.5 bg-[#BF1539] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 bg-[#BF1539] hover:bg-red-700 text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
                 >
                   {isSavingEdit ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
@@ -1588,10 +1638,10 @@ export default function AdminConsole() {
       {/* EDIT PLAYLIST MODAL                                                       */}
       {/* ========================================================================= */}
       {modalPlaylist && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white border-4 border-black p-6 rounded-3xl shadow-[6px_6px_0px_#000] flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto text-left">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-7 flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto text-left shadow-none">
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b-2 border-black pb-3">
+            <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-[#BF1539]" />
                 <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
@@ -1601,14 +1651,14 @@ export default function AdminConsole() {
               <button
                 type="button"
                 onClick={() => setModalPlaylist(null)}
-                className="p-1 text-slate-500 hover:text-black border-2 border-black rounded-lg bg-white btn-action-hover"
+                className="p-1.5 text-black border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {editPlaylistError && (
-              <div className="p-2.5 bg-red-100 border border-red-500 text-red-800 rounded-xl text-xs font-bold flex items-center gap-2">
+              <div className="p-2.5 bg-red-100/90 border-2 border-white text-red-900 rounded-xl text-xs font-bold flex items-center gap-2 shadow-none">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
                 <span>{editPlaylistError}</span>
               </div>
@@ -1618,7 +1668,7 @@ export default function AdminConsole() {
             <form onSubmit={handleSaveModalPlaylist} className="flex flex-col gap-3.5 text-xs font-bold">
               {/* Name */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
                   Titre de la Playlist *
                 </label>
                 <input
@@ -1626,14 +1676,14 @@ export default function AdminConsole() {
                   value={editPlaylistName}
                   onChange={(e) => setEditPlaylistName(e.target.value)}
                   placeholder="ex: Shonen Masters..."
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none shadow-none text-black font-bold"
                   required
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
                   Description
                 </label>
                 <textarea
@@ -1641,12 +1691,53 @@ export default function AdminConsole() {
                   onChange={(e) => setEditPlaylistDesc(e.target.value)}
                   placeholder="Description détaillée de la playlist..."
                   rows={3}
-                  className="w-full px-3 py-2 border-2 border-black bg-white rounded-xl focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none shadow-none text-black font-bold resize-none"
                 />
               </div>
 
+              {/* Secret Code Read-Only display */}
+              {editPlaylistSecret && (
+                <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-1.5 shadow-none">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase text-amber-900 flex items-center gap-1">
+                      <Key className="w-3 h-3 text-amber-700" />
+                      <span>Code Secret d'Édition</span>
+                    </label>
+                    <span className="text-[9px] font-bold text-black bg-[#FEEC67] px-2 py-0.5 rounded border border-white">
+                      Accès Modérateur
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <input
+                      type="text"
+                      readOnly
+                      value={editPlaylistSecret}
+                      className="flex-1 px-3 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-mono font-bold text-slate-800 select-all shadow-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopySecret(editPlaylistSecret, modalPlaylist.id)}
+                      className="px-3 py-1.5 bg-[#24B3F1] hover:bg-[#5cd0ff] border-2 border-white rounded-lg text-[10px] font-black uppercase inline-flex items-center gap-1 btn-action-hover shrink-0 shadow-none text-black"
+                      title="Copier le code secret"
+                    >
+                      {copiedSecretId === modalPlaylist.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-800 stroke-[3]" />
+                          <span>Copié</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-black" />
+                          <span>Copier</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Status Toggles */}
-              <div className="p-3 bg-slate-50 border-2 border-black rounded-2xl flex flex-col gap-3">
+              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-3 shadow-none">
                 <label className="flex items-center gap-2.5 cursor-pointer text-xs font-black select-none">
                   <input
                     type="checkbox"
@@ -1673,14 +1764,14 @@ export default function AdminConsole() {
                 <button
                   type="button"
                   onClick={() => setModalPlaylist(null)}
-                  className="flex-1 py-2.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
+                  className="flex-1 py-2.5 border-2 border-white bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingPlaylist}
-                  className="flex-1 py-2.5 bg-[#BF1539] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 bg-[#BF1539] hover:bg-red-700 text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
                 >
                   {isSavingPlaylist ? 'Enregistrement...' : 'Enregistrer'}
                 </button>

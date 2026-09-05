@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
-import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Home, Sliders, X, Check, ChevronLeft } from 'lucide-react';
+import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Home, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from 'lucide-react';
 
 interface VideoInput {
   title: string;
@@ -16,7 +16,17 @@ interface VideoInput {
 
 export default function NewPlaylist() {
   const router = useRouter();
-  const { createPlaylist, searchVideos, getMalVideos, getPlaylistDetails, verifyVideo, isConnected, showBanner } = useSocket();
+  const {
+    createPlaylist,
+    verifyPlaylistSecret,
+    updatePlaylistWithSecret,
+    searchVideos,
+    getMalVideos,
+    getPlaylistDetails,
+    verifyVideo,
+    isConnected,
+    showBanner,
+  } = useSocket();
 
   const DRAFT_KEY = 'rate_it_playlist_draft';
 
@@ -27,6 +37,17 @@ export default function NewPlaylist() {
   const [success, setSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+
+  // Secret Code & Edit Mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
+  const [activeSecretCode, setActiveSecretCode] = useState<string | null>(null);
+  const [createdResult, setCreatedResult] = useState<{ playlistId: string; secretCode: string } | null>(null);
+  const [copiedField, setCopiedField] = useState<'share' | 'secret' | null>(null);
+  const [isSecretModalOpen, setIsSecretModalOpen] = useState(false);
+  const [secretCodeInput, setSecretCodeInput] = useState('');
+  const [isVerifyingSecret, setIsVerifyingSecret] = useState(false);
+  const [secretModalError, setSecretModalError] = useState<string | null>(null);
 
   // Side Drawer state for Playlist Info & Quick Setup (starts closed to trigger slide-in animation)
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
@@ -81,9 +102,9 @@ export default function NewPlaylist() {
     return () => clearTimeout(animTimer);
   }, []);
 
-  // 2. Auto-save draft to localStorage whenever fields change after load
+  // 2. Auto-save draft to localStorage whenever fields change after load (only if NOT in edit mode)
   useEffect(() => {
-    if (!isDraftLoaded) return;
+    if (!isDraftLoaded || isEditMode) return;
     if (typeof window !== 'undefined') {
       try {
         const draft = { playlistName, description, videos };
@@ -96,7 +117,7 @@ export default function NewPlaylist() {
         console.error('Failed to save playlist draft to localStorage:', e);
       }
     }
-  }, [playlistName, description, videos, isDraftLoaded]);
+  }, [playlistName, description, videos, isDraftLoaded, isEditMode]);
 
   const handleConfirmClearDraft = () => {
     if (typeof window !== 'undefined') {
@@ -215,6 +236,85 @@ export default function NewPlaylist() {
     setVideos(updated);
   };
 
+  const handleCopy = async (text: string, field: 'share' | 'secret') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      showBanner(field === 'share' ? 'Code de partage copié !' : 'Code secret copié ! Conservez-le en lieu sûr.', 'success');
+      setTimeout(() => setCopiedField(null), 3000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+      showBanner('Impossible de copier dans le presse-papier', 'error');
+    }
+  };
+
+  const handleVerifySecretCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = secretCodeInput.trim();
+    if (!code) return;
+
+    setIsVerifyingSecret(true);
+    setSecretModalError(null);
+    try {
+      const res = await verifyPlaylistSecret(code);
+      setIsEditMode(true);
+      setEditingPlaylistId(res.playlist.id);
+      setActiveSecretCode(code);
+      setPlaylistName(res.playlist.name);
+      setDescription(res.playlist.description || '');
+
+      const mappedVideos = res.videos.map(v => ({
+        artistName: v.artistName || 'Artiste inconnu',
+        title: v.title,
+        description: v.description || '',
+        youtubeId: v.youtubeId,
+        malAnimeId: v.malAnimeId,
+        malTitle: v.malTitle,
+      }));
+      setVideos(mappedVideos);
+      setIsSecretModalOpen(false);
+      setSecretCodeInput('');
+      showBanner(`Mode édition activé : "${res.playlist.name}" chargée (${mappedVideos.length} pistes) !`, 'success');
+    } catch (err: any) {
+      setSecretModalError(err.message || 'Échec de la validation du code secret');
+    } finally {
+      setIsVerifyingSecret(false);
+    }
+  };
+
+  const handleExitEditMode = () => {
+    if (typeof window !== 'undefined') {
+      const confirmExit = window.confirm('Voulez-vous quitter le mode édition ? Toutes les modifications non enregistrées sur cette playlist seront perdues.');
+      if (!confirmExit) return;
+    }
+
+    setIsEditMode(false);
+    setEditingPlaylistId(null);
+    setActiveSecretCode(null);
+
+    // Restore draft from localStorage if present
+    if (typeof window !== 'undefined') {
+      try {
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          setPlaylistName(parsed.playlistName || '');
+          setDescription(parsed.description || '');
+          setVideos(Array.isArray(parsed.videos) ? parsed.videos : []);
+        } else {
+          setPlaylistName('');
+          setDescription('');
+          setVideos([]);
+        }
+      } catch (_) {
+        setPlaylistName('');
+        setDescription('');
+        setVideos([]);
+      }
+    }
+    showBanner('Mode édition désactivé. Retour à la création.', 'info');
+  };
+
   const handleSavePlaylist = async () => {
     setError(null);
     if (!playlistName.trim()) {
@@ -233,15 +333,27 @@ export default function NewPlaylist() {
 
     setIsSaving(true);
     try {
-      await createPlaylist(playlistName, description, videos);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(DRAFT_KEY);
+      if (isEditMode && editingPlaylistId && activeSecretCode) {
+        // Update existing playlist using secret code
+        await updatePlaylistWithSecret(
+          editingPlaylistId,
+          activeSecretCode,
+          playlistName.trim(),
+          description.trim(),
+          videos
+        );
+        showBanner(`Playlist "${playlistName}" mise à jour avec succès !`, 'success');
+        setIsSaving(false);
+      } else {
+        // Create new custom playlist
+        const res = await createPlaylist(playlistName.trim(), description.trim(), videos);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+        setCreatedResult({ playlistId: res.playlistId, secretCode: res.secretCode });
+        showBanner('Playlist créée avec succès ! Notez bien votre code secret.', 'success');
+        setIsSaving(false);
       }
-      setSuccess(true);
-      showBanner('Playlist créée avec succès !', 'success');
-      setTimeout(() => {
-        router.push('/');
-      }, 2000);
     } catch (err: any) {
       showBanner(err.message || 'Échec de la sauvegarde de la playlist', 'error');
       setIsSaving(false);
@@ -327,14 +439,47 @@ export default function NewPlaylist() {
           />
         </div>
 
-        <button
-          onClick={() => router.push('/')}
-          className="px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0"
-        >
-          <Home className="w-4 h-4" />
-          <span>Retour à l'accueil</span>
-        </button>
+        <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2.5 border-2 border-white bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0 shadow-none"
+          >
+            <Home className="w-4 h-4" />
+            <span>Retour à l'accueil</span>
+          </button>
+        </div>
       </div>
+
+      {/* Mode Édition Active Banner */}
+      {isEditMode && (
+        <div className="info-card w-full max-w-6xl mb-6 p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 text-black shadow-none animate-in fade-in duration-200">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="p-3 bg-white border-2 border-white text-black rounded-2xl shrink-0 shadow-none">
+              <FileEdit className="w-6 h-6 text-[#24B3F1]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+                <span className="text-[11px] font-black uppercase bg-black text-white px-2.5 py-0.5 rounded-lg">
+                  Mode Édition Actif
+                </span>
+                <span className="font-mono text-xs font-black bg-white px-2.5 py-0.5 rounded-lg border-2 border-white">
+                  {editingPlaylistId}
+                </span>
+              </div>
+              <p className="text-sm sm:text-base font-black mt-1">
+                Vous modifiez la playlist : <span className="underline decoration-2">{playlistName || 'Sans titre'}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleExitEditMode}
+            className="px-4 py-2.5 border-2 border-white bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover shrink-0 shadow-none"
+          >
+            Quitter l'édition
+          </button>
+        </div>
+      )}
 
       {/* Main Page Grid: Add Tracks & Playlist Preview Side-by-Side on the same line */}
       <div className="w-full max-w-6xl grid gap-6 lg:grid-cols-2 items-start">
@@ -542,7 +687,9 @@ export default function NewPlaylist() {
               disabled={isSaving || success}
               className="flex-1 py-3 bg-[#4BD66F] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-40"
             >
-              {isSaving ? 'Enregistrement...' : 'Sauvegarder la playlist'}
+              {isSaving
+                ? (isEditMode ? 'Mise à jour...' : 'Enregistrement...')
+                : (isEditMode ? 'Enregistrer les modifications' : 'Sauvegarder la playlist')}
             </button>
           </div>
         </div>
@@ -556,14 +703,14 @@ export default function NewPlaylist() {
 
       {/* Sliding Side Drawer Panel with Clickable Languette */}
       <div
-        className={`fixed top-0 left-0 bottom-0 z-50 w-full max-w-md bg-[#FEEC67] border-r-4 border-black flex flex-col shadow-2xl transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) h-full max-h-screen ${isInfoDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed top-0 left-0 bottom-0 z-50 w-full max-w-md bg-[#FEEC67] border-r-8 border-white flex flex-col shadow-none transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) h-full max-h-screen overflow-visible ${isInfoDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Clickable Languette Attached to Right Edge of Drawer */}
         <button
           type="button"
           onClick={() => setIsInfoDrawerOpen(!isInfoDrawerOpen)}
           title={isInfoDrawerOpen ? 'Fermer le menu' : 'Ouvrir les infos & config'}
-          className="absolute top-1/3 left-full -mt-8 bg-[#FEEC67] border-4 border-l-0 border-black rounded-r-2xl py-4 px-2.5 shadow-2xl flex flex-col items-center justify-center gap-2 text-black font-black uppercase text-[10px] sm:text-xs btn-action-hover cursor-pointer z-50 select-none"
+          className="absolute top-1/3 left-full -mt-8 bg-[#FEEC67] border-4 border-l-0 border-white rounded-r-2xl py-4 px-2.5 shadow-none flex flex-col items-center justify-center gap-2 text-black font-black uppercase text-[10px] sm:text-xs btn-action-hover cursor-pointer z-50 select-none"
         >
           <ChevronLeft
             className={`w-5 h-5 stroke-[3] transition-transform duration-300 ${isInfoDrawerOpen ? '' : 'rotate-180'}`}
@@ -573,28 +720,63 @@ export default function NewPlaylist() {
           </span>
         </button>
 
-        {/* Scrollable Drawer Inner Content */}
-        <div className="p-4 sm:p-6 flex flex-col gap-6 overflow-y-auto h-full max-h-screen">
+        {/* Scrollable Drawer Inner Content with Menu Pattern Background */}
+        <div 
+          className="relative z-10 p-4 sm:p-6 flex flex-col gap-5 overflow-y-auto h-full max-h-screen bg-no-repeat bg-bottom"
+          style={{ backgroundImage: "url('/BACKGROUNDS/Background_Basique.png')" }}
+        >
           {/* Drawer Header */}
-          <div className="flex items-center justify-between border-b-2 border-black pb-3 shrink-0">
+          <div className="flex items-center justify-between border-b-2 border-white pb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Sliders className="w-5 h-5 text-black" />
-              <h2 className="text-lg font-black uppercase text-black">
+              <h2 className="text-lg font-black uppercase text-black font-title">
                 Infos & Config Playlist
               </h2>
             </div>
             <button
               type="button"
               onClick={() => setIsInfoDrawerOpen(false)}
-              className="p-1.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 rounded-xl btn-action-hover"
+              className="p-1.5 border-2 border-white bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 rounded-xl btn-action-hover shadow-none"
               title="Fermer"
             >
               <X className="w-5 h-5 text-black" />
             </button>
           </div>
 
+          {/* Section: Éditer une playlist (as requested: mets le bouton "éditer une playlist" dedans avec un CTA qui est "Entrer un code secret d'édition") */}
+          <div className="bg-white/90 backdrop-blur-xs border-2 border-white p-4 rounded-2xl flex flex-col gap-2.5 shrink-0 shadow-none">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-black font-black text-xs uppercase font-title">
+                <Key className="w-4 h-4 text-[#24B3F1]" />
+                <span>Éditer une playlist</span>
+              </div>
+              {isEditMode && (
+                <span className="text-[10px] font-black uppercase bg-black text-white px-2 py-0.5 rounded-md shadow-none">
+                  Mode Édition Actif
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-800 font-bold leading-relaxed">
+              {isEditMode
+                ? `Vous modifiez actuellement la playlist "${playlistName || editingPlaylistId}". Vous pouvez entrer un autre code secret pour en charger une autre.`
+                : "Vous avez déjà créé une playlist et possédez son code secret ? Chargez toutes ses vidéos pour la modifier."}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsInfoDrawerOpen(false);
+                setIsSecretModalOpen(true);
+                setSecretModalError(null);
+              }}
+              className="w-full py-3 bg-[#24B3F1] hover:bg-[#5cd0ff] text-black border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2 shadow-none"
+            >
+              <Key className="w-4 h-4" />
+              <span>Entrer un code secret d'édition</span>
+            </button>
+          </div>
+
           {/* Playlist Info Form */}
-          <div className="flex flex-col gap-4 shrink-0">
+          <div className="flex flex-col gap-4 shrink-0 border-t-2 border-white pt-4">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-black uppercase">Nom de la playlist *</label>
               {(playlistName || description || videos.length > 0) && (
@@ -615,8 +797,7 @@ export default function NewPlaylist() {
                 if (error) setError(null);
               }}
               placeholder="Ex: Mes génériques d'anime préférés"
-              className={`w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold ${!playlistName.trim() && error ? 'border-red-600 ring-2 ring-red-400' : ''}`}
-              autoFocus
+              className={`w-full px-3.5 py-2.5 border-2 border-white bg-white rounded-xl focus:outline-none focus:bg-[#faf6eb] text-sm font-bold shadow-none ${!playlistName.trim() && error ? 'ring-2 ring-red-500' : ''}`}
             />
 
             <div>
@@ -626,19 +807,19 @@ export default function NewPlaylist() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Décrivez votre sélection..."
                 rows={3}
-                className="w-full px-3 py-2 border-2 border-black bg-white focus:outline-none focus:bg-[#faf6eb] text-sm font-bold resize-none"
+                className="w-full px-3.5 py-2.5 border-2 border-white bg-white rounded-xl focus:outline-none focus:bg-[#faf6eb] text-sm font-bold resize-none shadow-none"
               />
             </div>
           </div>
 
           {/* Quick Setup Tools */}
-          <div className="border-t-2 border-black pt-5 flex flex-col gap-4 shrink-0">
+          <div className="border-t-2 border-white pt-4 flex flex-col gap-4 shrink-0">
             <h3 className="text-sm font-black uppercase text-black flex items-center gap-2">
               <span>Outils de configuration rapide</span>
             </h3>
 
             {/* Import MAL */}
-            <div className="border-b border-dashed border-black/40 pb-4">
+            <div className="border-b border-dashed border-white/60 pb-4">
               <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil MyAnimeList</label>
               <p className="text-[10px] text-slate-700 font-bold mb-2">
                 Importez directement les vidéos correspondantes à un pseudo MAL.
@@ -649,12 +830,12 @@ export default function NewPlaylist() {
                   value={malUsernameInput}
                   onChange={(e) => setMalUsernameInput(e.target.value)}
                   placeholder="Pseudo MyAnimeList..."
-                  className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none text-xs font-bold"
+                  className="flex-1 min-w-0 px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none text-xs font-bold shadow-none"
                 />
                 <button
                   type="submit"
                   disabled={isImportingMal}
-                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg btn-action-hover disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 border-2 border-white bg-white text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none"
                 >
                   {isImportingMal ? '...' : 'Importer'}
                 </button>
@@ -673,12 +854,12 @@ export default function NewPlaylist() {
                   value={clonePlaylistIdInput}
                   onChange={(e) => setClonePlaylistIdInput(e.target.value)}
                   placeholder="Code de partage..."
-                  className="flex-1 min-w-0 px-3 py-2 border-2 border-black bg-white focus:outline-none text-xs font-bold"
+                  className="flex-1 min-w-0 px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none text-xs font-bold shadow-none"
                 />
                 <button
                   type="submit"
                   disabled={isCloningPlaylist}
-                  className="px-4 py-2 border-2 border-black bg-white text-black font-black text-xs uppercase rounded-lg btn-action-hover disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 border-2 border-white bg-white text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none"
                 >
                   {isCloningPlaylist ? '...' : 'Cloner'}
                 </button>
@@ -687,11 +868,11 @@ export default function NewPlaylist() {
           </div>
 
           {/* Bottom Confirm Drawer Button */}
-          <div className="mt-auto pt-4 border-t-2 border-black shrink-0">
+          <div className="mt-auto pt-4 border-t-2 border-white shrink-0">
             <button
               type="button"
               onClick={() => setIsInfoDrawerOpen(false)}
-              className="w-full py-3 bg-[#4BD66F] text-black font-black text-xs sm:text-sm uppercase rounded-xl border-2 border-black btn-action-hover flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#4BD66F] hover:bg-[#5ce27f] text-black font-black text-xs sm:text-sm uppercase rounded-xl border-2 border-white btn-action-hover flex items-center justify-center gap-2 shadow-none"
             >
               <Check className="w-4 h-4" />
               <span>Valider les informations</span>
@@ -699,6 +880,200 @@ export default function NewPlaylist() {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 1. CREATION SUCCESS MODAL WITH ONE-TIME SECRET CODE & SHARE CODE POPUP    */}
+      {/* ========================================================================= */}
+      {createdResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-8 flex flex-col gap-5 text-left relative max-h-[92vh] overflow-y-auto shadow-none">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 border-b-2 border-white/70 pb-4">
+              <div className="p-3 bg-white text-black border-2 border-white rounded-2xl shrink-0 shadow-none">
+                <CheckCircle2 className="w-8 h-8 text-[#4BD66F] stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black font-title uppercase text-black leading-tight">
+                  Playlist Créée avec Succès !
+                </h3>
+                <p className="text-xs text-slate-800 font-bold mt-0.5">
+                  Conservez bien vos codes d'accès ci-dessous.
+                </p>
+              </div>
+            </div>
+
+            {/* Block 1: Share Code */}
+            <div className="bg-white/90 backdrop-blur-xs border-2 border-white p-4 rounded-2xl flex flex-col gap-2 shadow-none">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black uppercase text-slate-800">
+                  Code de Partage de la Playlist
+                </label>
+                <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border-2 border-white shadow-none">
+                  Public
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 font-bold">
+                Partagez ce code avec vos amis pour qu'ils puissent jouer à votre playlist dans une room !
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex-1 bg-white border-2 border-white px-3.5 py-2.5 rounded-xl font-mono text-base sm:text-lg font-black tracking-widest text-black text-center select-all shadow-none">
+                  {createdResult.playlistId}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(createdResult.playlistId, 'share')}
+                  className="px-4 py-2.5 border-2 border-white bg-[#24B3F1] hover:bg-[#5cd0ff] text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0 shadow-none"
+                >
+                  {copiedField === 'share' ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-900 stroke-[3]" />
+                      <span>Copié !</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copier</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Block 2: Secret Edit Code (One-time only!) */}
+            <div className="bg-white/90 backdrop-blur-xs border-2 border-white p-4 sm:p-5 rounded-2xl flex flex-col gap-2.5 shadow-none">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[#990000] font-black text-xs uppercase">
+                  <ShieldAlert className="w-4 h-4 text-[#990000] shrink-0" />
+                  <span>Code Secret d'Édition</span>
+                </div>
+                <span className="text-[10px] font-black text-white bg-[#990000] px-2 py-0.5 rounded border-2 border-white shadow-none uppercase">
+                  Affichage Unique
+                </span>
+              </div>
+
+              <div className="p-3 bg-red-100/90 border-2 border-white rounded-xl text-xs font-black text-red-950 leading-relaxed shadow-none">
+                ⚠️ <strong>ATTENTION : Ce code secret ne sera affiché qu'une seule fois !</strong>
+                <p className="font-bold text-red-900 mt-1 text-[11px]">
+                  Copiez-le et conservez-le en lieu sûr. Il vous donne les droits exclusifs d'édition de cette playlist depuis le menu "Créer une playlist". Si vous le perdez, seul un administrateur pourra le retrouver.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex-1 bg-white border-2 border-white px-3 py-2 rounded-xl font-mono text-xs sm:text-sm font-black text-slate-900 break-all select-all shadow-none">
+                  {createdResult.secretCode}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(createdResult.secretCode, 'secret')}
+                  className="px-4 py-2.5 border-2 border-white bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0 shadow-none"
+                >
+                  {copiedField === 'secret' ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-900 stroke-[3]" />
+                      <span>Copié !</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copier</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="flex-1 py-3 bg-[#4BD66F] hover:bg-[#5ce27f] text-black border-2 border-white font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover text-center shadow-none"
+              >
+                J'ai bien noté mon code secret (Terminer)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. SECRET CODE ENTRY MODAL (FOR EDITING AN EXISTING PLAYLIST)             */}
+      {/* ========================================================================= */}
+      {isSecretModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="info-card w-full max-w-md rounded-3xl p-6 sm:p-7 flex flex-col gap-4 text-left relative shadow-none">
+            <div className="flex justify-between items-center border-b-2 border-white pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-[#24B3F1] border-2 border-white rounded-lg shadow-none">
+                  <Key className="w-4 h-4 text-black" />
+                </div>
+                <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
+                  Éditer avec un Code Secret
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSecretModalOpen(false)}
+                className="p-1.5 border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
+              >
+                <X className="w-4 h-4 text-black" />
+              </button>
+            </div>
+
+            <p className="text-xs font-bold text-slate-800 leading-relaxed">
+              Entrez le <strong>code secret d'édition</strong> fourni lors de la création de la playlist pour charger toutes ses pistes et la modifier.
+            </p>
+
+            {secretModalError && (
+              <div className="p-3 bg-red-100/90 border-2 border-white rounded-xl text-xs font-bold text-red-900 flex items-start gap-2 shadow-none">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{secretModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifySecretCode} className="flex flex-col gap-3.5">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
+                  Code Secret (ex: sec_...)
+                </label>
+                <input
+                  type="text"
+                  value={secretCodeInput}
+                  onChange={(e) => setSecretCodeInput(e.target.value)}
+                  placeholder="Collez votre code secret ici..."
+                  className="w-full px-3.5 py-2.5 border-2 border-white bg-white rounded-xl font-mono text-xs font-bold text-black focus:outline-none shadow-none"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSecretModalOpen(false)}
+                  className="flex-1 py-2.5 border-2 border-white bg-white hover:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingSecret || !secretCodeInput.trim()}
+                  className="flex-1 py-2.5 bg-[#24B3F1] hover:bg-[#5cd0ff] text-black border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
+                >
+                  {isVerifyingSecret ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Vérification...</span>
+                    </>
+                  ) : (
+                    <span>Valider & Éditer</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

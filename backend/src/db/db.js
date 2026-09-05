@@ -35,11 +35,15 @@ export async function checkDbConnection() {
 }
 
 import { runManyToManyMigration } from './migrate_to_many_to_many.js';
+import { runSecretCodeMigration } from './migrate_secret_code.js';
 
 export async function initializeDatabase() {
   try {
     // 1. Run many-to-many migration if needed
     await runManyToManyMigration();
+
+    // 2. Run secret-code migration safely (adds column & backfills existing playlists)
+    await runSecretCodeMigration();
 
     // 2. Initialize and verify schema definitions & seed data
     const schemaPath = path.join(__dirname, 'schema.sql');

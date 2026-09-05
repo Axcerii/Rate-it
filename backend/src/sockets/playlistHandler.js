@@ -13,6 +13,9 @@ import {
   sanitizeVideoId,
   validateMalUsername,
   broadcastRoomUpdate,
+  generatePlaylistSecretCode,
+  checkSecretCodeRateLimit,
+  recordSecretCodeAttempt,
 } from '../utils/security.js';
 import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
@@ -57,12 +60,24 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
-  // 1. Get all playlists (Validated & Community)
+  // 1. Get all playlists (Validated & Community) - includes secretCode if admin authenticated
   socket.on('playlist:list', async (payload, callback) => {
     try {
+      let isAdmin = false;
+      if (payload && payload.password) {
+        try {
+          verifyAdminAuth(payload.password, socket);
+          isAdmin = true;
+        } catch (_) {
+          isAdmin = false;
+        }
+      }
+
+      const secretField = isAdmin ? ', secret_code as "secretCode"' : '';
+
       // Fetch validated playlists
       const validatedRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField}
          FROM playlists
          WHERE is_validated = TRUE
          ORDER BY played_count DESC, created_at DESC`
@@ -70,7 +85,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch community (custom & not validated) playlists
       const communityRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField}
          FROM playlists
          WHERE is_custom = TRUE AND is_validated = FALSE
          ORDER BY played_count DESC, created_at DESC`
@@ -109,12 +124,13 @@ export function registerPlaylistHandlers(io, socket) {
       await client.query('BEGIN');
 
       const playlistId = generatePlaylistId();
+      const secretCode = generatePlaylistSecretCode();
 
-      // Insert playlist
+      // Insert playlist with secret_code
       await client.query(
-        `INSERT INTO playlists (id, name, description, is_custom, is_validated)
-         VALUES ($1, $2, $3, TRUE, FALSE)`,
-        [playlistId, cleanName, cleanDescription]
+        `INSERT INTO playlists (id, name, description, is_custom, is_validated, secret_code)
+         VALUES ($1, $2, $3, TRUE, FALSE, $4)`,
+        [playlistId, cleanName, cleanDescription, secretCode]
       );
 
       // Insert videos with YouTube availability check
@@ -168,14 +184,200 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       await client.query('COMMIT');
-      console.log(`Custom playlist created: ${playlistId} - "${name}" with ${videos.length} tracks`);
+      console.log(`Custom playlist created: ${playlistId} - "${name}" with ${videos.length} tracks (Secret code generated)`);
 
       if (typeof callback === 'function') {
-        callback({ success: true, playlistId });
+        callback({ success: true, playlistId, secretCode });
       }
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error creating custom playlist:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    } finally {
+      client.release();
+    }
+  });
+
+  // 2b. Verify secret code & load playlist in edit mode (fails if playlist is validated)
+  socket.on('playlist:verify_secret_code', async ({ secretCode }, callback) => {
+    try {
+      const clientKey = socket?.handshake?.address || socket?.id || 'client';
+      const rateLimit = checkSecretCodeRateLimit(clientKey);
+      if (!rateLimit.allowed) {
+        throw new Error(`Trop de tentatives incorrectes. Veuillez patienter encore ${rateLimit.remainingSec}s.`);
+      }
+
+      const cleanSecret = sanitizeText(secretCode, 64);
+      if (!cleanSecret || cleanSecret.length < 10) {
+        recordSecretCodeAttempt(clientKey, false);
+        throw new Error('Code secret invalide ou mal formaté.');
+      }
+
+      const playlistRes = await pool.query(
+        `SELECT id, name, description, is_custom, is_validated, played_count, last_played, created_at
+         FROM playlists
+         WHERE secret_code = $1`,
+        [cleanSecret]
+      );
+
+      if (playlistRes.rows.length === 0) {
+        recordSecretCodeAttempt(clientKey, false);
+        throw new Error('Code secret introuvable ou incorrect. Vérifiez votre code.');
+      }
+
+      const playlist = playlistRes.rows[0];
+
+      // Security check: cannot edit a validated playlist with secret code
+      if (playlist.is_validated) {
+        recordSecretCodeAttempt(clientKey, false);
+        throw new Error('Cette playlist a été validée par un administrateur et ne peut plus être modifiée avec un code secret.');
+      }
+
+      recordSecretCodeAttempt(clientKey, true);
+
+      // Fetch tracks for editing
+      const videosRes = await pool.query(
+        `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
+                v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
+                pt.order_index as "orderIndex", pt.id as "trackId"
+         FROM playlist_tracks pt
+         JOIN videos v ON pt.video_id = v.id
+         WHERE pt.playlist_id = $1
+         ORDER BY pt.order_index ASC`,
+        [playlist.id]
+      );
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          playlist,
+          videos: videosRes.rows,
+        });
+      }
+    } catch (error) {
+      console.warn('Secret code verification error:', error.message);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 2c. Update playlist with secret code (replaces tracks and updates metadata, blocked if validated)
+  socket.on('playlist:update_with_secret', async ({ id, secretCode, name, description, videos }, callback) => {
+    const client = await pool.connect();
+    try {
+      const cleanId = sanitizeText(id, 50);
+      const cleanSecret = sanitizeText(secretCode, 64);
+      const cleanName = sanitizeText(name, 100);
+      const cleanDescription = sanitizeText(description, 1000);
+
+      if (!cleanId || !cleanSecret) {
+        throw new Error('Identifiant et code secret de la playlist obligatoires.');
+      }
+
+      if (!cleanName || !Array.isArray(videos) || videos.length === 0) {
+        throw new Error('Le nom de la playlist et au moins un titre sont requis.');
+      }
+
+      if (videos.length > 200) {
+        throw new Error('Une playlist ne peut pas contenir plus de 200 pistes.');
+      }
+
+      // 1. Verify playlist ownership & validation status
+      const checkRes = await client.query(
+        `SELECT id, name, is_validated, secret_code FROM playlists WHERE id = $1`,
+        [cleanId]
+      );
+
+      if (checkRes.rows.length === 0) {
+        throw new Error('Playlist introuvable.');
+      }
+
+      const existingPlaylist = checkRes.rows[0];
+
+      if (existingPlaylist.is_validated) {
+        throw new Error('Cette playlist a été validée par l\'administration et ne peut plus être modifiée.');
+      }
+
+      if (!safeTimingCompare(existingPlaylist.secret_code, cleanSecret)) {
+        throw new Error('Code secret invalide pour cette playlist.');
+      }
+
+      await client.query('BEGIN');
+
+      // 2. Update playlist metadata
+      await client.query(
+        `UPDATE playlists SET name = $1, description = $2 WHERE id = $3`,
+        [cleanName, cleanDescription, cleanId]
+      );
+
+      // 3. Clear existing playlist_tracks for this playlist
+      await client.query(
+        `DELETE FROM playlist_tracks WHERE playlist_id = $1`,
+        [cleanId]
+      );
+
+      // 4. Upsert videos into catalog and recreate playlist_tracks links
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        const cleanTitle = sanitizeText(video.title, 255);
+        const validYtId = validateYoutubeId(video.youtubeId);
+        const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
+        const cleanVideoDesc = sanitizeText(video.description, 1000);
+        const cleanMalTitle = sanitizeText(video.malTitle, 255);
+
+        if (!cleanTitle || !validYtId) {
+          throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
+        }
+
+        // Verify that the video is valid and public on YouTube
+        const ytCheck = await verifyYoutubeVideo(validYtId);
+        if (!ytCheck.valid) {
+          throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+        }
+
+        // Upsert into unique videos catalog
+        const videoUpsertRes = await client.query(
+          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (youtube_id) DO UPDATE SET
+             title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
+             artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
+             description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
+             mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
+             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+           RETURNING id`,
+          [
+            validYtId,
+            cleanTitle,
+            cleanArtistName,
+            cleanVideoDesc,
+            video.malAnimeId ? parseInt(video.malAnimeId, 10) : null,
+            cleanMalTitle || null,
+          ]
+        );
+
+        const videoId = videoUpsertRes.rows[0].id;
+
+        // Re-insert link into playlist_tracks with updated order_index
+        await client.query(
+          `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
+           VALUES ($1, $2, $3)`,
+          [cleanId, videoId, i]
+        );
+      }
+
+      await client.query('COMMIT');
+      console.log(`Playlist updated with secret code: ${cleanId} - "${cleanName}" (${videos.length} tracks)`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, playlistId: cleanId });
+      }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error updating playlist with secret code:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
@@ -343,7 +545,7 @@ export function registerPlaylistHandlers(io, socket) {
              is_validated = COALESCE($3, is_validated),
              is_custom = COALESCE($4, is_custom)
          WHERE id = $5
-         RETURNING id, name, description, is_custom as "isCustom", is_validated as "isValidated", played_count as "playedCount", last_played as "lastPlayed"`,
+         RETURNING id, name, description, is_custom as "isCustom", is_validated as "isValidated", played_count as "playedCount", last_played as "lastPlayed", secret_code as "secretCode"`,
         [
           cleanName,
           cleanDesc,

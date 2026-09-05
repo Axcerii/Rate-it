@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS playlists (
   played_count INTEGER DEFAULT 0,
   last_played TIMESTAMP WITH TIME ZONE,
   is_validated BOOLEAN DEFAULT FALSE,
+  secret_code VARCHAR(64),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -46,5 +47,6 @@ CREATE INDEX IF NOT EXISTS idx_videos_youtube_id ON videos(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_videos_mal_anime_id ON videos(mal_anime_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_youtube_id ON ratings(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_playlist_id ON ratings(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_secret_code ON playlists(secret_code);
 
 
