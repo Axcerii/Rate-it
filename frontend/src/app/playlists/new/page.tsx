@@ -939,7 +939,7 @@ export default function NewPlaylist() {
               </div>
             </div>
 
-            {/* Block 2: Secret Edit Code (One-time only!) */}
+            {/* Block 2: Secret Edit Code (Hidden, copy only) */}
             <div className="bg-white/90 backdrop-blur-xs border-2 border-white p-4 sm:p-5 rounded-2xl flex flex-col gap-2.5 shadow-none">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[#990000] font-black text-xs uppercase">
@@ -947,35 +947,32 @@ export default function NewPlaylist() {
                   <span>Code Secret d'Édition</span>
                 </div>
                 <span className="text-[10px] font-black text-white bg-[#990000] px-2 py-0.5 rounded border-2 border-white shadow-none uppercase">
-                  Affichage Unique
+                  Confidentiel
                 </span>
               </div>
 
               <div className="p-3 bg-red-100/90 border-2 border-white rounded-xl text-xs font-black text-red-950 leading-relaxed shadow-none">
-                ⚠️ <strong>ATTENTION : Ce code secret ne sera affiché qu'une seule fois !</strong>
+                ⚠️ <strong>ATTENTION : Conservez bien votre code secret d'édition !</strong>
                 <p className="font-bold text-red-900 mt-1 text-[11px]">
-                  Copiez-le et conservez-le en lieu sûr. Il vous donne les droits exclusifs d'édition de cette playlist depuis le menu "Créer une playlist". Si vous le perdez, seul un administrateur pourra le retrouver.
+                  Cliquez sur le bouton ci-dessous pour le copier et conservez-le en lieu sûr. Le code reste masqué pour éviter toute fuite (stream, partage d'écran). Si vous le perdez, seul un administrateur pourra le retrouver.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 bg-white border-2 border-white px-3 py-2 rounded-xl font-mono text-xs sm:text-sm font-black text-slate-900 break-all select-all shadow-none">
-                  {createdResult.secretCode}
-                </div>
+              <div className="mt-1">
                 <button
                   type="button"
                   onClick={() => handleCopy(createdResult.secretCode, 'secret')}
-                  className="px-4 py-2.5 border-2 border-white bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shrink-0 shadow-none"
+                  className="w-full py-3 px-4 border-2 border-white bg-amber-400 hover:bg-amber-300 text-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2 shadow-none"
                 >
                   {copiedField === 'secret' ? (
                     <>
                       <Check className="w-4 h-4 text-emerald-900 stroke-[3]" />
-                      <span>Copié !</span>
+                      <span>Code secret copié !</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-4 h-4" />
-                      <span>Copier</span>
+                      <span>Copier le code secret d'édition</span>
                     </>
                   )}
                 </button>
