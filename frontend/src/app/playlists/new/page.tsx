@@ -721,7 +721,7 @@ export default function NewPlaylist() {
         </button>
 
         {/* Scrollable Drawer Inner Content with Menu Pattern Background */}
-        <div 
+        <div
           className="relative z-10 p-4 sm:p-6 flex flex-col gap-5 overflow-y-auto h-full max-h-screen bg-no-repeat bg-bottom"
           style={{ backgroundImage: "url('/BACKGROUNDS/Background_Basique.png')" }}
         >
@@ -952,7 +952,7 @@ export default function NewPlaylist() {
               </div>
 
               <div className="p-3 bg-red-100/90 border-2 border-white rounded-xl text-xs font-black text-red-950 leading-relaxed shadow-none">
-                ⚠️ <strong>ATTENTION : Conservez bien votre code secret d'édition !</strong>
+                <strong>ATTENTION : Conservez bien votre code secret d'édition !</strong>
                 <p className="font-bold text-red-900 mt-1 text-[11px]">
                   Cliquez sur le bouton ci-dessous pour le copier et conservez-le en lieu sûr. Le code reste masqué pour éviter toute fuite (stream, partage d'écran). Si vous le perdez, seul un administrateur pourra le retrouver.
                 </p>
