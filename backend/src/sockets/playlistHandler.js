@@ -77,7 +77,8 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch validated playlists
       const validatedRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField}
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField},
+                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count
          FROM playlists
          WHERE is_validated = TRUE
          ORDER BY played_count DESC, created_at DESC`
@@ -85,7 +86,8 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch community (custom & not validated) playlists
       const communityRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField}
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField},
+                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count
          FROM playlists
          WHERE is_custom = TRUE AND is_validated = FALSE
          ORDER BY played_count DESC, created_at DESC`
@@ -395,7 +397,7 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       const playlistRes = await pool.query(
-        'SELECT * FROM playlists WHERE id = $1',
+        'SELECT *, (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count FROM playlists WHERE id = $1',
         [cleanId]
       );
 

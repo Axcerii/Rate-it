@@ -5,9 +5,10 @@ export function registerVoteHandlers(io, socket) {
   // Player submits a vote
   socket.on('game:vote', async ({ voteValue }, callback) => {
     try {
-      const { sessionId, playerId } = socket.data;
+      const { sessionId } = socket.data;
+      let { playerId } = socket.data;
 
-      if (!sessionId || !playerId) {
+      if (!sessionId) {
         if (typeof callback === 'function') {
           callback({ success: false, error: 'Non autorisé : vous n\'êtes pas dans une session de salle' });
         }
@@ -22,6 +23,18 @@ export function registerVoteHandlers(io, socket) {
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
+      }
+
+      if (!playerId && socket.data.isHost) {
+        playerId = session.hostPlayerId || `host_${sessionId}`;
+        socket.data.playerId = playerId;
+      }
+
+      if (!playerId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : identifiant de joueur manquant' });
+        }
+        return;
       }
 
       if (session.status !== 'PLAYING') {

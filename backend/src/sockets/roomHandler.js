@@ -40,7 +40,7 @@ export function registerRoomHandlers(io, socket) {
 
       const isHostPlayer = payload.isHostPlayer !== false; // default true
       const hostPlayerId = sanitizeText(payload.playerId, 50) || `host_${code}`;
-      const hostName = sanitizeText(payload.hostName, 50) || 'Hôte';
+      const hostName = sanitizeText(payload.hostName, 50) || 'HOST';
       const hostToken = generateSecureToken(32);
 
       const session = {
@@ -118,10 +118,13 @@ export function registerRoomHandlers(io, socket) {
         session.players = session.players || {};
         if (session.players[hostPlayerId]) {
           session.players[hostPlayerId].isConnected = true;
+          if (payload.hostName) {
+            session.players[hostPlayerId].name = sanitizeText(payload.hostName, 50);
+          }
         } else {
           session.players[hostPlayerId] = {
             id: hostPlayerId,
-            name: payload.hostName || 'Hôte',
+            name: sanitizeText(payload.hostName, 50) || 'HOST',
             isConnected: true,
             isHost: true,
           };
@@ -169,12 +172,13 @@ export function registerRoomHandlers(io, socket) {
       const hostPlayerId = session.hostPlayerId || `host_${sessionId}`;
       session.isHostPlayer = !!isHostPlayer;
       session.hostPlayerId = hostPlayerId;
+      socket.data.playerId = hostPlayerId;
 
       const cleanHostName = sanitizeText(hostName, 50);
       if (isHostPlayer) {
         session.players[hostPlayerId] = {
           id: hostPlayerId,
-          name: cleanHostName || session.players[hostPlayerId]?.name || 'Hôte',
+          name: cleanHostName || session.players[hostPlayerId]?.name || 'HOST',
           isConnected: true,
           isHost: true,
         };

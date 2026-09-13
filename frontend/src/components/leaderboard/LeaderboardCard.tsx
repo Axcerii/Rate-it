@@ -211,11 +211,9 @@ export function LeaderboardCard({
             <div className="flex items-center justify-between font-mono font-bold text-xs pt-1">
               <span className="text-[11px] font-black uppercase text-slate-800 font-sans">Votre vote</span>
               {playerVote !== undefined ? (
-                <div className="flex items-baseline gap-0.5 text-black">
-                  <span className="text-sm sm:text-base font-black leading-none bg-menu text-black px-1.5 py-0.5 rounded border border-black">
-                    {playerVote}
-                  </span>
-                  <span className="text-xs text-slate-700 font-bold">/5</span>
+                <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border border-black leading-none gap-0.5">
+                  <span className="text-base sm:text-lg font-black leading-none">{playerVote}</span>
+                  <span className="text-xs font-bold leading-none text-slate-900">/5</span>
                 </div>
               ) : (
                 <span className="text-[10px] text-slate-500 font-sans italic">Non voté</span>
@@ -330,11 +328,9 @@ export function LeaderboardCard({
           <div className="flex items-center justify-between font-mono font-bold text-xs pt-1">
             <span className="text-[11px] font-black uppercase text-slate-700 font-sans">Votre vote</span>
             {playerVote !== undefined ? (
-              <div className="flex items-baseline gap-0.5 text-black">
-                <span className="text-sm sm:text-base font-black leading-none bg-menu text-black px-1.5 py-0.5 rounded border border-black">
-                  {playerVote}
-                </span>
-                <span className="text-xs text-slate-700 font-bold">/5</span>
+              <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border border-black leading-none gap-0.5">
+                <span className="text-base sm:text-lg font-black leading-none">{playerVote}</span>
+                <span className="text-xs font-bold leading-none text-slate-900">/5</span>
               </div>
             ) : (
               <span className="text-[10px] text-slate-500 font-sans italic">Non voté</span>

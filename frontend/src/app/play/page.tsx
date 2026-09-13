@@ -21,14 +21,41 @@ import {
   Copy,
   Eye,
   EyeOff,
+  Users,
+  X,
 } from 'lucide-react';
-import { LeaderboardCard } from '@/components/leaderboard';
+import { LeaderboardCard, useLeaderboardAnimation } from '@/components/leaderboard';
 
 export default function PlayView() {
   const router = useRouter();
   const { session, isConnected, playerId, leaveRoom, submitVote, toggleSkip, showBanner } = useSocket();
   const [copiedLink, setCopiedLink] = useState(false);
   const [showCode, setShowCode] = useState(false);
+
+  // Leaderboard reveal animation (same as /host)
+  const {
+    isRevealing,
+    isDarkAmbianceActive,
+    hasAnimatedOnce,
+    cardRefs,
+    triggerReveal: triggerLeaderboardReveal,
+    handleSkipAnimation,
+  } = useLeaderboardAnimation({
+    results: Object.values(session?.results || {}),
+    sortType: 'players',
+  });
+
+  // Auto-trigger reveal animation on LEADERBOARD
+  useEffect(() => {
+    if (session?.status === 'LEADERBOARD' && !hasAnimatedOnce && !isRevealing && Object.keys(session?.results || {}).length > 0) {
+      const timer = setTimeout(() => {
+        if (!hasAnimatedOnce && !isRevealing) {
+          triggerLeaderboardReveal();
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.status, hasAnimatedOnce, isRevealing, triggerLeaderboardReveal, session?.results]);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined' && session?.sessionId) {
@@ -374,7 +401,7 @@ export default function PlayView() {
         {/* Popup Modal Overlay during REVEAL Phase on Play Screen */}
         {isRevealPhase && currentVideo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-md bg-white border-4 border-black p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 relative overflow-hidden">
+            <div className="w-full max-w-md bg-white border-4 border-black p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="flex flex-col items-center gap-1 border-b-2 border-black pb-3">
                 <span className="text-xs font-black text-fuchsia-950 uppercase flex items-center justify-center gap-1.5 tracking-wider">
@@ -439,6 +466,64 @@ export default function PlayView() {
                 )}
               </div>
 
+              {/* Individual Player Votes Breakdown */}
+              <div className="rounded-xl border-2 border-black bg-slate-50 p-3 text-left">
+                <div className="flex items-center justify-between border-b border-black pb-1.5 mb-2">
+                  <span className="text-[11px] font-black uppercase text-black flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-[#DD4DCC]" />
+                    <span>Notes des joueurs</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500 font-bold">
+                    ({Object.values(session.players || {}).length} joueurs)
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
+                  {Object.values(session.players || {}).map((player) => {
+                    const isMe = player.id === playerId;
+                    const playerVote = session.votes?.[player.id] ?? currentVideoResult?.playerVotes?.[player.id];
+
+                    let voteBadge = (
+                      <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
+                        Pas de vote
+                      </span>
+                    );
+
+                    if (playerVote !== undefined && playerVote !== null) {
+                      const labels: Record<number, { text: string; bg: string }> = {
+                        1: { text: '1', bg: 'bg-red-600 text-white' },
+                        2: { text: '2', bg: 'bg-orange-500 text-white' },
+                        3: { text: '3', bg: 'bg-yellow-400 text-black' },
+                        4: { text: '4', bg: 'bg-emerald-500 text-white' },
+                        5: { text: '5', bg: 'bg-host text-black' },
+                      };
+                      const l = labels[playerVote] || { text: `${playerVote}`, bg: 'bg-black text-white' };
+                      voteBadge = (
+                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded border border-black uppercase ${l.bg}`}>
+                          {l.text}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={player.id}
+                        className={`flex items-center justify-between p-2 border border-black rounded-lg ${
+                          isMe ? 'bg-fuchsia-50 border-2 border-[#DD4DCC]' : 'bg-white'
+                        }`}
+                      >
+                        <span className="text-xs font-black text-black truncate max-w-[140px] flex items-center gap-1.5">
+                          <span className="truncate">{player.name}</span>
+                          {isMe && <span className="text-[9px] font-bold text-[#DD4DCC] bg-fuchsia-100 px-1 py-0.2 rounded border border-[#DD4DCC]">Moi</span>}
+                          {player.isHost && <span className="text-[9px] font-bold text-amber-900 bg-amber-200 px-1 py-0.2 rounded border border-black">Host</span>}
+                        </span>
+                        {voteBadge}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Action Button: Skip */}
               <button
                 onClick={handleToggleSkip}
@@ -487,6 +572,13 @@ export default function PlayView() {
 
     return (
       <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 py-6 sm:py-10 font-sans justify-center items-center w-full max-w-full overflow-x-hidden">
+        {/* Dark Ambiance Backdrop Overlay for Winner #1 Reveal */}
+        <div
+          className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-30 pointer-events-none transition-opacity duration-700 ${
+            isDarkAmbianceActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        />
+
         <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl flex flex-col gap-6">
 
           {/* Header Banner with Resultat.png */}
@@ -496,6 +588,21 @@ export default function PlayView() {
               alt="Résultats"
               className="h-16 sm:h-24 md:h-32 w-auto object-contain max-w-full"
             />
+
+            {/* Skip animation button during reveal */}
+            {isRevealing && (
+              <div className="flex items-center justify-center mt-1 z-20">
+                <button
+                  type="button"
+                  onClick={handleSkipAnimation}
+                  className="px-4 py-2 border-2 border-black bg-white text-black hover:bg-slate-100 focus:bg-slate-100 text-xs font-black uppercase rounded-xl inline-flex items-center gap-2 btn-action-hover cursor-pointer"
+                  title="Passer l'animation et afficher tous les résultats immédiatement"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>Passer l'animation</span>
+                </button>
+              </div>
+            )}
 
             {/* Stats Overview */}
             {sortedResults.length > 0 && (
@@ -550,11 +657,13 @@ export default function PlayView() {
                     result={result}
                     rank={rankMap.get(result.id) ?? 1}
                     totalItems={sortedResults.length}
-                    hasAnimatedOnce={true}
+                    isDarkAmbianceActive={isDarkAmbianceActive}
+                    hasAnimatedOnce={hasAnimatedOnce}
                     isTwitchLinked={Boolean(
                       session.twitchChannel ||
                       Object.values(session.results || {}).some(r => r.twitchVotesCount && r.twitchVotesCount > 0)
                     )}
+                    cardRef={(el) => { cardRefs.current[result.id] = el; }}
                     playerVote={result.playerVotes?.[playerId]}
                     showPlayerVoteBadge={true}
                   />

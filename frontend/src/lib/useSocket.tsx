@@ -214,7 +214,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log(`Auto-restoring Host session: ${hostSessionId}`);
         isHostRef.current = true;
         setIsHost(true);
-        socketInstance.emit('room:reconnect_host', { sessionId: hostSessionId, hostToken, playerId: id }, (response: any) => {
+        const savedHostName = localStorage.getItem('rate_it_host_name') || 'HOST';
+        socketInstance.emit('room:reconnect_host', { sessionId: hostSessionId, hostToken, playerId: id, hostName: savedHostName }, (response: any) => {
           if (response.success) {
             setSession(response.session);
           } else {
@@ -305,7 +306,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isHostRef.current = true;
       setIsHost(true);
       const isHostPlayer = options?.isHostPlayer !== false;
-      const hostName = options?.hostName || 'Hôte';
+      const hostName = options?.hostName || localStorage.getItem('rate_it_host_name') || 'HOST';
       const id = playerIdRef.current || localStorage.getItem('rate_it_player_id');
       sock.emit('room:create', { isHostPlayer, hostName, playerId: id }, (response: any) => {
         clearTimeout(timeoutId);

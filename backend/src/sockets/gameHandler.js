@@ -347,9 +347,10 @@ export function registerGameHandlers(io, socket) {
   // Active player toggles skip status
   socket.on('game:player_skip', async (payload, callback) => {
     try {
-      const { sessionId, playerId } = socket.data;
+      const { sessionId } = socket.data;
+      let { playerId } = socket.data;
 
-      if (!sessionId || !playerId) {
+      if (!sessionId) {
         if (typeof callback === 'function') {
           callback({ success: false, error: 'Non autorisé : vous n\'êtes pas dans une session de salle' });
         }
@@ -359,6 +360,18 @@ export function registerGameHandlers(io, socket) {
       const session = await getSession(sessionId);
       if (!session) throw new Error('Session introuvable');
       if (session.status !== 'PLAYING') throw new Error('La partie n\'est pas en cours');
+
+      if (!playerId && socket.data.isHost) {
+        playerId = session.hostPlayerId || `host_${sessionId}`;
+        socket.data.playerId = playerId;
+      }
+
+      if (!playerId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Non autorisé : identifiant de joueur manquant' });
+        }
+        return;
+      }
 
       const currentPhase = session.phase || 'VOTING';
 

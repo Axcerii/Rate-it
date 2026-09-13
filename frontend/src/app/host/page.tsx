@@ -15,6 +15,8 @@ import {
   Star,
   AlertTriangle,
   Gamepad2,
+  Film,
+  MonitorPlay,
   ArrowRight,
   ArrowLeft,
   UserX,
@@ -62,6 +64,7 @@ export default function HostLobby() {
     showBanner,
     toggleHostPlayer,
     submitVote,
+    toggleSkip,
   } = useSocket();
 
   const [joinUrl, setJoinUrl] = useState('');
@@ -103,6 +106,20 @@ export default function HostLobby() {
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(true);
+  const [hostCustomName, setHostCustomName] = useState('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('rate_it_host_name');
+    if (saved && saved.trim().toUpperCase() !== 'HOST') {
+      setHostCustomName(saved);
+    } else if (
+      session?.hostPlayerId &&
+      session.players?.[session.hostPlayerId]?.name &&
+      session.players[session.hostPlayerId].name.trim().toUpperCase() !== 'HOST'
+    ) {
+      setHostCustomName(session.players[session.hostPlayerId].name);
+    }
+  }, [session?.hostPlayerId, session?.players]);
 
   // Leaderboard sorting state
   const [leaderboardSortType, setLeaderboardSortType] = useState<'players' | 'twitch'>('players');
@@ -367,7 +384,13 @@ export default function HostLobby() {
       if (!alreadyPresent) {
         setPlaylists(prev => ({
           ...prev,
-          community: [res.playlist, ...prev.community]
+          community: [
+            {
+              ...res.playlist,
+              video_count: res.videos ? res.videos.length : (res.playlist.video_count || 0),
+            },
+            ...prev.community,
+          ]
         }));
       }
       setSelectedPlaylistId(res.playlist.id);
@@ -418,6 +441,15 @@ export default function HostLobby() {
       await nextVideo();
     } catch (error) {
       console.error('Erreur lors du passage à la vidéo suivante:', error);
+    }
+  };
+
+  const handleToggleSkip = async () => {
+    try {
+      await toggleSkip();
+    } catch (error: any) {
+      console.error('Erreur lors du vote de skip:', error);
+      showBanner(error.message || 'Impossible de voter pour passer', 'error');
     }
   };
 
@@ -770,6 +802,10 @@ export default function HostLobby() {
   const activeConnectedPlayers = playersList.filter(p => p.isConnected);
   const skipsCount = Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
   const revealSkipsCount = Object.keys(session.revealSkips || {}).filter(id => session.players[id]?.isConnected && session.revealSkips?.[id]).length;
+  const hostPlayerId = session.hostPlayerId || Object.values(session.players || {}).find(p => p.isHost)?.id || '';
+  const hostHasSkipped = session.phase === 'REVEAL'
+    ? Boolean(hostPlayerId && session.revealSkips?.[hostPlayerId])
+    : Boolean(hostPlayerId && session.skips?.[hostPlayerId]);
 
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
@@ -894,16 +930,18 @@ export default function HostLobby() {
               {/* Host Options Card */}
               <div className="info-card p-3.5 sm:p-5 rounded-2xl flex flex-col gap-3.5 w-full max-w-full !overflow-visible z-20">
                 {/* Host Player Option */}
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                    <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none shrink-0">
                       <input
                         type="checkbox"
                         id="hostIsPlayerLobbyToggle"
                         checked={session.isHostPlayer !== false}
                         onChange={async (e) => {
+                          const checked = e.target.checked;
                           try {
-                            await toggleHostPlayer(e.target.checked);
+                            const finalName = hostCustomName.trim() || 'HOST';
+                            await toggleHostPlayer(checked, finalName);
                           } catch (err) {
                             console.error(err);
                           }
@@ -921,11 +959,45 @@ export default function HostLobby() {
                       >
                         ?
                       </span>
-                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-64 p-3 bg-black text-white text-xs font-bold rounded-xl shadow-xl text-center leading-snug z-50">
-                        Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vrai vie.
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-64 p-3 bg-black text-white text-xs font-bold rounded-xl text-center leading-snug z-50">
+                        Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vraie vie.
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Input for Host player name beside checkbox (disabled when unchecked) */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Entre ton pseudo"
+                      value={hostCustomName}
+                      disabled={session.isHostPlayer === false}
+                      onChange={(e) => setHostCustomName(e.target.value)}
+                      onBlur={async () => {
+                        const trimmed = hostCustomName.trim();
+                        const finalName = trimmed || 'HOST';
+                        if (trimmed) {
+                          localStorage.setItem('rate_it_host_name', trimmed);
+                        } else {
+                          localStorage.removeItem('rate_it_host_name');
+                        }
+                        if (session.isHostPlayer !== false) {
+                          try {
+                            await toggleHostPlayer(true, finalName);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="px-3 py-1.5 text-xs sm:text-sm font-black bg-white border-2 border-black rounded-xl text-black placeholder:text-slate-400 placeholder:font-black disabled:opacity-40 disabled:bg-slate-100 disabled:cursor-not-allowed max-w-[150px] sm:max-w-[180px] outline-none focus:ring-2 focus:ring-black"
+                      title={session.isHostPlayer === false ? 'Cochez "Le Host est un joueur" pour modifier votre nom' : 'Pseudonyme du Host en tant que joueur'}
+                    />
                   </div>
                 </div>
 
@@ -1129,6 +1201,9 @@ export default function HostLobby() {
                       }
                       return activeLists.map((p) => {
                         const isSelected = p.id === selectedPlaylistId;
+                        const videoCount = (isSelected && selectedPlaylistTracks.length > 0)
+                          ? selectedPlaylistTracks.length
+                          : (p.video_count ?? p.videoCount ?? 0);
                         return (
                           <div
                             key={p.id}
@@ -1156,8 +1231,8 @@ export default function HostLobby() {
                             </div>
                             <div className="text-right flex flex-col items-end gap-2 shrink-0">
                               <span className="text-xs bg-slate-100 border border-slate-300 text-slate-700 px-2.5 py-1 rounded-lg font-black uppercase flex items-center gap-1.5">
-                                <Gamepad2 className="w-3.5 h-3.5" />
-                                <span>{p.played_count || 0} plays</span>
+                                <MonitorPlay className="w-3.5 h-3.5" />
+                                <span>{videoCount} {videoCount <= 1 ? 'vidéo' : 'vidéos'}</span>
                               </span>
                             </div>
                           </div>
@@ -1438,21 +1513,61 @@ export default function HostLobby() {
                 </span>
 
                 {session.phase === 'REVEAL' ? (
-                  <button
-                    onClick={handleProceedAfterReveal}
-                    className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
-                  >
-                    <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Afficher les résultats' : 'Vidéo suivante'}</span>
-                    <ArrowRight className="w-4 h-4 shrink-0" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {session.isHostPlayer !== false && (
+                      <button
+                        onClick={handleToggleSkip}
+                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${
+                          hostHasSkipped
+                            ? 'bg-purple-200 text-purple-950 border-dashed'
+                            : 'bg-white text-black hover:bg-slate-100'
+                        }`}
+                        title="Proposer de passer à la suite (vote volontaire sans forcer)"
+                      >
+                        {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}
+                        <span>{hostHasSkipped ? 'Prêt' : 'Prêt (skip)'}</span>
+                        <span className="text-[10px] bg-black text-white px-1.5 py-0.5 rounded font-mono">
+                          {revealSkipsCount}/{activeConnectedPlayers.length}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      onClick={handleProceedAfterReveal}
+                      className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+                      title="Forcer la suite pour tous"
+                    >
+                      <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Afficher les résultats' : 'Vidéo suivante'}</span>
+                      <ArrowRight className="w-4 h-4 shrink-0" />
+                    </button>
+                  </div>
                 ) : (
-                  <button
-                    onClick={handleShowResults}
-                    className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
-                  >
-                    <BarChart2 className="w-4 h-4 shrink-0" />
-                    <span>Résultats</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {session.isHostPlayer !== false && (
+                      <button
+                        onClick={handleToggleSkip}
+                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${
+                          hostHasSkipped
+                            ? 'bg-amber-200 text-amber-950 border-dashed'
+                            : 'bg-white text-black hover:bg-slate-100'
+                        }`}
+                        title="Proposer de passer la vidéo (vote volontaire sans forcer)"
+                      >
+                        {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}
+                        <span>{hostHasSkipped ? 'Voté skip' : 'Voter skip'}</span>
+                        <span className="text-[10px] bg-black text-white px-1.5 py-0.5 rounded font-mono">
+                          {skipsCount}/{activeConnectedPlayers.length}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      onClick={handleShowResults}
+                      className="px-4 sm:px-5 py-2.5 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5"
+                      title="Forcer l'affichage des résultats pour tous"
+                    >
+                      <BarChart2 className="w-4 h-4 shrink-0" />
+                      <span>Résultats</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1476,7 +1591,7 @@ export default function HostLobby() {
                   <div className="flex items-center justify-between border-b border-black pb-2">
                     <h3 className="text-xs sm:text-sm font-black uppercase text-black flex items-center gap-1.5">
                       <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                      <span>Mon Vote (Hôte)</span>
+                      <span>Mon Vote ({session.players?.[session.hostPlayerId || '']?.name || hostCustomName.trim() || 'HOST'})</span>
                     </h3>
                     {session.votes?.[session.hostPlayerId || ''] !== undefined && (
                       <span className="text-xs font-black bg-emerald-100 text-emerald-800 border border-black px-2 py-0.5 rounded">
@@ -1486,38 +1601,70 @@ export default function HostLobby() {
                   </div>
 
                   {session.phase === 'REVEAL' ? (
-                    <p className="text-xs font-bold text-slate-600 text-center py-2">
-                      Résultats affichés pour cette vidéo
-                    </p>
+                    <div className="flex flex-col gap-2 py-1">
+                      <p className="text-xs font-bold text-slate-600 text-center">
+                        Résultats affichés pour cette vidéo
+                      </p>
+                      <button
+                        onClick={handleToggleSkip}
+                        className={`w-full py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${
+                          hostHasSkipped
+                            ? 'bg-purple-200 text-purple-950 border-dashed'
+                            : 'bg-[#DD4DCC] text-white hover:bg-fuchsia-600'
+                        }`}
+                      >
+                        {hostHasSkipped ? <Check className="w-3.5 h-3.5 shrink-0" /> : <SkipForward className="w-3.5 h-3.5 shrink-0" />}
+                        <span>{hostHasSkipped ? 'Prêt pour la suite' : 'Voter pour passer à la suite'}</span>
+                        <span className="text-[10px] bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
+                          {revealSkipsCount} / {activeConnectedPlayers.length}
+                        </span>
+                      </button>
+                    </div>
                   ) : (
-                    <div className="flex justify-between items-center gap-1.5 pt-1">
-                      {[1, 2, 3, 4, 5].map((val) => {
-                        const hostVote = session.votes?.[session.hostPlayerId || ''];
-                        const isSelected = hostVote === val;
-                        let style = "bg-white border-2 border-black text-black hover:bg-slate-100";
-                        if (isSelected) {
-                          if (val === 1) style = "bg-red-600 border-2 border-black text-white font-black";
-                          else if (val === 2) style = "bg-orange-500 border-2 border-black text-white font-black";
-                          else if (val === 3) style = "bg-yellow-400 border-2 border-black text-black font-black";
-                          else if (val === 4) style = "bg-emerald-500 border-2 border-black text-white font-black";
-                          else if (val === 5) style = "bg-host border-2 border-black text-black font-black";
-                        }
-                        return (
-                          <button
-                            key={val}
-                            onClick={async () => {
-                              try {
-                                await submitVote(val);
-                              } catch (err: any) {
-                                showBanner(err.message || 'Erreur lors du vote', 'error');
-                              }
-                            }}
-                            className={`h-10 w-10 sm:h-11 sm:w-11 rounded-full text-sm font-black transition flex items-center justify-center cursor-pointer ${style}`}
-                          >
-                            {val}
-                          </button>
-                        );
-                      })}
+                    <div className="flex flex-col gap-2 pt-1">
+                      <div className="flex justify-between items-center gap-1.5">
+                        {[1, 2, 3, 4, 5].map((val) => {
+                          const hostVote = session.votes?.[session.hostPlayerId || ''];
+                          const isSelected = hostVote === val;
+                          let style = "bg-white border-2 border-black text-black hover:bg-slate-100";
+                          if (isSelected) {
+                            if (val === 1) style = "bg-red-600 border-2 border-black text-white font-black";
+                            else if (val === 2) style = "bg-orange-500 border-2 border-black text-white font-black";
+                            else if (val === 3) style = "bg-yellow-400 border-2 border-black text-black font-black";
+                            else if (val === 4) style = "bg-emerald-500 border-2 border-black text-white font-black";
+                            else if (val === 5) style = "bg-host border-2 border-black text-black font-black";
+                          }
+                          return (
+                            <button
+                              key={val}
+                              onClick={async () => {
+                                try {
+                                  await submitVote(val);
+                                } catch (err: any) {
+                                  showBanner(err.message || 'Erreur lors du vote', 'error');
+                                }
+                              }}
+                              className={`h-10 w-10 sm:h-11 sm:w-11 rounded-full text-sm font-black transition flex items-center justify-center cursor-pointer ${style}`}
+                            >
+                              {val}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={handleToggleSkip}
+                        className={`w-full mt-1 py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${
+                          hostHasSkipped
+                            ? 'bg-amber-200 text-amber-950 border-dashed'
+                            : 'bg-white hover:bg-slate-100 text-black'
+                        }`}
+                      >
+                        {hostHasSkipped ? <Check className="w-3.5 h-3.5 shrink-0" /> : <SkipForward className="w-3.5 h-3.5 shrink-0" />}
+                        <span>{hostHasSkipped ? 'Vous avez voté pour passer' : 'Voter pour passer la vidéo'}</span>
+                        <span className="text-[10px] bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
+                          {skipsCount} / {activeConnectedPlayers.length}
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1669,24 +1816,22 @@ export default function HostLobby() {
                     {playersList.map((player) => {
                       const playerVote = session.votes?.[player.id];
                       let voteBadge = (
-                        <span className="text-xs font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase flex items-center gap-1">
-                          <span>Pas de vote</span>
-                          <X className="w-3 h-3" />
+                        <span className="text-xs font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
+                          Pas de vote
                         </span>
                       );
                       if (playerVote !== undefined) {
-                        const labels: Record<number, { text: string; bg: string; icon: React.ReactNode }> = {
-                          1: { text: '1', bg: 'bg-red-600 text-white', icon: <FastForward className="w-3 h-3" /> },
-                          2: { text: '2', bg: 'bg-orange-500 text-white', icon: <Ghost className="w-3 h-3" /> },
-                          3: { text: '3', bg: 'bg-yellow-400 text-black', icon: <ThumbsUp className="w-3 h-3" /> },
-                          4: { text: '4', bg: 'bg-emerald-500 text-white', icon: <ListPlus className="w-3 h-3" /> },
-                          5: { text: '5', bg: 'bg-host text-black', icon: <Crown className="w-3 h-3 text-amber-300" /> },
+                        const labels: Record<number, { text: string; bg: string }> = {
+                          1: { text: '1', bg: 'bg-red-600 text-white' },
+                          2: { text: '2', bg: 'bg-orange-500 text-white' },
+                          3: { text: '3', bg: 'bg-yellow-400 text-black' },
+                          4: { text: '4', bg: 'bg-emerald-500 text-white' },
+                          5: { text: '5', bg: 'bg-host text-black' },
                         };
-                        const l = labels[playerVote] || { text: `Score ${playerVote}`, bg: 'bg-black text-white', icon: null };
+                        const l = labels[playerVote] || { text: `${playerVote}`, bg: 'bg-black text-white' };
                         voteBadge = (
-                          <span className={`text-xs font-black px-2 py-0.5 rounded border border-black uppercase flex items-center gap-1 ${l.bg}`}>
-                            <span>{l.text}</span>
-                            {l.icon}
+                          <span className={`text-xs font-black px-2.5 py-0.5 rounded border border-black uppercase ${l.bg}`}>
+                            {l.text}
                           </span>
                         );
                       }
@@ -1701,10 +1846,28 @@ export default function HostLobby() {
                 )}
               </div>
 
-              <div className="mt-2 flex justify-center z-10">
+              <div className="mt-2 flex flex-wrap justify-center items-center gap-3 z-10">
+                {session.isHostPlayer !== false && (
+                  <button
+                    onClick={handleToggleSkip}
+                    className={`px-5 sm:px-6 py-3 border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 ${
+                      hostHasSkipped
+                        ? 'bg-purple-200 text-purple-950 border-dashed'
+                        : 'bg-white text-black hover:bg-slate-100'
+                    }`}
+                    title="Proposer de passer à la suite (ne force pas)"
+                  >
+                    {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}
+                    <span>{hostHasSkipped ? 'Prêt pour la suite' : 'Voter pour passer'}</span>
+                    <span className="text-xs bg-black text-white px-2 py-0.5 rounded font-mono">
+                      {revealSkipsCount} / {activeConnectedPlayers.length}
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={handleProceedAfterReveal}
                   className="px-6 sm:px-8 py-3 bg-host text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
+                  title="Forcer la suite pour tous"
                 >
                   <span>{session.currentVideoIndex + 1 === session.videos?.length ? 'Voir le classement' : 'Vidéo suivante'}</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1725,6 +1888,37 @@ export default function HostLobby() {
     );
 
     const resultsArray = Object.values(session.results || {});
+
+    // Compute vote statistics
+    const sessionAvg = resultsArray.length > 0
+      ? (resultsArray.reduce((acc, r) => acc + (r.average || 0), 0) / resultsArray.length)
+      : 0;
+
+    const hostId = session.hostPlayerId || '';
+    const hostRatedResults = resultsArray.filter(r => r.playerVotes?.[hostId] !== undefined);
+    const hostVotesCount = hostRatedResults.length;
+    const hostAvg = hostVotesCount > 0
+      ? (hostRatedResults.reduce((acc, r) => acc + (r.playerVotes?.[hostId] || 0), 0) / hostVotesCount)
+      : 0;
+    const hostDisplayName = session.players?.[hostId]?.name || hostCustomName.trim() || 'HOST';
+
+    const allPlayersList = Object.values(session.players || {});
+    const playersStats = allPlayersList.map(p => {
+      const pRated = resultsArray.filter(r => r.playerVotes?.[p.id] !== undefined);
+      const count = pRated.length;
+      const avg = count > 0 ? (pRated.reduce((acc, r) => acc + (r.playerVotes?.[p.id] || 0), 0) / count) : 0;
+      return {
+        ...p,
+        ratedCount: count,
+        avg,
+      };
+    });
+
+    const twitchRated = resultsArray.filter(r => (r.twitchVotesCount ?? 0) > 0);
+    const twitchCount = twitchRated.length;
+    const twitchAvg = twitchCount > 0
+      ? (twitchRated.reduce((acc, r) => acc + (r.twitchAverage || 0), 0) / twitchCount)
+      : 0;
 
     // Precalculate absolute ranks
     const rankedByPlayers = [...resultsArray].sort((a, b) => (b.average || 0) - (a.average || 0));
@@ -1834,6 +2028,37 @@ export default function HostLobby() {
                 />
               </div>
 
+              {/* Mobile Stats Summary (< lg only) */}
+              <div className={`flex lg:hidden flex-col gap-2.5 p-3.5 bg-white border-2 border-black rounded-2xl transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div className="flex items-center gap-1.5 border-b border-black/20 pb-1.5">
+                  <BarChart2 className="w-3.5 h-3.5 text-host shrink-0" />
+                  <span className="text-[11px] font-black uppercase text-black">Moyennes des votes</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col p-2 bg-slate-50 border border-black rounded-xl text-center">
+                    <span className="text-[9px] font-black uppercase text-slate-500">Moyenne Session</span>
+                    <span className="text-lg font-black text-black font-mono">
+                      {sessionAvg.toFixed(2)}<span className="text-[10px] text-slate-400 font-bold">/5</span>
+                    </span>
+                  </div>
+                  {session.isHostPlayer !== false ? (
+                    <div className="flex flex-col p-2 bg-amber-50 border border-black rounded-xl text-center">
+                      <span className="text-[9px] font-black uppercase text-amber-900 truncate">Moyenne {hostDisplayName}</span>
+                      <span className="text-lg font-black text-amber-950 font-mono">
+                        {hostVotesCount > 0 ? `${hostAvg.toFixed(2)}/5` : 'Non voté'}
+                      </span>
+                    </div>
+                  ) : isTwitchLinked && twitchCount > 0 ? (
+                    <div className="flex flex-col p-2 bg-purple-50 border border-black rounded-xl text-center">
+                      <span className="text-[9px] font-black uppercase text-purple-700">Chat Twitch</span>
+                      <span className="text-lg font-black text-purple-950 font-mono">
+                        {twitchAvg.toFixed(2)}<span className="text-[10px] text-purple-400 font-bold">/5</span>
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               {sortedResults.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-4 text-slate-500 font-bold text-xs sm:text-sm">
                   <p>Aucun vote n'a été enregistré pour le moment.</p>
@@ -1855,6 +2080,8 @@ export default function HostLobby() {
                         hasAnimatedOnce={hasAnimatedOnce}
                         isTwitchLinked={isTwitchLinked}
                         cardRef={(el) => { cardRefs.current[result.id] = el; }}
+                        playerVote={result.playerVotes?.[session.hostPlayerId || '']}
+                        showPlayerVoteBadge={session.isHostPlayer !== false}
                       />
                     );
                   })}
@@ -1873,8 +2100,85 @@ export default function HostLobby() {
               </div>
             </div>
 
-            {/* Right Side (Desktop): Home Button Only */}
-            <div className={`hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 self-start gap-3 z-20 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            {/* Right Side (Desktop): Vote Averages Sidebar + Home Button */}
+            <div className={`hidden lg:flex flex-col items-start w-52 xl:w-60 shrink-0 sticky top-8 self-start gap-4 z-20 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+              {/* Vote Averages Card - NO BOX SHADOW */}
+              <div className="w-full bg-white border-2 border-black rounded-2xl p-3.5 xl:p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-1.5 border-b-2 border-black pb-2">
+                  <BarChart2 className="w-4 h-4 text-host shrink-0" />
+                  <span className="text-xs font-black uppercase text-black">Moyennes des votes</span>
+                </div>
+
+                {/* Session General Average */}
+                <div className="flex flex-col bg-slate-50 border-2 border-black rounded-xl p-2.5">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Moyenne Session</span>
+                  <span className="text-2xl font-black text-black font-mono leading-tight mt-0.5">
+                    {sessionAvg.toFixed(2)}<span className="text-xs text-slate-500 font-bold">/5</span>
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400">
+                    ({resultsArray.length} {resultsArray.length === 1 ? 'thème' : 'thèmes'})
+                  </span>
+                </div>
+
+                {/* Host's Own Average (if Host is a player) */}
+                {session.isHostPlayer !== false && (
+                  <div className="flex flex-col bg-amber-50 border-2 border-black rounded-xl p-2.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-black uppercase text-amber-950 flex items-center gap-1 truncate">
+                        <Crown className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span className="truncate">Moyenne {hostDisplayName}</span>
+                      </span>
+                      <span className="text-[9px] font-black bg-amber-200 text-amber-900 border border-black px-1.5 py-0.2 rounded shrink-0">
+                        Host
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-amber-950 font-mono leading-tight mt-0.5">
+                      {hostVotesCount > 0 ? (
+                        <>{hostAvg.toFixed(2)}<span className="text-xs text-amber-700 font-bold">/5</span></>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-sans font-bold">Non voté</span>
+                      )}
+                    </span>
+                    <span className="text-[9px] font-bold text-amber-800">
+                      ({hostVotesCount}/{resultsArray.length} notés)
+                    </span>
+                  </div>
+                )}
+
+                {/* Twitch Average if linked */}
+                {isTwitchLinked && twitchCount > 0 && (
+                  <div className="flex flex-col bg-purple-50 border-2 border-black rounded-xl p-2.5">
+                    <span className="text-[10px] font-black uppercase text-purple-700">Chat Twitch</span>
+                    <span className="text-xl font-black text-purple-950 font-mono leading-tight mt-0.5">
+                      {twitchAvg.toFixed(2)}<span className="text-xs text-purple-400 font-bold">/5</span>
+                    </span>
+                    <span className="text-[9px] font-bold text-purple-500">
+                      ({twitchCount} {twitchCount === 1 ? 'thème noté' : 'thèmes notés'})
+                    </span>
+                  </div>
+                )}
+
+                {/* Breakdown by other players */}
+                {playersStats.filter(p => !p.isHost).length > 0 && (
+                  <div className="flex flex-col gap-1.5 pt-1 border-t border-black/15">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Par joueur :</span>
+                    <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-0.5">
+                      {playersStats
+                        .filter(p => !p.isHost)
+                        .map(p => (
+                          <div key={p.id} className="flex items-center justify-between p-1.5 bg-slate-50 border border-black rounded-lg text-xs">
+                            <span className="font-bold text-black truncate max-w-[90px]" title={p.name}>{p.name}</span>
+                            <span className="font-mono font-black text-black">
+                              {p.ratedCount > 0 ? `${p.avg.toFixed(2)}/5` : '—'}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Back to Home Button */}
               <button
                 onClick={handleBackToHome}
                 className="w-full py-3 px-3 bg-white border-2 border-black text-black hover:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2"
