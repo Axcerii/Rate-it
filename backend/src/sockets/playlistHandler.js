@@ -1,6 +1,7 @@
 import pool from '../db/db.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
+import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
 import { filterVideosByMalList } from '../services/malMatcher.js';
 import {
   sanitizeText,
@@ -12,6 +13,7 @@ import {
   recordAdminAttempt,
   sanitizeVideoId,
   validateMalUsername,
+  validateAnilistUsername,
   broadcastRoomUpdate,
   generatePlaylistSecretCode,
   checkSecretCodeRateLimit,
@@ -20,13 +22,20 @@ import {
 import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
 function verifyAdminAuth(password, socket) {
-  const clientKey = socket?.handshake?.address || socket?.id || 'admin';
+  const configuredPassword = process.env.ADMIN_PASSWORD ? String(process.env.ADMIN_PASSWORD).trim() : '';
+  if (!configuredPassword) {
+    console.error('Connexion admin refusée : la variable d\'environnement ADMIN_PASSWORD n\'est pas configurée sur le serveur.');
+    throw new Error('Connexion impossible : aucun mot de passe administrateur n\'est configuré sur le serveur.');
+  }
+
+  const forwarded = socket?.handshake?.headers?.['x-forwarded-for'];
+  const clientKey = forwarded ? forwarded.split(',')[0].trim() : (socket?.handshake?.address || socket?.id || 'admin');
+
   const rateLimit = checkAdminRateLimit(clientKey);
   if (!rateLimit.allowed) {
     throw new Error(`Trop de tentatives administratives incorrectes. Verrouillé pour encore ${rateLimit.remainingSec}s.`);
   }
 
-  const configuredPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const isValid = safeTimingCompare(String(password || ''), configuredPassword);
 
   recordAdminAttempt(clientKey, isValid);
@@ -135,7 +144,18 @@ export function registerPlaylistHandlers(io, socket) {
         [playlistId, cleanName, cleanDescription, secretCode]
       );
 
-      // Insert videos with YouTube availability check
+      // Identify videos already in database to avoid redundant YouTube API calls
+      const candidateYtIds = videos.map((v) => validateYoutubeId(v.youtubeId)).filter(Boolean);
+      let existingVideosMap = new Map();
+      if (candidateYtIds.length > 0) {
+        const existingRes = await client.query(
+          'SELECT youtube_id, id FROM videos WHERE youtube_id = ANY($1)',
+          [candidateYtIds]
+        );
+        existingVideosMap = new Map(existingRes.rows.map((r) => [r.youtube_id, r.id]));
+      }
+
+      // Insert videos (only verify with YouTube if the video is not yet in the database)
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
         const cleanTitle = sanitizeText(video.title, 255);
@@ -148,10 +168,12 @@ export function registerPlaylistHandlers(io, socket) {
           throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
         }
 
-        // Verify that the video is valid and public on YouTube
-        const ytCheck = await verifyYoutubeVideo(validYtId);
-        if (!ytCheck.valid) {
-          throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+        // Only verify on YouTube if this video is NOT already stored in the database
+        if (!existingVideosMap.has(validYtId)) {
+          const ytCheck = await verifyYoutubeVideo(validYtId);
+          if (!ytCheck.valid) {
+            throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+          }
         }
 
         // Upsert into unique videos catalog
@@ -205,7 +227,8 @@ export function registerPlaylistHandlers(io, socket) {
   // 2b. Verify secret code & load playlist in edit mode (fails if playlist is validated)
   socket.on('playlist:verify_secret_code', async ({ secretCode }, callback) => {
     try {
-      const clientKey = socket?.handshake?.address || socket?.id || 'client';
+      const forwarded = socket?.handshake?.headers?.['x-forwarded-for'];
+      const clientKey = forwarded ? forwarded.split(',')[0].trim() : (socket?.handshake?.address || socket?.id || 'client');
       const rateLimit = checkSecretCodeRateLimit(clientKey);
       if (!rateLimit.allowed) {
         throw new Error(`Trop de tentatives incorrectes. Veuillez patienter encore ${rateLimit.remainingSec}s.`);
@@ -243,6 +266,7 @@ export function registerPlaylistHandlers(io, socket) {
       const videosRes = await pool.query(
         `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
                 v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
+                v.anilist_id as "anilistId", v.anilist_title as "anilistTitle",
                 pt.order_index as "orderIndex", pt.id as "trackId"
          FROM playlist_tracks pt
          JOIN videos v ON pt.video_id = v.id
@@ -321,7 +345,18 @@ export function registerPlaylistHandlers(io, socket) {
         [cleanId]
       );
 
-      // 4. Upsert videos into catalog and recreate playlist_tracks links
+      // Identify videos already in database to avoid redundant YouTube API calls
+      const candidateYtIds = videos.map((v) => validateYoutubeId(v.youtubeId)).filter(Boolean);
+      let existingVideosMap = new Map();
+      if (candidateYtIds.length > 0) {
+        const existingRes = await client.query(
+          'SELECT youtube_id, id FROM videos WHERE youtube_id = ANY($1)',
+          [candidateYtIds]
+        );
+        existingVideosMap = new Map(existingRes.rows.map((r) => [r.youtube_id, r.id]));
+      }
+
+      // 4. Upsert videos into catalog and recreate playlist_tracks links (only verify with YouTube if not yet in DB)
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
         const cleanTitle = sanitizeText(video.title, 255);
@@ -334,10 +369,12 @@ export function registerPlaylistHandlers(io, socket) {
           throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
         }
 
-        // Verify that the video is valid and public on YouTube
-        const ytCheck = await verifyYoutubeVideo(validYtId);
-        if (!ytCheck.valid) {
-          throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+        // Only verify on YouTube if this video is NOT already stored in the database
+        if (!existingVideosMap.has(validYtId)) {
+          const ytCheck = await verifyYoutubeVideo(validYtId);
+          if (!ytCheck.valid) {
+            throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+          }
         }
 
         // Upsert into unique videos catalog
@@ -408,6 +445,7 @@ export function registerPlaylistHandlers(io, socket) {
       const videosRes = await pool.query(
         `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
                 v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
+                v.anilist_id as "anilistId", v.anilist_title as "anilistTitle",
                 pt.order_index as "orderIndex", pt.id as "trackId"
          FROM playlist_tracks pt
          JOIN videos v ON pt.video_id = v.id
@@ -440,7 +478,9 @@ export function registerPlaylistHandlers(io, socket) {
         return;
       }
       const result = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                anilist_id as "anilistId", anilist_title as "anilistTitle"
          FROM videos
          WHERE ${searchCondition.clause}
          ORDER BY id DESC
@@ -641,7 +681,9 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch all unique videos from the database
       const allVideosResult = await pool.query(
-        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                anilist_id as "anilistId", anilist_title as "anilistTitle"
          FROM videos
          ORDER BY id ASC`
       );
@@ -657,6 +699,47 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error matching MAL videos:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 9b. Match and return AniList videos for lobby preview / import
+  socket.on('playlist:get_anilist_videos', async ({ username }, callback) => {
+    try {
+      const cleanUsername = validateAnilistUsername(username);
+      if (!cleanUsername) {
+        throw new Error("Nom d'utilisateur AniList invalide (2-30 caractères alphanumériques)");
+      }
+
+      console.log(`Lobby fetching AniList list for user: ${cleanUsername}`);
+      const anilistTitles = await fetchUserCompletedAnimeFromAnilist(cleanUsername);
+
+      if (anilistTitles.length === 0) {
+        throw new Error('Aucun animé terminé trouvé sur ce profil AniList.');
+      }
+
+      // Fetch all unique videos from the database
+      const allVideosResult = await pool.query(
+        `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                anilist_id as "anilistId", anilist_title as "anilistTitle"
+         FROM videos
+         ORDER BY id ASC`
+      );
+
+      // Filter videos using matcher helper
+      const uniqueMatchedVideos = filterVideosByMalList(allVideosResult.rows, anilistTitles);
+
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          videos: uniqueMatchedVideos
+        });
+      }
+    } catch (error) {
+      console.error('Error matching AniList videos:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
@@ -679,9 +762,13 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('Playlist ID, Titre et ID YouTube valide sont requis');
       }
 
-      const ytCheck = await verifyYoutubeVideo(validYtId);
-      if (!ytCheck.valid) {
-        throw new Error(`La vidéo (${validYtId}) est indisponible sur YouTube : ${ytCheck.error}`);
+      // Only verify on YouTube if the video does not already exist in database
+      const existingVideoRes = await pool.query('SELECT id FROM videos WHERE youtube_id = $1', [validYtId]);
+      if (existingVideoRes.rows.length === 0) {
+        const ytCheck = await verifyYoutubeVideo(validYtId);
+        if (!ytCheck.valid) {
+          throw new Error(`La vidéo (${validYtId}) est indisponible sur YouTube : ${ytCheck.error}`);
+        }
       }
 
       // Upsert into unique videos catalog

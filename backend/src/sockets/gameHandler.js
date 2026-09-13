@@ -1,10 +1,12 @@
 import { getSession, saveSession } from '../store/sessionStore.js';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
+import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
 import { filterVideosByMalList } from '../services/malMatcher.js';
 import {
   sanitizeText,
   validateMalUsername,
+  validateAnilistUsername,
   broadcastRoomUpdate,
   sanitizeSessionForSocket,
 } from '../utils/security.js';
@@ -171,41 +173,67 @@ export function registerGameHandlers(io, socket) {
         throw new Error('Session introuvable');
       }
 
-      const { malUsername, playlistId, shuffle = true } = payload || {};
+      const { malUsername, anilistUsername, playlistId, shuffle = true } = payload || {};
       let videos = [];
       let activePlaylistId = sanitizeText(playlistId, 50);
-      const username = validateMalUsername(malUsername);
+      const cleanMalUsername = validateMalUsername(malUsername);
+      const cleanAnilistUsername = validateAnilistUsername(anilistUsername);
 
-      if (username) {
-        console.log(`Filtering playlist using MyAnimeList completed list of: ${username}`);
+      if (cleanAnilistUsername) {
+        console.log(`Filtering playlist using AniList completed list of: ${cleanAnilistUsername}`);
+        activePlaylistId = 'anilist-custom';
+        try {
+          const anilistTitles = await fetchUserCompletedAnimeFromAnilist(cleanAnilistUsername);
+          if (anilistTitles.length > 0) {
+            // Get all unique videos in DB to match
+            const allVideosResult = await pool.query(
+              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                      mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                      anilist_id as "anilistId", anilist_title as "anilistTitle"
+               FROM videos
+               ORDER BY id ASC`
+            );
+
+            // Filter videos using matcher helper
+            videos = filterVideosByMalList(allVideosResult.rows, anilistTitles);
+            console.log(`Found ${videos.length} matching AniList videos out of ${allVideosResult.rows.length} total videos`);
+          }
+        } catch (err) {
+          console.error(`Failed to filter with AniList list for user ${cleanAnilistUsername}:`, err);
+        }
+      } else if (cleanMalUsername) {
+        console.log(`Filtering playlist using MyAnimeList completed list of: ${cleanMalUsername}`);
         activePlaylistId = 'mal-custom';
         try {
-          const malTitles = await fetchUserCompletedAnime(username);
+          const malTitles = await fetchUserCompletedAnime(cleanMalUsername);
           if (malTitles.length > 0) {
             // Get all unique videos in DB to match
             const allVideosResult = await pool.query(
-              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"
+              `SELECT id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                      mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                      anilist_id as "anilistId", anilist_title as "anilistTitle"
                FROM videos
                ORDER BY id ASC`
             );
 
             // Filter videos using malMatcher helper
             videos = filterVideosByMalList(allVideosResult.rows, malTitles);
-
             console.log(`Found ${videos.length} matching MAL videos out of ${allVideosResult.rows.length} total videos`);
           }
         } catch (err) {
-          console.error(`Failed to filter with MAL list for user ${username}:`, err);
+          console.error(`Failed to filter with MAL list for user ${cleanMalUsername}:`, err);
         }
       }
 
-      // If not MAL, or if MAL query returned 0 matches, fetch from selected playlistId
+      // If neither AniList/MAL, or if query returned 0 matches, fetch from selected playlistId
       if (videos.length === 0) {
-        if (!activePlaylistId || activePlaylistId === 'mal-custom') {
+        if (!activePlaylistId || activePlaylistId === 'mal-custom' || activePlaylistId === 'anilist-custom') {
           throw new Error('Veuillez sélectionner une playlist valide pour commencer la partie.');
         }
         const result = await pool.query(
-          `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle"
+          `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", description, 
+                  v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle",
+                  v.anilist_id as "anilistId", v.anilist_title as "anilistTitle"
            FROM playlist_tracks pt
            JOIN videos v ON pt.video_id = v.id
            WHERE pt.playlist_id = $1 

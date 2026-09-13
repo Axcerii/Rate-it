@@ -22,6 +22,7 @@ export default function NewPlaylist() {
     updatePlaylistWithSecret,
     searchVideos,
     getMalVideos,
+    getAnilistVideos,
     getPlaylistDetails,
     verifyVideo,
     isConnected,
@@ -52,9 +53,11 @@ export default function NewPlaylist() {
   // Side Drawer state for Playlist Info & Quick Setup (starts closed to trigger slide-in animation)
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
 
-  // MAL Import state
+  // MAL & AniList Import state
   const [malUsernameInput, setMalUsernameInput] = useState('');
   const [isImportingMal, setIsImportingMal] = useState(false);
+  const [anilistUsernameInput, setAnilistUsernameInput] = useState('');
+  const [isImportingAnilist, setIsImportingAnilist] = useState(false);
 
   // Playlist Clone state
   const [clonePlaylistIdInput, setClonePlaylistIdInput] = useState('');
@@ -396,6 +399,45 @@ export default function NewPlaylist() {
       showBanner(err.message || 'Échec de l\'importation des vidéos MAL', 'error');
     } finally {
       setIsImportingMal(false);
+    }
+  };
+
+  const handleImportAnilist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const username = anilistUsernameInput.trim();
+    if (!username) return;
+
+    setIsImportingAnilist(true);
+    try {
+      const matched = await getAnilistVideos(username);
+      if (matched.length === 0) {
+        throw new Error('Aucune vidéo correspondante trouvée pour ce compte AniList dans la base.');
+      }
+
+      let addedCount = 0;
+      setVideos(prev => {
+        const updated = [...prev];
+        matched.forEach(item => {
+          const exists = updated.some(v => v.youtubeId === item.youtubeId);
+          if (!exists) {
+            updated.push({
+              artistName: item.artistName || 'Artiste inconnu',
+              title: item.title,
+              description: item.description || '',
+              youtubeId: item.youtubeId,
+            });
+            addedCount++;
+          }
+        });
+        return updated;
+      });
+      setAnilistUsernameInput('');
+      showBanner(`${addedCount} vidéos importées depuis le profil AniList : ${username}`, 'success');
+    } catch (err: any) {
+      showBanner(err.message || 'Échec de l\'importation des vidéos AniList', 'error');
+    } finally {
+      setIsImportingAnilist(false);
     }
   };
 
@@ -818,28 +860,53 @@ export default function NewPlaylist() {
               <span>Outils de configuration rapide</span>
             </h3>
 
-            {/* Import MAL */}
-            <div className="border-b border-dashed border-white/60 pb-4">
-              <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil MyAnimeList</label>
-              <p className="text-[10px] text-slate-700 font-bold mb-2">
-                Importez directement les vidéos correspondantes à un pseudo MAL.
-              </p>
-              <form onSubmit={handleImportMal} className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  value={malUsernameInput}
-                  onChange={(e) => setMalUsernameInput(e.target.value)}
-                  placeholder="Pseudo MyAnimeList..."
-                  className="flex-1 min-w-0 px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none text-xs font-bold shadow-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isImportingMal}
-                  className="px-4 py-2 border-2 border-white bg-white text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none"
-                >
-                  {isImportingMal ? '...' : 'Importer'}
-                </button>
-              </form>
+            {/* Import MAL & AniList */}
+            <div className="border-b border-dashed border-white/60 pb-4 flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil MyAnimeList</label>
+                <p className="text-[10px] text-slate-700 font-bold mb-2">
+                  Importez directement les vidéos correspondantes à un pseudo MAL.
+                </p>
+                <form onSubmit={handleImportMal} className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={malUsernameInput}
+                    onChange={(e) => setMalUsernameInput(e.target.value)}
+                    placeholder="Pseudo MyAnimeList..."
+                    className="flex-1 min-w-0 px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none text-xs font-bold shadow-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isImportingMal}
+                    className="px-4 py-2 border-2 border-white bg-white text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none"
+                  >
+                    {isImportingMal ? '...' : 'Importer'}
+                  </button>
+                </form>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil AniList</label>
+                <p className="text-[10px] text-slate-700 font-bold mb-2">
+                  Importez directement les vidéos correspondantes à un pseudo AniList.
+                </p>
+                <form onSubmit={handleImportAnilist} className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={anilistUsernameInput}
+                    onChange={(e) => setAnilistUsernameInput(e.target.value)}
+                    placeholder="Pseudo AniList..."
+                    className="flex-1 min-w-0 px-3 py-2 border-2 border-white bg-white rounded-xl focus:outline-none text-xs font-bold shadow-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isImportingAnilist}
+                    className="px-4 py-2 border-2 border-white bg-white text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none"
+                  >
+                    {isImportingAnilist ? '...' : 'Importer'}
+                  </button>
+                </form>
+              </div>
             </div>
 
             {/* Clone existing playlist */}

@@ -61,6 +61,7 @@ export default function HostLobby() {
     getPlaylistDetails,
     toggleLobbyVideo,
     getMalVideos,
+    getAnilistVideos,
     showBanner,
     toggleHostPlayer,
     submitVote,
@@ -98,6 +99,9 @@ export default function HostLobby() {
   const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
+  const [animePlatform, setAnimePlatform] = useState<'mal' | 'anilist'>('mal');
+  const [anilistUsername, setAnilistUsername] = useState('');
+  const [animeConnectedPlatform, setAnimeConnectedPlatform] = useState<'mal' | 'anilist'>('mal');
   const [malTracks, setMalTracks] = useState<any[]>([]);
   const [isLoadingMalTracks, setIsLoadingMalTracks] = useState(false);
   const [malLoadError, setMalLoadError] = useState<string | null>(null);
@@ -310,13 +314,23 @@ export default function HostLobby() {
     setSearchPlaylistError(null);
 
     if (quizMode === 'mal') {
-      const username = malUsername.trim();
+      const currentPlatform = animeConnectedPlatform || animePlatform;
+      const username = currentPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
       if (!username) {
-        showBanner('Indiquez votre nom d\'utilisateur MyAnimeList pour commencer.', 'warning');
+        showBanner(
+          currentPlatform === 'anilist'
+            ? 'Indiquez votre nom d\'utilisateur AniList pour commencer.'
+            : 'Indiquez votre nom d\'utilisateur MyAnimeList pour commencer.',
+          'warning'
+        );
         return;
       }
 
-      setLoadingMessage('Récupération de vos animés...');
+      setLoadingMessage(
+        currentPlatform === 'anilist'
+          ? 'Récupération de vos animés AniList...'
+          : 'Récupération de vos animés MyAnimeList...'
+      );
       const t1 = setTimeout(() => {
         setLoadingMessage('Association avec la base de données...');
       }, 1500);
@@ -325,7 +339,11 @@ export default function HostLobby() {
       }, 3000);
 
       try {
-        await startGame(username, undefined, isShuffleEnabled);
+        if (currentPlatform === 'anilist') {
+          await startGame(undefined, undefined, isShuffleEnabled, username);
+        } else {
+          await startGame(username, undefined, isShuffleEnabled);
+        }
       } catch (error: any) {
         clearTimeout(t1);
         clearTimeout(t2);
@@ -400,17 +418,21 @@ export default function HostLobby() {
     }
   };
 
-  const handleLoadMalTracks = async (e: React.FormEvent) => {
+  const handleLoadAnimeTracks = async (e: React.FormEvent, platform?: 'mal' | 'anilist') => {
     e.preventDefault();
     setMalLoadError(null);
-    const username = malUsername.trim();
+    const targetPlatform = platform || animePlatform;
+    const username = targetPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
     if (!username) return;
 
     setIsLoadingMalTracks(true);
     try {
-      const videos = await getMalVideos(username);
+      const videos = targetPlatform === 'anilist'
+        ? await getAnilistVideos(username)
+        : await getMalVideos(username);
       setMalTracks(videos);
       setMalConnectedUser(username);
+      setAnimeConnectedPlatform(targetPlatform);
     } catch (err: any) {
       setMalLoadError(err.message || 'Impossible de récupérer les animés. Vérifiez que le pseudo existe bien.');
       setMalConnectedUser(null);
@@ -850,7 +872,7 @@ export default function HostLobby() {
                 : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
                 }`}
             >
-              <span className="uppercase">Basé sur mon MyAnimeList</span>
+              <span className="uppercase">Basé sur mes AnimeLists (MAL / AniList)</span>
             </button>
           </div>
 
@@ -1279,25 +1301,72 @@ export default function HostLobby() {
                   </div>
                 </div>
               ) : (
-                /* MYANIMELIST SELECTION CARD */
+                /* ANIMELIST (MAL / ANILIST) SELECTION CARD */
                 <div className="info-card p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden">
-                  {/* Connexion MAL form at the top */}
+                  {/* Platform Selector & Connexion form */}
                   <div className="border-b-2 border-black pb-4 mb-4 flex flex-col gap-2.5">
-                    <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2 text-accent-red">
-                      <span>MyAnimeList connexion</span>
-                    </h3>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black pb-2">
+                      <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 text-accent-red">
+                        <span>{animePlatform === 'anilist' ? 'AniList Connexion' : 'MyAnimeList Connexion'}</span>
+                      </h3>
+
+                      {/* Segmented Platform Toggle */}
+                      <div className="inline-flex border-2 border-black rounded-xl overflow-hidden text-xs font-black shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAnimePlatform('mal');
+                            setMalLoadError(null);
+                          }}
+                          className={`px-3 py-1.5 uppercase transition ${
+                            animePlatform === 'mal'
+                              ? 'bg-[#2E51A2] text-white'
+                              : 'bg-white text-black hover:bg-slate-100'
+                          }`}
+                        >
+                          MyAnimeList
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAnimePlatform('anilist');
+                            setMalLoadError(null);
+                          }}
+                          className={`px-3 py-1.5 uppercase transition border-l-2 border-black ${
+                            animePlatform === 'anilist'
+                              ? 'bg-[#02A9FF] text-white'
+                              : 'bg-white text-black hover:bg-slate-100'
+                          }`}
+                        >
+                          AniList
+                        </button>
+                      </div>
+                    </div>
+
                     <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
-                      Entrez votre pseudo MyAnimeList pour prendre automatiquement les openings des animes que vous avez complétés.
+                      {animePlatform === 'anilist'
+                        ? 'Entrez votre pseudo AniList pour prendre automatiquement les openings des animes que vous avez complétés.'
+                        : 'Entrez votre pseudo MyAnimeList pour prendre automatiquement les openings des animes que vous avez complétés.'}
                     </p>
 
-                    <form onSubmit={handleLoadMalTracks} className="flex flex-col sm:flex-row gap-2 mt-1">
-                      <input
-                        type="text"
-                        value={malUsername}
-                        onChange={(e) => setMalUsername(e.target.value)}
-                        placeholder="Pseudo MyAnimeList..."
-                        className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl"
-                      />
+                    <form onSubmit={handleLoadAnimeTracks} className="flex flex-col sm:flex-row gap-2 mt-1">
+                      {animePlatform === 'anilist' ? (
+                        <input
+                          type="text"
+                          value={anilistUsername}
+                          onChange={(e) => setAnilistUsername(e.target.value)}
+                          placeholder="Pseudo AniList..."
+                          className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={malUsername}
+                          onChange={(e) => setMalUsername(e.target.value)}
+                          placeholder="Pseudo MyAnimeList..."
+                          className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl"
+                        />
+                      )}
                       <button
                         type="submit"
                         disabled={isLoadingMalTracks}
@@ -1319,7 +1388,7 @@ export default function HostLobby() {
                     <div className="flex-1 flex flex-col gap-4">
                       <div className="bg-emerald-50 p-3.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
                         <p className="text-xs sm:text-sm text-emerald-950 font-black">
-                          Voici la liste des openings trouvés pour le compte: <span className="underline">{malConnectedUser}</span> ({malTracks.length} openings trouvés)
+                          Voici la liste des openings trouvés pour le compte {animeConnectedPlatform === 'anilist' ? 'AniList' : 'MyAnimeList'}: <span className="underline">{malConnectedUser}</span> ({malTracks.length} openings trouvés)
                         </p>
                       </div>
 
@@ -1361,7 +1430,7 @@ export default function HostLobby() {
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8 text-center">
                       <p className="text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
-                        Rentrez votre pseudo MyAnimeList et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
+                        Rentrez votre pseudo {animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
                       </p>
                     </div>
                   )}

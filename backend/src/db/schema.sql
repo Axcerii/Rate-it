@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS videos (
   description TEXT,
   mal_anime_id INTEGER,
   mal_title VARCHAR(255),
+  anilist_id INTEGER,
+  anilist_title VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -45,8 +47,10 @@ CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id ON playlist_tracks(pl
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_video_id ON playlist_tracks(video_id);
 CREATE INDEX IF NOT EXISTS idx_videos_youtube_id ON videos(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_videos_mal_anime_id ON videos(mal_anime_id);
+CREATE INDEX IF NOT EXISTS idx_videos_anilist_id ON videos(anilist_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_youtube_id ON ratings(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_playlist_id ON ratings(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_secret_code ON playlists(secret_code);
+
 
 

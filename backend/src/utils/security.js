@@ -215,6 +215,21 @@ export function validateMalUsername(username) {
 }
 
 /**
+ * Validates an AniList username (2-30 chars, alphanumeric + underscore + hyphen).
+ *
+ * @param {any} username
+ * @returns {string|null} Valid AniList username or null
+ */
+export function validateAnilistUsername(username) {
+  if (!username) return null;
+  const str = String(username).trim();
+  if (/^[a-zA-Z0-9_-]{2,30}$/.test(str)) {
+    return str;
+  }
+  return null;
+}
+
+/**
  * Sanitizes and validates a video identifier against prototype pollution and malformed values.
  *
  * @param {any} id

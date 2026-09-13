@@ -36,6 +36,7 @@ export async function checkDbConnection() {
 
 import { runManyToManyMigration } from './migrate_to_many_to_many.js';
 import { runSecretCodeMigration } from './migrate_secret_code.js';
+import { ensureAniListColumns } from './migrate_anilist.js';
 
 export async function initializeDatabase() {
   try {
@@ -45,7 +46,10 @@ export async function initializeDatabase() {
     // 2. Run secret-code migration safely (adds column & backfills existing playlists)
     await runSecretCodeMigration();
 
-    // 2. Initialize and verify schema definitions & seed data
+    // 3. Ensure AniList columns exist
+    await ensureAniListColumns(pool);
+
+    // 4. Initialize and verify schema definitions & seed data
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(schemaSql);

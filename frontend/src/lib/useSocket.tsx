@@ -27,7 +27,7 @@ interface SocketContextType {
   joinRoom: (sessionId: string, playerName: string) => Promise<GameSession>;
   leaveRoom: () => void;
   deleteRoom: () => Promise<void>;
-  startGame: (malUsername?: string, playlistId?: string, shuffle?: boolean) => Promise<GameSession>;
+  startGame: (malUsername?: string, playlistId?: string, shuffle?: boolean, anilistUsername?: string) => Promise<GameSession>;
   nextVideo: () => Promise<GameSession>;
   previousVideo: () => Promise<GameSession>;
   showResults: () => Promise<GameSession>;
@@ -46,6 +46,7 @@ interface SocketContextType {
   deletePlaylist: (id: string, password?: string) => Promise<void>;
   cleanStalePlaylists: (password?: string) => Promise<number>;
   getMalVideos: (username: string) => Promise<any[]>;
+  getAnilistVideos: (username: string) => Promise<any[]>;
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
   adminUpdatePlaylist: (id: string, data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean }, password?: string) => Promise<any>;
@@ -405,7 +406,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const startGame = (malUsername?: string, playlistId?: string, shuffle?: boolean): Promise<GameSession> => {
+  const startGame = (malUsername?: string, playlistId?: string, shuffle?: boolean, anilistUsername?: string): Promise<GameSession> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       
@@ -413,7 +414,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reject(new Error('Start game request timed out. Please try again.'));
       }, 12000);
 
-      socket.emit('game:start', { malUsername, playlistId, shuffle }, (response: any) => {
+      socket.emit('game:start', { malUsername, playlistId, shuffle, anilistUsername }, (response: any) => {
         clearTimeout(timeoutId);
         if (response.success) {
           setSession(response.session);
@@ -674,6 +675,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const getAnilistVideos = (username: string): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Failed to fetch matched AniList openings: Request timed out.'));
+      }, 10000);
+
+      socket.emit('playlist:get_anilist_videos', { username }, (response: any) => {
+        clearTimeout(timeoutId);
+        if (response.success) {
+          resolve(response.videos);
+        } else {
+          reject(new Error(response.error || 'Failed to match AniList videos'));
+        }
+      });
+    });
+  };
+
   const getVideoStats = (youtubeId: string): Promise<any> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
@@ -873,6 +893,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deletePlaylist,
         cleanStalePlaylists,
         getMalVideos,
+        getAnilistVideos,
         getVideoStats,
         getGlobalStats,
         adminUpdatePlaylist,

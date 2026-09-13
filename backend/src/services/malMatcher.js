@@ -35,15 +35,22 @@ export function filterVideosByMalList(videos, malTitles) {
 
   const matchedVideos = videos.filter((video) => {
     // 1. Primary check: Exact MAL Anime ID match if specified on video
-    if (video.malAnimeId) {
-      const parsedVideoMalId = parseInt(video.malAnimeId, 10);
+    if (video.malAnimeId || video.mal_anime_id) {
+      const parsedVideoMalId = parseInt(video.malAnimeId || video.mal_anime_id, 10);
       const hasDirectIdMatch = malTitles.some(entry => entry.animeId && parseInt(entry.animeId, 10) === parsedVideoMalId);
       if (hasDirectIdMatch) return true;
     }
 
+    // 1b. Direct AniList ID match if specified on video
+    if (video.anilistId || video.anilist_id) {
+      const parsedVideoAnilistId = parseInt(video.anilistId || video.anilist_id, 10);
+      const hasDirectAnilistMatch = malTitles.some(entry => entry.anilistId && parseInt(entry.anilistId, 10) === parsedVideoAnilistId);
+      if (hasDirectAnilistMatch) return true;
+    }
+
     // 2. Secondary check: Explicit MAL Anime Title match if specified on video
-    if (video.malTitle) {
-      const normExplicitMalTitle = normalizeText(video.malTitle);
+    if (video.malTitle || video.mal_title) {
+      const normExplicitMalTitle = normalizeText(video.malTitle || video.mal_title);
       if (normExplicitMalTitle.length >= 2) {
         const hasExplicitTitleMatch = malTitles.some(entry => {
           const normEntryTitle = normalizeText(entry.title);
@@ -57,6 +64,23 @@ export function filterVideosByMalList(videos, malTitles) {
       }
     }
 
+    // 2b. Explicit AniList Anime Title match if specified on video
+    const videoAnilistTitle = video.anilistTitle || video.anilist_title;
+    if (videoAnilistTitle) {
+      const normExplicitAnilistTitle = normalizeText(videoAnilistTitle);
+      if (normExplicitAnilistTitle.length >= 2) {
+        const hasExplicitAnilistTitleMatch = malTitles.some(entry => {
+          const normEntryTitle = normalizeText(entry.title);
+          const normEntryEngTitle = normalizeText(entry.englishTitle);
+          return (
+            (normEntryTitle && (normEntryTitle.includes(normExplicitAnilistTitle) || normExplicitAnilistTitle.includes(normEntryTitle))) ||
+            (normEntryEngTitle && (normEntryEngTitle.includes(normExplicitAnilistTitle) || normExplicitAnilistTitle.includes(normEntryEngTitle)))
+          );
+        });
+        if (hasExplicitAnilistTitleMatch) return true;
+      }
+    }
+
     // 3. Fallback: Fuzzy matching against video description, title, and artist name
     const normDescription = normalizeText(video.description);
     const normTitle = normalizeText(video.title);
@@ -64,7 +88,11 @@ export function filterVideosByMalList(videos, malTitles) {
     const textToSearch = `${normDescription} ${normArtist} ${normTitle}`;
 
     return malTitles.some((entry) => {
-      const rawTitles = [entry.title, entry.englishTitle].filter(Boolean);
+      const rawTitles = [
+        entry.title,
+        entry.englishTitle,
+        ...(Array.isArray(entry.synonyms) ? entry.synonyms : []),
+      ].filter(Boolean);
 
       return rawTitles.some((raw) => {
         const normMal = normalizeText(raw);

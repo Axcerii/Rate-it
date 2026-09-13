@@ -20,6 +20,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Trust reverse proxy (Nginx) headers for accurate client IP identification
+app.set('trust proxy', 1);
+
 // Security HTTP Headers Middleware
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
@@ -103,6 +106,12 @@ async function startServer() {
     await checkDbConnection();
     await initializeDatabase();
     await connectRedis();
+
+    if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_PASSWORD.trim()) {
+      console.warn('⚠️  ATTENTION : La variable ADMIN_PASSWORD n\'est pas définie. L\'accès administrateur est désactivé.');
+    } else {
+      console.log('🔒 Accès administrateur configuré et sécurisé.');
+    }
 
     httpServer.listen(PORT, () => {
       console.log(`Server listening on http://localhost:${PORT}`);
