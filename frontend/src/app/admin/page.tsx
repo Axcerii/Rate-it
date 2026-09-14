@@ -116,6 +116,8 @@ export default function AdminConsole() {
   const [newTrackUrl, setNewTrackUrl] = useState('');
   const [newTrackMalTitle, setNewTrackMalTitle] = useState('');
   const [newTrackMalAnimeId, setNewTrackMalAnimeId] = useState('');
+  const [newTrackAnilistTitle, setNewTrackAnilistTitle] = useState('');
+  const [newTrackAnilistId, setNewTrackAnilistId] = useState('');
 
   // Video In-Depth Edit Modal state
   const [modalVideo, setModalVideo] = useState<any | null>(null);
@@ -125,6 +127,8 @@ export default function AdminConsole() {
   const [editYoutubeId, setEditYoutubeId] = useState('');
   const [editMalTitle, setEditMalTitle] = useState('');
   const [editMalAnimeId, setEditMalAnimeId] = useState('');
+  const [editAnilistTitle, setEditAnilistTitle] = useState('');
+  const [editAnilistId, setEditAnilistId] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editModalError, setEditModalError] = useState<string | null>(null);
   const [editTestStatus, setEditTestStatus] = useState<{ checking: boolean; valid?: boolean; error?: string; title?: string } | null>(null);
@@ -413,7 +417,9 @@ export default function AdminConsole() {
         newTrackDescription.trim(),
         newTrackMalAnimeId.trim() || undefined,
         newTrackMalTitle.trim() || undefined,
-        adminPassword
+        adminPassword,
+        newTrackAnilistId.trim() || undefined,
+        newTrackAnilistTitle.trim() || undefined
       );
 
       // Refresh playlist tracks
@@ -427,6 +433,8 @@ export default function AdminConsole() {
       setNewTrackUrl('');
       setNewTrackMalTitle('');
       setNewTrackMalAnimeId('');
+      setNewTrackAnilistTitle('');
+      setNewTrackAnilistId('');
       setActionSuccess('Piste ajoutée à la playlist avec succès !');
 
       if (activeTab === 'videos') {
@@ -516,6 +524,8 @@ export default function AdminConsole() {
     setEditYoutubeId(video.youtubeId || '');
     setEditMalTitle(video.malTitle || '');
     setEditMalAnimeId(video.malAnimeId ? String(video.malAnimeId) : '');
+    setEditAnilistTitle(video.anilistTitle || '');
+    setEditAnilistId(video.anilistId ? String(video.anilistId) : '');
     setEditModalError(null);
     setEditTestStatus(null);
   };
@@ -568,6 +578,8 @@ export default function AdminConsole() {
           youtubeId: cleanYtId,
           malTitle: editMalTitle.trim() || undefined,
           malAnimeId: editMalAnimeId.trim() ? parseInt(editMalAnimeId.trim(), 10) : undefined,
+          anilistTitle: editAnilistTitle.trim() || undefined,
+          anilistId: editAnilistId.trim() ? parseInt(editAnilistId.trim(), 10) : undefined,
         },
         adminPassword
       );
@@ -858,6 +870,26 @@ export default function AdminConsole() {
                             className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
                           />
                         </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">Titre AniList de l'Animé (Optionnel)</label>
+                          <input
+                            type="text"
+                            value={newTrackAnilistTitle}
+                            onChange={(e) => setNewTrackAnilistTitle(e.target.value)}
+                            placeholder="ex: Shingeki no Kyojin..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black uppercase mb-0.5 text-slate-600">ID Animé AniList (Optionnel)</label>
+                          <input
+                            type="number"
+                            value={newTrackAnilistId}
+                            onChange={(e) => setNewTrackAnilistId(e.target.value)}
+                            placeholder="ex: 16498..."
+                            className="w-full px-2.5 py-1.5 border border-black bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
                         <button
                           type="submit"
                           className="w-full py-2 bg-[#BF1539] text-white border border-black font-black text-[10px] uppercase rounded-lg btn-action-hover mt-1"
@@ -1141,6 +1173,23 @@ export default function AdminConsole() {
                               ) : (
                                 <span className="font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                                   Pas de liaison MAL
+                                </span>
+                              )}
+
+                              {/* AniList Liaison Tag */}
+                              {video.anilistId ? (
+                                <a
+                                  href={`https://anilist.co/anime/${video.anilistId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-bold text-sky-700 hover:text-sky-900 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-flex items-center gap-1"
+                                >
+                                  <span>AniList: {video.anilistTitle || `#${video.anilistId}`}</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              ) : (
+                                <span className="font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  Pas de liaison AniList
                                 </span>
                               )}
 
@@ -1605,6 +1654,40 @@ export default function AdminConsole() {
                       type="number"
                       value={editMalAnimeId}
                       onChange={(e) => setEditMalAnimeId(e.target.value)}
+                      placeholder="ex: 30..."
+                      className="w-full px-2.5 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-bold focus:outline-none shadow-none text-black"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* AniList Integration Fields */}
+              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-2.5 shadow-none">
+                <span className="text-[10px] font-black uppercase text-black flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Liaison AniList</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-700 mb-0.5">
+                      Titre Animé AniList
+                    </label>
+                    <input
+                      type="text"
+                      value={editAnilistTitle}
+                      onChange={(e) => setEditAnilistTitle(e.target.value)}
+                      placeholder="ex: Shin Seiki Evangelion..."
+                      className="w-full px-2.5 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-bold focus:outline-none shadow-none text-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-700 mb-0.5">
+                      ID Animé AniList (Chiffre)
+                    </label>
+                    <input
+                      type="number"
+                      value={editAnilistId}
+                      onChange={(e) => setEditAnilistId(e.target.value)}
                       placeholder="ex: 30..."
                       className="w-full px-2.5 py-1.5 border-2 border-white bg-white rounded-lg text-xs font-bold focus:outline-none shadow-none text-black"
                     />

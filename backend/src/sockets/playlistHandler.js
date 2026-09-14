@@ -1,7 +1,7 @@
 import pool from '../db/db.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
-import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
+import { fetchUserCompletedAnimeFromAnilist, resolveAnilistForAnime } from '../services/anilistService.js';
 import { filterVideosByMalList } from '../services/malMatcher.js';
 import {
   sanitizeText,
@@ -162,7 +162,10 @@ export function registerPlaylistHandlers(io, socket) {
         const validYtId = validateYoutubeId(video.youtubeId);
         const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
         const cleanVideoDesc = sanitizeText(video.description, 1000);
-        const cleanMalTitle = sanitizeText(video.malTitle, 255);
+        let cleanMalTitle = sanitizeText(video.malTitle, 255);
+        let cleanAnilistTitle = sanitizeText(video.anilistTitle, 255);
+        let parsedMalAnimeId = video.malAnimeId ? parseInt(video.malAnimeId, 10) : null;
+        let parsedAnilistId = video.anilistId ? parseInt(video.anilistId, 10) : null;
 
         if (!cleanTitle || !validYtId) {
           throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
@@ -174,26 +177,47 @@ export function registerPlaylistHandlers(io, socket) {
           if (!ytCheck.valid) {
             throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
           }
+
+          // Auto-resolve AniList <-> MAL link if one is missing
+          if (!parsedAnilistId || !parsedMalAnimeId) {
+            try {
+              const resolved = await resolveAnilistForAnime({
+                malAnimeId: parsedMalAnimeId,
+                malTitle: cleanMalTitle,
+                title: cleanTitle,
+                anilistId: parsedAnilistId,
+              });
+              if (resolved) {
+                if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
+                if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
+                if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
+              }
+            } catch (_) {}
+          }
         }
 
         // Upsert into unique videos catalog
         const videoUpsertRes = await client.query(
-          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (youtube_id) DO UPDATE SET
              title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
              artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
              description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
              mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
+             anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
+             anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
            RETURNING id`,
           [
             validYtId,
             cleanTitle,
             cleanArtistName,
             cleanVideoDesc,
-            video.malAnimeId ? parseInt(video.malAnimeId, 10) : null,
+            parsedMalAnimeId,
             cleanMalTitle || null,
+            parsedAnilistId,
+            cleanAnilistTitle || null,
           ]
         );
 
@@ -363,7 +387,10 @@ export function registerPlaylistHandlers(io, socket) {
         const validYtId = validateYoutubeId(video.youtubeId);
         const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
         const cleanVideoDesc = sanitizeText(video.description, 1000);
-        const cleanMalTitle = sanitizeText(video.malTitle, 255);
+        let cleanMalTitle = sanitizeText(video.malTitle, 255);
+        let cleanAnilistTitle = sanitizeText(video.anilistTitle, 255);
+        let parsedMalAnimeId = video.malAnimeId ? parseInt(video.malAnimeId, 10) : null;
+        let parsedAnilistId = video.anilistId ? parseInt(video.anilistId, 10) : null;
 
         if (!cleanTitle || !validYtId) {
           throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
@@ -375,26 +402,47 @@ export function registerPlaylistHandlers(io, socket) {
           if (!ytCheck.valid) {
             throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
           }
+
+          // Auto-resolve AniList <-> MAL link if one is missing
+          if (!parsedAnilistId || !parsedMalAnimeId) {
+            try {
+              const resolved = await resolveAnilistForAnime({
+                malAnimeId: parsedMalAnimeId,
+                malTitle: cleanMalTitle,
+                title: cleanTitle,
+                anilistId: parsedAnilistId,
+              });
+              if (resolved) {
+                if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
+                if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
+                if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
+              }
+            } catch (_) {}
+          }
         }
 
         // Upsert into unique videos catalog
         const videoUpsertRes = await client.query(
-          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (youtube_id) DO UPDATE SET
              title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
              artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
              description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
              mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
+             anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
+             anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
            RETURNING id`,
           [
             validYtId,
             cleanTitle,
             cleanArtistName,
             cleanVideoDesc,
-            video.malAnimeId ? parseInt(video.malAnimeId, 10) : null,
+            parsedMalAnimeId,
             cleanMalTitle || null,
+            parsedAnilistId,
+            cleanAnilistTitle || null,
           ]
         );
 
@@ -747,7 +795,7 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // Admin: Add video to playlist
-  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, callback) => {
+  socket.on('playlist:admin_add_video', async ({ playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, anilistId, anilistTitle, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
 
@@ -756,10 +804,32 @@ export function registerPlaylistHandlers(io, socket) {
       const validYtId = validateYoutubeId(youtubeId);
       const cleanArtistName = sanitizeText(artistName, 255) || 'Unknown Artist';
       const cleanVideoDesc = sanitizeText(description, 1000);
-      const cleanMalTitle = sanitizeText(malTitle, 255);
+      let cleanMalTitle = sanitizeText(malTitle, 255);
+      let cleanAnilistTitle = sanitizeText(anilistTitle, 255);
+      let parsedMalAnimeId = malAnimeId ? parseInt(malAnimeId, 10) : null;
+      let parsedAnilistId = anilistId ? parseInt(anilistId, 10) : null;
 
       if (!cleanPlaylistId || !cleanTitle || !validYtId) {
         throw new Error('Playlist ID, Titre et ID YouTube valide sont requis');
+      }
+
+      // Auto-resolve AniList <-> MAL link if one is missing
+      if (!parsedAnilistId || !parsedMalAnimeId) {
+        try {
+          const resolved = await resolveAnilistForAnime({
+            malAnimeId: parsedMalAnimeId,
+            malTitle: cleanMalTitle,
+            title: cleanTitle,
+            anilistId: parsedAnilistId,
+          });
+          if (resolved) {
+            if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
+            if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
+            if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
+          }
+        } catch (e) {
+          console.warn('Auto-resolve AniList failed for admin add:', e.message);
+        }
       }
 
       // Only verify on YouTube if the video does not already exist in database
@@ -773,22 +843,26 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Upsert into unique videos catalog
       const videoUpsertRes = await pool.query(
-        `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (youtube_id) DO UPDATE SET
            title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
            artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
            description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
            mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-           mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title)
+           mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
+           anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
+           anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
          RETURNING id`,
         [
           validYtId,
           cleanTitle,
           cleanArtistName,
           cleanVideoDesc,
-          malAnimeId ? parseInt(malAnimeId, 10) : null,
+          parsedMalAnimeId,
           cleanMalTitle || null,
+          !isNaN(parsedAnilistId) ? parsedAnilistId : null,
+          cleanAnilistTitle || null,
         ]
       );
       const videoId = videoUpsertRes.rows[0].id;
@@ -926,7 +1000,7 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // Admin: Update existing video details (updates across ALL playlists simultaneously)
-  socket.on('playlist:admin_update_video', async ({ videoId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, callback) => {
+  socket.on('playlist:admin_update_video', async ({ videoId, title, youtubeId, artistName, description, malAnimeId, malTitle, anilistId, anilistTitle, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
 
@@ -935,10 +1009,32 @@ export function registerPlaylistHandlers(io, socket) {
       const validYtId = validateYoutubeId(youtubeId);
       const cleanArtistName = sanitizeText(artistName, 255) || 'Unknown Artist';
       const cleanVideoDesc = sanitizeText(description, 1000);
-      const cleanMalTitle = sanitizeText(malTitle, 255);
+      let cleanMalTitle = sanitizeText(malTitle, 255);
+      let cleanAnilistTitle = sanitizeText(anilistTitle, 255);
+      let parsedMalAnimeId = malAnimeId ? parseInt(malAnimeId, 10) : null;
+      let parsedAnilistId = anilistId ? parseInt(anilistId, 10) : null;
 
       if (isNaN(cleanVideoId) || !cleanTitle || !validYtId) {
         throw new Error('ID Vidéo, Titre et ID YouTube valide sont requis');
+      }
+
+      // Auto-resolve AniList <-> MAL link if one is missing
+      if (!parsedAnilistId || !parsedMalAnimeId) {
+        try {
+          const resolved = await resolveAnilistForAnime({
+            malAnimeId: parsedMalAnimeId,
+            malTitle: cleanMalTitle,
+            title: cleanTitle,
+            anilistId: parsedAnilistId,
+          });
+          if (resolved) {
+            if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
+            if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
+            if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
+          }
+        } catch (e) {
+          console.warn('Auto-resolve AniList failed for admin update:', e.message);
+        }
       }
 
       const ytCheck = await verifyYoutubeVideo(validYtId);
@@ -953,16 +1049,22 @@ export function registerPlaylistHandlers(io, socket) {
              artist_name = $3,
              description = $4,
              mal_anime_id = $5,
-             mal_title = $6
-         WHERE id = $7
-         RETURNING id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, mal_anime_id as "malAnimeId", mal_title as "malTitle"`,
+             mal_title = $6,
+             anilist_id = $7,
+             anilist_title = $8
+         WHERE id = $9
+         RETURNING id::text, title, youtube_id as "youtubeId", artist_name as "artistName", description, 
+                   mal_anime_id as "malAnimeId", mal_title as "malTitle",
+                   anilist_id as "anilistId", anilist_title as "anilistTitle"`,
         [
           cleanTitle,
           validYtId,
           cleanArtistName,
           cleanVideoDesc,
-          malAnimeId ? parseInt(malAnimeId, 10) : null,
+          parsedMalAnimeId,
           cleanMalTitle || null,
+          !isNaN(parsedAnilistId) ? parsedAnilistId : null,
+          cleanAnilistTitle || null,
           cleanVideoId,
         ]
       );
@@ -998,6 +1100,7 @@ export function registerPlaylistHandlers(io, socket) {
         SELECT v.id::text,
                v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName",
                v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle",
+               v.anilist_id as "anilistId", v.anilist_title as "anilistTitle",
                COUNT(pt.id)::int as "playlistsCount"
         FROM videos v
         LEFT JOIN playlist_tracks pt ON v.id = pt.video_id

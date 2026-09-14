@@ -50,11 +50,11 @@ interface SocketContextType {
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
   adminUpdatePlaylist: (id: string, data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean }, password?: string) => Promise<any>;
-  adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string) => Promise<string>;
+  adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string, anilistId?: number | string, anilistTitle?: string) => Promise<string>;
   adminAddExistingVideo: (playlistId: string, videoId: string | number, password?: string) => Promise<string>;
   adminDeleteVideo: (playlistId: string, videoId: string, password?: string) => Promise<void>;
   adminDeleteVideoDirect: (videoId: string | number, password?: string) => Promise<void>;
-  adminUpdateVideo: (videoId: string | number, videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string }, password?: string) => Promise<any>;
+  adminUpdateVideo: (videoId: string | number, videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string; anilistId?: number | string; anilistTitle?: string }, password?: string) => Promise<any>;
   adminSearchVideos: (query?: string, limit?: number, offset?: number, password?: string) => Promise<{ videos: any[]; total: number }>;
   verifyVideo: (youtubeId: string) => Promise<{ valid: boolean; title?: string; author?: string; error?: string }>;
   verifyAdminPassword: (password: string) => Promise<boolean>;
@@ -741,10 +741,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const adminAddVideo = (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string): Promise<string> => {
+  const adminAddVideo = (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string, anilistId?: number | string, anilistTitle?: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:admin_add_video', { playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, password }, (response: any) => {
+      socket.emit('playlist:admin_add_video', { playlistId, title, youtubeId, artistName, description, malAnimeId, malTitle, anilistId, anilistTitle, password }, (response: any) => {
         if (response.success) {
           resolve(response.videoId);
         } else {
@@ -799,7 +799,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const adminUpdateVideo = (
     videoId: string | number,
-    videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string },
+    videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string; anilistId?: number | string; anilistTitle?: string },
     password?: string
   ): Promise<any> => {
     return new Promise((resolve, reject) => {

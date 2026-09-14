@@ -40,7 +40,7 @@ export function buildVideoSearchConditions(rawQuery, paramStartIndex = 1, tableA
   }
 
   const t = tableAlias ? `${tableAlias}.` : '';
-  const corpus = `(COALESCE(${t}title, '') || ' ' || COALESCE(${t}artist_name, '') || ' ' || COALESCE(${t}description, '') || ' ' || COALESCE(${t}mal_title, '') || ' ' || COALESCE(${t}youtube_id, ''))`;
+  const corpus = `(COALESCE(${t}title, '') || ' ' || COALESCE(${t}artist_name, '') || ' ' || COALESCE(${t}description, '') || ' ' || COALESCE(${t}mal_title, '') || ' ' || COALESCE(${t}anilist_title, '') || ' ' || COALESCE(${t}youtube_id, ''))`;
 
   const conditions = [];
   const params = [];
