@@ -239,7 +239,20 @@ export async function runAniListMigration(options = {}) {
 
       for (let idx = 0; idx < withoutMalId.length; idx++) {
         const video = withoutMalId[idx];
-        const searchTitle = video.mal_title || video.title;
+        // Only search AniList using explicit anime title (mal_title) or structured anime description
+        // Never use video.title (the song name) as searchTitle!
+        let searchTitle = video.mal_title;
+        if (!searchTitle && video.description) {
+          const descMatch = video.description.match(/(?:Opening|Ending|Insert Song)(?:\s+\d+)?\s*[-–:]\s*(.+)/i);
+          if (descMatch && descMatch[1]) {
+            searchTitle = descMatch[1].trim();
+          }
+        }
+
+        if (!searchTitle || searchTitle.trim().length < 2) {
+          notFoundVideos.push(video);
+          continue;
+        }
 
         process.stdout.write(`🔍 [${idx + 1}/${withoutMalId.length}] Recherche pour "${searchTitle}"... `);
         const match = await searchAniListByTitle(searchTitle);
