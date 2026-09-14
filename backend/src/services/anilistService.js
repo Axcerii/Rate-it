@@ -195,8 +195,10 @@ export async function resolveAnilistForAnime({ malAnimeId, malTitle, title, anil
     }
   }
 
-  // 3. Fallback: try resolving by title (malTitle or title)
-  const searchTitle = malTitle || title;
+  // 3. Fallback: try resolving by explicit anime title (malTitle ONLY)
+  // We strictly avoid using song/track title ('title') as an anime query to prevent unrelated songs (e.g. VTubers, J-Pop)
+  // from being falsely tagged with anime that happen to share a word (e.g. "VIOLET" -> "Violet Evergarden").
+  const searchTitle = malTitle;
   if (searchTitle && String(searchTitle).trim().length >= 2) {
     try {
       const controller = new AbortController();

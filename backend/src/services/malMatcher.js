@@ -6,6 +6,13 @@ export const ANIME_SYNONYMS = {
 };
 
 /**
+ * Escapes regex special characters in a string.
+ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Normalizes text for comparison by converting to lowercase,
  * removing accents, removing season/part suffixes, and stripping special characters.
  */
@@ -22,10 +29,43 @@ export function normalizeText(str) {
 }
 
 /**
- * Filters a list of database videos against a user's MAL completed anime list.
+ * Compares two anime titles cleanly using exact match, synonyms, or whole-word match.
+ */
+export function isAnimeTitleMatch(titleA, titleB) {
+  if (!titleA || !titleB) return false;
+  const a = normalizeText(titleA);
+  const b = normalizeText(titleB);
+  if (!a || !b) return false;
+
+  // Exact normalized match
+  if (a === b) return true;
+
+  // Dictionary synonyms match
+  for (const synonyms of Object.values(ANIME_SYNONYMS)) {
+    const normSynonyms = synonyms.map(normalizeText);
+    const hasA = normSynonyms.some(s => s === a || (s.length >= 4 && a.includes(s)));
+    const hasB = normSynonyms.some(s => s === b || (s.length >= 4 && b.includes(s)));
+    if (hasA && hasB) return true;
+  }
+
+  // Word-boundary matching only if both strings are substantial (>= 4 characters)
+  // to avoid false positives like "k" in "k-on" or "nana" in "nanatsu no taizai"
+  if (a.length >= 4 && b.length >= 4) {
+    const regexA = new RegExp(`(^|\\s)${escapeRegex(a)}(\\s|$)`);
+    const regexB = new RegExp(`(^|\\s)${escapeRegex(b)}(\\s|$)`);
+    if (regexA.test(b) || regexB.test(a)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Filters a list of database videos against a user's MAL/AniList completed anime list.
  *
- * @param {Array} videos - Array of video objects from DB (with title, artistName, description, youtubeId, malAnimeId, malTitle)
- * @param {Array} malTitles - Array of MAL title entries ({ animeId, title, englishTitle })
+ * @param {Array} videos - Array of video objects from DB (with title, artistName, description, youtubeId, malAnimeId, malTitle, anilistId, anilistTitle)
+ * @param {Array} malTitles - Array of MAL/AniList title entries ({ animeId, anilistId, title, englishTitle, synonyms })
  * @returns {Array} Matched and deduplicated video objects
  */
 export function filterVideosByMalList(videos, malTitles) {
@@ -48,85 +88,48 @@ export function filterVideosByMalList(videos, malTitles) {
       if (hasDirectAnilistMatch) return true;
     }
 
-    // 2. Secondary check: Explicit MAL Anime Title match if specified on video
-    if (video.malTitle || video.mal_title) {
-      const normExplicitMalTitle = normalizeText(video.malTitle || video.mal_title);
-      if (normExplicitMalTitle.length >= 2) {
-        const hasExplicitTitleMatch = malTitles.some(entry => {
-          const normEntryTitle = normalizeText(entry.title);
-          const normEntryEngTitle = normalizeText(entry.englishTitle);
-          return (
-            (normEntryTitle && (normEntryTitle.includes(normExplicitMalTitle) || normExplicitMalTitle.includes(normEntryTitle))) ||
-            (normEntryEngTitle && (normEntryEngTitle.includes(normExplicitMalTitle) || normExplicitMalTitle.includes(normEntryEngTitle)))
-          );
-        });
-        if (hasExplicitTitleMatch) return true;
-      }
-    }
+    // 2. Secondary check: Explicit Anime Title match (malTitle or anilistTitle)
+    const explicitAnimeTitle = video.malTitle || video.mal_title || video.anilistTitle || video.anilist_title;
+    if (explicitAnimeTitle) {
+      const hasTitleMatch = malTitles.some(entry => {
+        const candidateTitles = [
+          entry.title,
+          entry.englishTitle,
+          ...(Array.isArray(entry.synonyms) ? entry.synonyms : []),
+        ].filter(Boolean);
 
-    // 2b. Explicit AniList Anime Title match if specified on video
-    const videoAnilistTitle = video.anilistTitle || video.anilist_title;
-    if (videoAnilistTitle) {
-      const normExplicitAnilistTitle = normalizeText(videoAnilistTitle);
-      if (normExplicitAnilistTitle.length >= 2) {
-        const hasExplicitAnilistTitleMatch = malTitles.some(entry => {
-          const normEntryTitle = normalizeText(entry.title);
-          const normEntryEngTitle = normalizeText(entry.englishTitle);
-          return (
-            (normEntryTitle && (normEntryTitle.includes(normExplicitAnilistTitle) || normExplicitAnilistTitle.includes(normEntryTitle))) ||
-            (normEntryEngTitle && (normEntryEngTitle.includes(normExplicitAnilistTitle) || normExplicitAnilistTitle.includes(normEntryEngTitle)))
-          );
-        });
-        if (hasExplicitAnilistTitleMatch) return true;
-      }
-    }
-
-    // 3. Fallback: Fuzzy matching against video description, title, and artist name
-    const normDescription = normalizeText(video.description);
-    const normTitle = normalizeText(video.title);
-    const normArtist = normalizeText(video.artistName);
-    const textToSearch = `${normDescription} ${normArtist} ${normTitle}`;
-
-    return malTitles.some((entry) => {
-      const rawTitles = [
-        entry.title,
-        entry.englishTitle,
-        ...(Array.isArray(entry.synonyms) ? entry.synonyms : []),
-      ].filter(Boolean);
-
-      return rawTitles.some((raw) => {
-        const normMal = normalizeText(raw);
-        if (!normMal || normMal.length < 3) return false;
-
-        // Direct inclusion in either direction
-        if (
-          textToSearch.includes(normMal) ||
-          (normDescription && normMal.includes(normDescription)) ||
-          (normTitle && normMal.includes(normTitle))
-        ) {
-          return true;
-        }
-
-        // Synonyms lookup
-        for (const synonyms of Object.values(ANIME_SYNONYMS)) {
-          const hasVideoSyn = synonyms.some((s) => textToSearch.includes(normalizeText(s)));
-          const hasMalSyn = synonyms.some((s) => normMal.includes(normalizeText(s)));
-
-          if (hasVideoSyn && hasMalSyn) {
-            return true;
-          }
-        }
-
-        // Significant word / token matching
-        const malWords = normMal.split(' ').filter((w) => w.length >= 3 && !['the', 'and', 'for', 'you', 'movie', 'specials'].includes(w));
-        if (malWords.length >= 2) {
-          const allWordsPresent = malWords.every((word) => textToSearch.includes(word));
-          if (allWordsPresent) return true;
-        }
-
-        return false;
+        return candidateTitles.some(cTitle => isAnimeTitleMatch(explicitAnimeTitle, cTitle));
       });
-    });
+      if (hasTitleMatch) return true;
+    }
+
+    // 3. Fallback: ONLY check description if NO explicit anime title is specified on the video.
+    // NEVER search song title or artist name, and NEVER check if anime title contains the song/description!
+    // This allows legacy tracks that only noted the anime in the description (e.g. "Opening - Violet Evergarden")
+    // to be matched strictly against the anime title, using whole word boundaries.
+    if (!explicitAnimeTitle && video.description) {
+      const normDesc = normalizeText(video.description);
+      if (normDesc.length >= 4) {
+        const hasDescMatch = malTitles.some(entry => {
+          const candidateTitles = [
+            entry.title,
+            entry.englishTitle,
+            ...(Array.isArray(entry.synonyms) ? entry.synonyms : []),
+          ].filter(Boolean);
+
+          return candidateTitles.some(cTitle => {
+            const normMal = normalizeText(cTitle);
+            if (!normMal || normMal.length < 4) return false;
+            // Check if the complete anime title is present in description as complete words
+            const malRegex = new RegExp(`(^|\\s)${escapeRegex(normMal)}(\\s|$)`);
+            return malRegex.test(normDesc);
+          });
+        });
+        if (hasDescMatch) return true;
+      }
+    }
+
+    return false;
   });
 
   // Deduplicate matched videos by youtubeId (or fallback key)

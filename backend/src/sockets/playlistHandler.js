@@ -178,13 +178,12 @@ export function registerPlaylistHandlers(io, socket) {
             throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
           }
 
-          // Auto-resolve AniList <-> MAL link if one is missing
-          if (!parsedAnilistId || !parsedMalAnimeId) {
+          // Auto-resolve AniList <-> MAL link only if an anime reference is present
+          if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
             try {
               const resolved = await resolveAnilistForAnime({
                 malAnimeId: parsedMalAnimeId,
                 malTitle: cleanMalTitle,
-                title: cleanTitle,
                 anilistId: parsedAnilistId,
               });
               if (resolved) {
@@ -403,13 +402,12 @@ export function registerPlaylistHandlers(io, socket) {
             throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
           }
 
-          // Auto-resolve AniList <-> MAL link if one is missing
-          if (!parsedAnilistId || !parsedMalAnimeId) {
+          // Auto-resolve AniList <-> MAL link only if an anime reference is present
+          if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
             try {
               const resolved = await resolveAnilistForAnime({
                 malAnimeId: parsedMalAnimeId,
                 malTitle: cleanMalTitle,
-                title: cleanTitle,
                 anilistId: parsedAnilistId,
               });
               if (resolved) {
@@ -813,13 +811,12 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('Playlist ID, Titre et ID YouTube valide sont requis');
       }
 
-      // Auto-resolve AniList <-> MAL link if one is missing
-      if (!parsedAnilistId || !parsedMalAnimeId) {
+      // Auto-resolve AniList <-> MAL link only if an anime reference is present
+      if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
         try {
           const resolved = await resolveAnilistForAnime({
             malAnimeId: parsedMalAnimeId,
             malTitle: cleanMalTitle,
-            title: cleanTitle,
             anilistId: parsedAnilistId,
           });
           if (resolved) {
@@ -1018,13 +1015,12 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('ID Vidéo, Titre et ID YouTube valide sont requis');
       }
 
-      // Auto-resolve AniList <-> MAL link if one is missing
-      if (!parsedAnilistId || !parsedMalAnimeId) {
+      // Auto-resolve AniList <-> MAL link only if an anime reference is present
+      if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
         try {
           const resolved = await resolveAnilistForAnime({
             malAnimeId: parsedMalAnimeId,
             malTitle: cleanMalTitle,
-            title: cleanTitle,
             anilistId: parsedAnilistId,
           });
           if (resolved) {
