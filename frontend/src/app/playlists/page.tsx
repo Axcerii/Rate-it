@@ -54,6 +54,9 @@ export default function PlaylistsPage() {
   // Host launching state
   const [startingHostId, setStartingHostId] = useState<string | null>(null);
 
+  // Progressive track rendering for instant accordion opening
+  const [visibleTrackCounts, setVisibleTrackCounts] = useState<{ [id: string]: number }>({});
+
   // Fetch playlists on mount
   useEffect(() => {
     let isMounted = true;
@@ -345,6 +348,8 @@ export default function PlaylistsPage() {
                           <img
                             src={`https://img.youtube.com/vi/${playlist.first_video_youtube_id}/mqdefault.jpg`}
                             alt={playlist.name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               (e.target as HTMLElement).style.display = 'none';
@@ -465,7 +470,7 @@ export default function PlaylistsPage() {
                         </p>
                       ) : (
                         <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
-                          {tracks.map((track, idx) => (
+                          {tracks.slice(0, visibleTrackCounts[playlist.id] || 15).map((track, idx) => (
                             <div
                               key={track.trackId || track.id || idx}
                               className={`flex items-center justify-between p-2 rounded-xl border border-black gap-2.5 transition-colors ${
@@ -482,6 +487,8 @@ export default function PlaylistsPage() {
                                   <img
                                     src={`https://img.youtube.com/vi/${track.youtubeId}/default.jpg`}
                                     alt={track.title}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover"
                                   />
                                 </div>
@@ -516,6 +523,21 @@ export default function PlaylistsPage() {
                               </a>
                             </div>
                           ))}
+
+                          {tracks.length > (visibleTrackCounts[playlist.id] || 15) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisibleTrackCounts((prev) => ({
+                                  ...prev,
+                                  [playlist.id]: (prev[playlist.id] || 15) + 30,
+                                }))
+                              }
+                              className="w-full py-2 mt-1 bg-slate-100 hover:bg-slate-200 active:translate-x-0.5 active:translate-y-0.5 text-black border-2 border-black rounded-xl font-black text-xs uppercase transition text-center"
+                            >
+                              + Afficher les morceaux suivants ({tracks.length - (visibleTrackCounts[playlist.id] || 15)} restants)
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

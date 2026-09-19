@@ -1159,14 +1159,16 @@ export default function AdminConsole() {
                     return (
                       <div
                         key={video.id}
-                        className="p-3.5 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000] flex flex-col sm:flex-row gap-3.5 items-start sm:items-center justify-between"
+                        className="p-3.5 border-2 border-black bg-white rounded-2xl shadow-none flex flex-col sm:flex-row gap-3.5 items-start sm:items-center justify-between"
                       >
                         {/* Thumbnail & Track Details */}
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="relative w-20 sm:w-24 aspect-video bg-black rounded-lg border border-black overflow-hidden shrink-0">
                             <img
-                              src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                              src={`https://img.youtube.com/vi/${video.youtubeId}/default.jpg`}
                               alt={video.title}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 (e.target as HTMLElement).style.display = 'none';
