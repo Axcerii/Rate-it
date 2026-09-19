@@ -30,8 +30,8 @@ export default function PlaylistsButton({
       {/* Visually Hidden Text for Screen Readers */}
       <span className="sr-only">{ariaText}</span>
 
-      {/* Main Card Container in Playlist Color (#BF1539), strictly NO box shadow */}
-      <div className="relative w-full aspect-[4/1.2] sm:aspect-[4/1] rounded-3xl bg-[#BF1539] border-4 border-black ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:ring-4 group-focus:ring-4 group-focus-visible:ring-4 group-hover:ring-[#BF1539]/60 group-focus:ring-[#BF1539]/60 group-focus-visible:ring-[#BF1539]/60 group-hover:bg-[#cf1840] group-focus:bg-[#cf1840] group-focus-visible:bg-[#cf1840] group-active:scale-[0.99] group-active:translate-x-0.5 group-active:translate-y-0.5 overflow-visible flex items-center justify-center">
+      {/* Main Card Container in Playlist Color (var(--bg-playlist) #BF1539), strictly NO box shadow */}
+      <div className="relative w-full aspect-[4/1.2] sm:aspect-[4/1] rounded-3xl bg-[var(--bg-playlist,#BF1539)] border-4 border-black ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:ring-4 group-focus:ring-4 group-focus-visible:ring-4 group-hover:ring-[var(--bg-playlist,#BF1539)]/60 group-focus:ring-[var(--bg-playlist,#BF1539)]/60 group-focus-visible:ring-[var(--bg-playlist,#BF1539)]/60 group-hover:bg-[#cf1840] group-focus:bg-[#cf1840] group-focus-visible:bg-[#cf1840] group-active:scale-[0.99] group-active:translate-x-0.5 group-active:translate-y-0.5 overflow-visible flex items-center justify-center">
 
         {/* Subtle inner gradient overlay */}
         <div className="absolute inset-0 rounded-[20px] bg-gradient-to-br from-white/20 via-transparent to-black/15 pointer-events-none z-0 overflow-hidden" />

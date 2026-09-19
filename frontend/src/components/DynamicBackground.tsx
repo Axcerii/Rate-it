@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 export const SECTION_COLORS = {
   MENU: '#FEEC66',     // Main Menu
   HOST: '#24B3F1',     // Hosting & Hosting playing
-  PLAYLIST: '#BF1539', // Playlists & Creating a Playlist
+  PLAYLIST: '#BF1539', // Playlists Catalog (/playlists)
+  CREATE: '#2fc355',   // Create Playlist (/playlists/new)
   PLAY: '#DD4DCC',     // Joining & Rating
   ADMIN: '#1b1b1b',    // Admin
 } as const;
@@ -18,6 +19,8 @@ export default function DynamicBackground({ children }: { children: React.ReactN
 
   if (pathname.startsWith('/host')) {
     bgColor = SECTION_COLORS.HOST;
+  } else if (pathname.startsWith('/playlists/new')) {
+    bgColor = SECTION_COLORS.CREATE;
   } else if (pathname.startsWith('/playlists')) {
     bgColor = SECTION_COLORS.PLAYLIST;
   } else if (pathname.startsWith('/play')) {
