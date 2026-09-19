@@ -35,12 +35,12 @@ const getBannerConfig = (type: BannerType = 'error', sender?: string): ThemeConf
       };
     case 'success':
       return {
-        bgClass: 'bg-playlist text-white',
+        bgClass: 'bg-playlist text-black',
         badgeBg: 'bg-black',
         badgeText: 'text-playlist',
         badgeLabel: 'SUCCÈS',
-        textColor: 'text-white',
-        icon: <CheckCircle2 className="w-5 h-5 text-playlist" />,
+        textColor: 'text-black',
+        icon: <CheckCircle2 className="w-5 h-5 text-black" />,
       };
     case 'warning':
       return {
