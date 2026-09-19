@@ -30,6 +30,17 @@ import {
   Check,
 } from 'lucide-react';
 
+const CATEGORIES = [
+  'Film/Cinéma',
+  'Série/TV',
+  'Anime/Manga',
+  'Musique',
+  'Streaming/VTuber',
+  'Youtube',
+  'KPop',
+  'JPop',
+] as const;
+
 export default function AdminConsole() {
   const router = useRouter();
   const {
@@ -39,6 +50,7 @@ export default function AdminConsole() {
     cleanStalePlaylists,
     getPlaylistDetails,
     adminUpdatePlaylist,
+    adminSetFirstVideo,
     adminAddVideo,
     adminAddExistingVideo,
     adminDeleteVideo,
@@ -66,10 +78,24 @@ export default function AdminConsole() {
   const [editPlaylistDesc, setEditPlaylistDesc] = useState('');
   const [editPlaylistIsValidated, setEditPlaylistIsValidated] = useState(false);
   const [editPlaylistIsCustom, setEditPlaylistIsCustom] = useState(true);
+  const [editPlaylistCategories, setEditPlaylistCategories] = useState<string[]>([]);
   const [editPlaylistSecret, setEditPlaylistSecret] = useState('');
   const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
   const [editPlaylistError, setEditPlaylistError] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+
+  const handleSetFirstVideo = async (trackId: string | number) => {
+    if (!editingPlaylistId) return;
+    try {
+      const updatedTracks = await adminSetFirstVideo(editingPlaylistId, trackId, adminPassword);
+      setEditingPlaylistTracks(updatedTracks);
+      setActionSuccess('Première vidéo (miniature de couverture) mise à jour avec succès !');
+      await fetchLists();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Erreur lors du changement de première vidéo');
+    }
+  };
 
   const handleCopySecret = async (secret: string, playlistId: string) => {
     try {
@@ -301,6 +327,7 @@ export default function AdminConsole() {
     setEditPlaylistIsValidated(!!playlist.is_validated);
     setEditPlaylistIsCustom(playlist.is_custom !== false);
     setEditPlaylistSecret(playlist.secretCode || '');
+    setEditPlaylistCategories(Array.isArray(playlist.categories) ? playlist.categories : []);
     setEditPlaylistError(null);
   };
 
@@ -322,6 +349,7 @@ export default function AdminConsole() {
           description: editPlaylistDesc.trim(),
           isValidated: editPlaylistIsValidated,
           isCustom: editPlaylistIsCustom,
+          categories: editPlaylistCategories,
         },
         adminPassword
       );
@@ -642,7 +670,7 @@ export default function AdminConsole() {
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 bg-[#BF1539] text-white border-2 border-black font-black text-sm uppercase rounded-xl btn-action-hover"
+                className="flex-1 py-3 bg-[#1b1b1b] hover:bg-black text-white border-2 border-black font-black text-sm uppercase rounded-xl btn-action-hover"
               >
                 Connexion
               </button>
@@ -661,8 +689,8 @@ export default function AdminConsole() {
       {/* Header */}
       <div className="w-full max-w-6xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-black pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#990000] drop-shadow-[2px_2px_0px_#000] flex items-center gap-3">
-            <ShieldCheck className="w-9 h-9 text-[#990000]" />
+          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#1b1b1b] flex items-center gap-3">
+            <ShieldCheck className="w-9 h-9 text-[#1b1b1b]" />
             <span>ADMIN CONSOLE</span>
           </h1>
           <p className="text-sm font-bold text-slate-700 mt-1">
@@ -678,7 +706,7 @@ export default function AdminConsole() {
           </button>
           <button
             onClick={handleLogout}
-            className="px-4 py-2 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl btn-action-hover"
+            className="px-4 py-2 border-2 border-black bg-[#1b1b1b] hover:bg-black text-white font-black text-xs uppercase rounded-xl btn-action-hover"
           >
             Déconnexion
           </button>
@@ -689,7 +717,7 @@ export default function AdminConsole() {
         {/* Left Side: Cleanup Controls & Playlist Editor */}
         <div className="lg:col-span-1 flex flex-col gap-6">
           <div className="info-card p-6 rounded-2xl">
-            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#BF1539]">
+            <h2 className="text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-[#1b1b1b]">
               Nettoyage de la BDD
             </h2>
             <p className="text-xs text-slate-700 leading-relaxed mb-4 font-bold">
@@ -738,18 +766,40 @@ export default function AdminConsole() {
                       <p className="text-[10px] text-slate-400 py-4 text-center">Aucune piste dans cette playlist.</p>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {editingPlaylistTracks.map((track) => (
+                        {editingPlaylistTracks.map((track, idx) => (
                           <div
-                            key={track.id}
-                            className="flex items-center justify-between text-[11px] font-bold py-1.5 px-1 border-b border-slate-100 last:border-b-0 gap-2 hover:bg-slate-50 rounded"
+                            key={track.trackId || track.id}
+                            className={`flex items-center justify-between text-[11px] font-bold py-1.5 px-2 border-b border-slate-100 last:border-b-0 gap-2 rounded ${
+                              idx === 0 ? 'bg-amber-50 border border-amber-300' : 'hover:bg-slate-50'
+                            }`}
                           >
-                            <div className="truncate text-left flex-1 min-w-0">
-                              <span className="font-black text-black text-[10px] block truncate">{track.title}</span>
-                              <span className="text-slate-600 text-[9px] block truncate">
-                                par {track.artistName || 'Artiste inconnu'} {track.malTitle ? `(MAL: ${track.malTitle})` : ''}
-                              </span>
+                            <div className="flex items-center gap-1.5 truncate text-left flex-1 min-w-0">
+                              <span className="font-mono text-[9px] text-slate-400 w-4 shrink-0">#{idx + 1}</span>
+                              <div className="truncate min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black text-black text-[10px] block truncate">{track.title}</span>
+                                  {idx === 0 && (
+                                    <span className="text-[8px] font-black uppercase bg-amber-400 text-black px-1.5 py-0.2 rounded border border-black shrink-0">
+                                      ⭐ 1ère (Cover)
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-slate-600 text-[9px] block truncate">
+                                  par {track.artistName || 'Artiste inconnu'} {track.malTitle ? `(MAL: ${track.malTitle})` : ''}
+                                </span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              {idx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetFirstVideo(track.trackId || track.id)}
+                                  title="Définir comme 1ère vidéo (miniature de couverture)"
+                                  className="px-1.5 py-0.5 bg-white hover:bg-amber-100 text-black border border-black rounded text-[9px] font-black uppercase flex items-center gap-1 btn-action-hover"
+                                >
+                                  <span>⭐ Mettre 1ère</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(track)}
@@ -780,7 +830,7 @@ export default function AdminConsole() {
                         type="button"
                         onClick={() => setTrackAddMode('new')}
                         className={`flex-1 py-1.5 px-2 text-[9px] font-black uppercase rounded flex items-center justify-center gap-1 transition ${
-                          trackAddMode === 'new' ? 'bg-[#BF1539] text-white shadow-sm' : 'text-slate-700 hover:bg-white'
+                          trackAddMode === 'new' ? 'bg-[#1b1b1b] text-white' : 'text-slate-700 hover:bg-white'
                         }`}
                       >
                         <Plus className="w-3 h-3" />
@@ -795,7 +845,7 @@ export default function AdminConsole() {
                           }
                         }}
                         className={`flex-1 py-1.5 px-2 text-[9px] font-black uppercase rounded flex items-center justify-center gap-1 transition ${
-                          trackAddMode === 'existing' ? 'bg-[#24B3F1] text-black shadow-sm' : 'text-slate-700 hover:bg-white'
+                          trackAddMode === 'existing' ? 'bg-[#24B3F1] text-black' : 'text-slate-700 hover:bg-white'
                         }`}
                       >
                         <Database className="w-3 h-3" />
@@ -892,7 +942,7 @@ export default function AdminConsole() {
                         </div>
                         <button
                           type="submit"
-                          className="w-full py-2 bg-[#BF1539] text-white border border-black font-black text-[10px] uppercase rounded-lg btn-action-hover mt-1"
+                          className="w-full py-2 bg-[#1b1b1b] hover:bg-black text-white border border-black font-black text-[10px] uppercase rounded-lg btn-action-hover mt-1"
                         >
                           Ajouter la piste
                         </button>
@@ -981,7 +1031,7 @@ export default function AdminConsole() {
             <button
               onClick={() => setActiveTab('pending')}
               className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${
-                activeTab === 'pending' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'
+                activeTab === 'pending' ? 'bg-[#1b1b1b] text-white' : 'bg-white hover:bg-slate-100'
               }`}
             >
               En attente ({communityLists.length})
@@ -989,7 +1039,7 @@ export default function AdminConsole() {
             <button
               onClick={() => setActiveTab('validated')}
               className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${
-                activeTab === 'validated' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'
+                activeTab === 'validated' ? 'bg-[#1b1b1b] text-white' : 'bg-white hover:bg-slate-100'
               }`}
             >
               Validées ({validatedLists.length})
@@ -997,7 +1047,7 @@ export default function AdminConsole() {
             <button
               onClick={() => setActiveTab('all')}
               className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${
-                activeTab === 'all' ? 'bg-[#BF1539] text-white' : 'bg-white hover:bg-slate-100'
+                activeTab === 'all' ? 'bg-[#1b1b1b] text-white' : 'bg-white hover:bg-slate-100'
               }`}
             >
               Toutes ({allLists.length})
@@ -1005,7 +1055,7 @@ export default function AdminConsole() {
             <button
               onClick={() => setActiveTab('videos')}
               className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition flex items-center gap-1.5 ${
-                activeTab === 'videos' ? 'bg-[#24B3F1] text-black shadow-md' : 'bg-white hover:bg-slate-100'
+                activeTab === 'videos' ? 'bg-[#24B3F1] text-black' : 'bg-white hover:bg-slate-100'
               }`}
             >
               <Film className="w-3.5 h-3.5" />
@@ -1283,7 +1333,7 @@ export default function AdminConsole() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-black rounded-xl">
                         <span className="text-[10px] font-black text-slate-500 uppercase">Note Moyenne Globale</span>
-                        <span className="text-3xl font-black font-mono text-[#BF1539] mt-1">
+                        <span className="text-3xl font-black font-mono text-[#1b1b1b] mt-1">
                           {globalStats.overall.averageRating.toFixed(2)} / 5
                         </span>
                       </div>
@@ -1511,7 +1561,7 @@ export default function AdminConsole() {
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-[#BF1539]" />
+                <Pencil className="w-5 h-5 text-[#1b1b1b]" />
                 <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
                   Maintenance Vidéo (ID: {modalVideo.id})
                 </h3>
@@ -1707,7 +1757,7 @@ export default function AdminConsole() {
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="flex-1 py-2.5 bg-[#BF1539] hover:bg-red-700 text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
+                  className="flex-1 py-2.5 bg-[#1b1b1b] hover:bg-black text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
                 >
                   {isSavingEdit ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
@@ -1726,7 +1776,7 @@ export default function AdminConsole() {
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-[#BF1539]" />
+                <Sliders className="w-5 h-5 text-[#1b1b1b]" />
                 <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
                   Modifier la Playlist ({modalPlaylist.id})
                 </h3>
@@ -1842,6 +1892,37 @@ export default function AdminConsole() {
                 </label>
               </div>
 
+              {/* Category Tags Selector */}
+              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-2 shadow-none">
+                <label className="text-[10px] font-black uppercase text-slate-800 flex items-center justify-between">
+                  <span>Catégories / Filtres</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Sélectionnez les tags applicables</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {CATEGORIES.map((cat) => {
+                    const isSelected = editPlaylistCategories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setEditPlaylistCategories((prev) =>
+                            isSelected ? prev.filter((c) => c !== cat) : [...prev, cat]
+                          );
+                        }}
+                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all ${
+                          isSelected
+                            ? 'bg-[#1b1b1b] text-white border-black'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        {isSelected ? `✓ ${cat}` : cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
@@ -1854,7 +1935,7 @@ export default function AdminConsole() {
                 <button
                   type="submit"
                   disabled={isSavingPlaylist}
-                  className="flex-1 py-2.5 bg-[#BF1539] hover:bg-red-700 text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
+                  className="flex-1 py-2.5 bg-[#1b1b1b] hover:bg-black text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
                 >
                   {isSavingPlaylist ? 'Enregistrement...' : 'Enregistrer'}
                 </button>

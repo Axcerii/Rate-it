@@ -466,3 +466,50 @@ export function broadcastRoomUpdate(io, session) {
     }
   }
 }
+
+/**
+ * Whitelist of permitted playlist categories.
+ */
+export const ALLOWED_PLAYLIST_CATEGORIES = [
+  'Film/Cinéma',
+  'Série/TV',
+  'Anime/Manga',
+  'Musique',
+  'Streaming/VTuber',
+  'Youtube',
+  'KPop',
+  'JPop',
+];
+
+/**
+ * Strict regex ensuring only exact, valid category strings without harmful characters.
+ */
+export const CATEGORY_REGEX = /^(Film\/Cinéma|Série\/TV|Anime\/Manga|Musique|Streaming\/VTuber|Youtube|KPop|JPop)$/;
+
+/**
+ * Validates and sanitizes a list of category tags to strictly prevent XSS and injection attacks.
+ *
+ * @param {any} categories - Input categories (array or comma-delimited string)
+ * @returns {string[]} Sanitized list of valid categories
+ */
+export function validateAndSanitizeCategories(categories) {
+  if (!categories) return [];
+
+  const rawList = Array.isArray(categories)
+    ? categories
+    : typeof categories === 'string'
+      ? categories.split(',')
+      : [];
+
+  const sanitized = [];
+  for (const item of rawList) {
+    if (typeof item !== 'string') continue;
+    const clean = sanitizeText(item, 50).trim();
+    if (CATEGORY_REGEX.test(clean) && !sanitized.includes(clean)) {
+      sanitized.push(clean);
+    }
+  }
+
+  return sanitized;
+}
+

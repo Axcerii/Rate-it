@@ -36,12 +36,12 @@ interface SocketContextType {
   connectTwitch: (channelName: string) => Promise<string>;
   disconnectTwitch: () => Promise<void>;
   getPlaylists: (password?: string) => Promise<{ validated: any[]; community: any[] }>;
-  createPlaylist: (name: string, description: string, videos: any[]) => Promise<{ playlistId: string; secretCode: string }>;
+  createPlaylist: (name: string, description: string, videos: any[], categories?: string[]) => Promise<{ playlistId: string; secretCode: string }>;
   verifyPlaylistSecret: (secretCode: string) => Promise<{ playlist: any; videos: any[] }>;
   updatePlaylistWithSecret: (id: string, secretCode: string, name: string, description: string, videos: any[]) => Promise<string>;
   getPlaylistDetails: (id: string) => Promise<{ playlist: any; videos: any[] }>;
   searchVideos: (query: string) => Promise<any[]>;
-  toggleLobbyVideo: (videoId: string) => Promise<any>;
+  toggleLobbyVideo: (videoId: string) => Promise<void>;
   validatePlaylist: (id: string, isValidated: boolean, password?: string) => Promise<void>;
   deletePlaylist: (id: string, password?: string) => Promise<void>;
   cleanStalePlaylists: (password?: string) => Promise<number>;
@@ -49,7 +49,8 @@ interface SocketContextType {
   getAnilistVideos: (username: string) => Promise<any[]>;
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
-  adminUpdatePlaylist: (id: string, data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean }, password?: string) => Promise<any>;
+  adminUpdatePlaylist: (id: string, data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] }, password?: string) => Promise<any>;
+  adminSetFirstVideo: (playlistId: string, trackId: string | number, password?: string) => Promise<any>;
   adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string, anilistId?: number | string, anilistTitle?: string) => Promise<string>;
   adminAddExistingVideo: (playlistId: string, videoId: string | number, password?: string) => Promise<string>;
   adminDeleteVideo: (playlistId: string, videoId: string, password?: string) => Promise<void>;
@@ -533,10 +534,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const createPlaylist = (name: string, description: string, videos: any[]): Promise<{ playlistId: string; secretCode: string }> => {
+  const createPlaylist = (name: string, description: string, videos: any[], categories?: string[]): Promise<{ playlistId: string; secretCode: string }> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:create', { name, description, videos }, (response: any) => {
+      socket.emit('playlist:create', { name, description, videos, categories }, (response: any) => {
         if (response.success) {
           resolve({ playlistId: response.playlistId, secretCode: response.secretCode });
         } else {
@@ -726,7 +727,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const adminUpdatePlaylist = (
     id: string,
-    data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean },
+    data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] },
     password?: string
   ): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -736,6 +737,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           resolve(response.playlist);
         } else {
           reject(new Error(response?.error || 'Échec de la modification de la playlist'));
+        }
+      });
+    });
+  };
+
+  const adminSetFirstVideo = (
+    playlistId: string,
+    trackId: string | number,
+    password?: string
+  ): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket non connecté'));
+      socket.emit('playlist:admin_set_first_video', { playlistId, trackId, password }, (response: any) => {
+        if (response?.success) {
+          resolve(response.videos);
+        } else {
+          reject(new Error(response?.error || 'Échec de la mise à jour de la première vidéo'));
         }
       });
     });
@@ -897,6 +915,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getVideoStats,
         getGlobalStats,
         adminUpdatePlaylist,
+        adminSetFirstVideo,
         adminAddVideo,
         adminAddExistingVideo,
         adminDeleteVideo,

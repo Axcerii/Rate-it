@@ -14,6 +14,17 @@ interface VideoInput {
   malTitle?: string;
 }
 
+const CATEGORIES = [
+  'Film/Cinéma',
+  'Série/TV',
+  'Anime/Manga',
+  'Musique',
+  'Streaming/VTuber',
+  'Youtube',
+  'KPop',
+  'JPop',
+] as const;
+
 export default function NewPlaylist() {
   const router = useRouter();
   const {
@@ -33,6 +44,7 @@ export default function NewPlaylist() {
 
   const [playlistName, setPlaylistName] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [videos, setVideos] = useState<VideoInput[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -349,7 +361,7 @@ export default function NewPlaylist() {
         setIsSaving(false);
       } else {
         // Create new custom playlist
-        const res = await createPlaylist(playlistName.trim(), description.trim(), videos);
+        const res = await createPlaylist(playlistName.trim(), description.trim(), videos, selectedCategories);
         if (typeof window !== 'undefined') {
           localStorage.removeItem(DRAFT_KEY);
         }
@@ -564,7 +576,7 @@ export default function NewPlaylist() {
 
             {/* Search Results Dropdown */}
             {searchResults.length > 0 && (
-              <div className="border-2 border-black bg-white mt-1 max-h-48 overflow-y-auto rounded-xl shadow-lg z-20">
+              <div className="border-2 border-black bg-white mt-1 max-h-48 overflow-y-auto rounded-xl shadow-none z-20">
                 {searchResults.map((result, idx) => (
                   <button
                     key={idx}
@@ -851,6 +863,34 @@ export default function NewPlaylist() {
                 rows={3}
                 className="w-full px-3.5 py-2.5 border-2 border-white bg-white rounded-xl focus:outline-none focus:bg-[#faf6eb] text-sm font-bold resize-none shadow-none"
               />
+            </div>
+
+            {/* Category Tags Selector */}
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-xs font-black uppercase text-black">Catégories (Optionnel)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategories((prev) =>
+                          isSelected ? prev.filter((c) => c !== cat) : [...prev, cat]
+                        );
+                      }}
+                      className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all ${
+                        isSelected
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      {isSelected ? `✓ ${cat}` : cat}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

@@ -5,8 +5,8 @@
   --bg-menu: #FEEC66;
   --bg-host: #24B3F1;
   --bg-play: #DD4DCC;
-  --bg-playlist: #4BD66F;
-  --bg-admin: #BF1539;
+  --bg-playlist: #BF1539;
+  --bg-admin: #1b1b1b;
   --bg-main-color: var(--bg-menu);
 
   /* Shared UI Tokens */

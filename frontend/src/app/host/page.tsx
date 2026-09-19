@@ -241,6 +241,18 @@ export default function HostLobby() {
     }
   }, [session?.status, selectedPlaylistId, getPlaylistDetails]);
 
+  // Pre-select playlist if passed via URL query parameter (?playlistId=...)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && session?.status === 'LOBBY') {
+      const params = new URLSearchParams(window.location.search);
+      const preselectedId = params.get('playlistId');
+      if (preselectedId && preselectedId !== selectedPlaylistId) {
+        setSelectedPlaylistId(preselectedId);
+        setQuizMode('playlist');
+      }
+    }
+  }, [session?.status, selectedPlaylistId]);
+
   // YouTube API Player setup
   useEffect(() => {
     if (!session || session.status !== 'PLAYING') return;

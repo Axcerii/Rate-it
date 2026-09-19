@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS playlists (
   last_played TIMESTAMP WITH TIME ZONE,
   is_validated BOOLEAN DEFAULT FALSE,
   secret_code VARCHAR(64),
+  categories TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_videos_anilist_id ON videos(anilist_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_youtube_id ON ratings(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_playlist_id ON ratings(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_secret_code ON playlists(secret_code);
+CREATE INDEX IF NOT EXISTS idx_playlists_categories ON playlists USING GIN(categories);
 
 
 

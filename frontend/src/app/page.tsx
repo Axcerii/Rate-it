@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useSocket } from '@/lib/useSocket';
 import HostButton from '@/components/HostButton';
 import JoinCard from '@/components/JoinCard';
+import PlaylistsButton from '@/components/PlaylistsButton';
 import CreatePlaylistButton from '@/components/CreatePlaylistButton';
 import { AlertTriangle } from 'lucide-react';
 
@@ -151,8 +152,16 @@ export default function Home() {
           )}
         </div>
 
-        {/* Create Playlist Button (Spans full length under the two main buttons) */}
-        <div className="w-full mt-4 mb-2 flex items-center justify-center">
+        {/* Playlists Button (Spans full length, right above Create Playlist) */}
+        <div className="w-full mt-4 flex items-center justify-center">
+          <PlaylistsButton
+            onClick={() => router.push('/playlists')}
+            disabled={isCreating || isJoining}
+          />
+        </div>
+
+        {/* Create Playlist Button (Spans full length under the Playlists button) */}
+        <div className="w-full mt-2 mb-2 flex items-center justify-center">
           <CreatePlaylistButton
             onClick={() => router.push('/playlists/new')}
             disabled={isCreating || isJoining}

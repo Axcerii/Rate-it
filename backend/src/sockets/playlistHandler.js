@@ -18,6 +18,7 @@ import {
   generatePlaylistSecretCode,
   checkSecretCodeRateLimit,
   recordSecretCodeAttempt,
+  validateAndSanitizeCategories,
 } from '../utils/security.js';
 import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
@@ -86,8 +87,14 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch validated playlists
       const validatedRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField},
-                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
+                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
+                (SELECT v.youtube_id 
+                 FROM playlist_tracks pt 
+                 JOIN videos v ON pt.video_id = v.id 
+                 WHERE pt.playlist_id = playlists.id 
+                 ORDER BY pt.order_index ASC 
+                 LIMIT 1) AS first_video_youtube_id
          FROM playlists
          WHERE is_validated = TRUE
          ORDER BY played_count DESC, created_at DESC`
@@ -95,8 +102,14 @@ export function registerPlaylistHandlers(io, socket) {
 
       // Fetch community (custom & not validated) playlists
       const communityRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, created_at${secretField},
-                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count
+        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
+                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
+                (SELECT v.youtube_id 
+                 FROM playlist_tracks pt 
+                 JOIN videos v ON pt.video_id = v.id 
+                 WHERE pt.playlist_id = playlists.id 
+                 ORDER BY pt.order_index ASC 
+                 LIMIT 1) AS first_video_youtube_id
          FROM playlists
          WHERE is_custom = TRUE AND is_validated = FALSE
          ORDER BY played_count DESC, created_at DESC`
@@ -118,11 +131,12 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // 2. Create custom playlist (Bounded to max 200 tracks to prevent DoS)
-  socket.on('playlist:create', async ({ name, description, videos }, callback) => {
+  socket.on('playlist:create', async ({ name, description, videos, categories }, callback) => {
     const client = await pool.connect();
     try {
       const cleanName = sanitizeText(name, 100);
       const cleanDescription = sanitizeText(description, 1000);
+      const cleanCategories = validateAndSanitizeCategories(categories);
 
       if (!cleanName || !Array.isArray(videos) || videos.length === 0) {
         throw new Error('Le nom de la playlist et au moins un titre sont requis.');
@@ -137,11 +151,11 @@ export function registerPlaylistHandlers(io, socket) {
       const playlistId = generatePlaylistId();
       const secretCode = generatePlaylistSecretCode();
 
-      // Insert playlist with secret_code
+      // Insert playlist with secret_code and categories
       await client.query(
-        `INSERT INTO playlists (id, name, description, is_custom, is_validated, secret_code)
-         VALUES ($1, $2, $3, TRUE, FALSE, $4)`,
-        [playlistId, cleanName, cleanDescription, secretCode]
+        `INSERT INTO playlists (id, name, description, is_custom, is_validated, secret_code, categories)
+         VALUES ($1, $2, $3, TRUE, FALSE, $4, $5)`,
+        [playlistId, cleanName, cleanDescription, secretCode, cleanCategories]
       );
 
       // Identify videos already in database to avoid redundant YouTube API calls
@@ -613,14 +627,15 @@ export function registerPlaylistHandlers(io, socket) {
     }
   });
 
-  // 6b. Admin: Update playlist metadata (Name, Description, is_validated, is_custom)
-  socket.on('playlist:admin_update_playlist', async ({ id, name, description, isValidated, isCustom, password }, callback) => {
+  // 6b. Admin: Update playlist metadata (Name, Description, is_validated, is_custom, categories)
+  socket.on('playlist:admin_update_playlist', async ({ id, name, description, isValidated, isCustom, categories, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
 
       const cleanId = sanitizeText(id, 50);
       const cleanName = sanitizeText(name, 100);
       const cleanDesc = sanitizeText(description, 1000);
+      const cleanCategories = categories !== undefined ? validateAndSanitizeCategories(categories) : null;
 
       if (!cleanId || !cleanName) {
         throw new Error('ID et Nom de playlist obligatoires');
@@ -631,14 +646,16 @@ export function registerPlaylistHandlers(io, socket) {
          SET name = $1,
              description = $2,
              is_validated = COALESCE($3, is_validated),
-             is_custom = COALESCE($4, is_custom)
-         WHERE id = $5
-         RETURNING id, name, description, is_custom as "isCustom", is_validated as "isValidated", played_count as "playedCount", last_played as "lastPlayed", secret_code as "secretCode"`,
+             is_custom = COALESCE($4, is_custom),
+             categories = COALESCE($5, categories)
+         WHERE id = $6
+         RETURNING id, name, description, is_custom as "isCustom", is_validated as "isValidated", categories, played_count as "playedCount", last_played as "lastPlayed", secret_code as "secretCode"`,
         [
           cleanName,
           cleanDesc,
           typeof isValidated === 'boolean' ? isValidated : null,
           typeof isCustom === 'boolean' ? isCustom : null,
+          cleanCategories,
           cleanId
         ]
       );
@@ -654,6 +671,86 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error(`Error updating playlist ${id} as admin:`, error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 6c. Admin: Set specific track as first video in playlist (reorder index 0)
+  socket.on('playlist:admin_set_first_video', async ({ playlistId, trackId, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+
+      const cleanPlaylistId = sanitizeText(playlistId, 50);
+      const targetTrackId = parseInt(trackId, 10);
+
+      if (!cleanPlaylistId || isNaN(targetTrackId)) {
+        throw new Error('Identifiant de playlist et de piste valides requis');
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Verify the track exists in the given playlist
+        const trackCheck = await client.query(
+          'SELECT id, order_index FROM playlist_tracks WHERE playlist_id = $1 AND id = $2',
+          [cleanPlaylistId, targetTrackId]
+        );
+
+        if (trackCheck.rows.length === 0) {
+          throw new Error('Piste introuvable dans cette playlist');
+        }
+
+        // Get all tracks for the playlist in current order
+        const allTracksRes = await client.query(
+          'SELECT id FROM playlist_tracks WHERE playlist_id = $1 ORDER BY order_index ASC, id ASC',
+          [cleanPlaylistId]
+        );
+
+        // Put target track first, followed by others
+        const reorderedIds = [
+          targetTrackId,
+          ...allTracksRes.rows.map((r) => r.id).filter((id) => id !== targetTrackId),
+        ];
+
+        // Update each track's order_index with parameterized query
+        for (let i = 0; i < reorderedIds.length; i++) {
+          await client.query(
+            'UPDATE playlist_tracks SET order_index = $1 WHERE id = $2 AND playlist_id = $3',
+            [i, reorderedIds[i], cleanPlaylistId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        // Fetch refreshed tracks list
+        const updatedRes = await client.query(
+          `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
+                  v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
+                  v.anilist_id as "anilistId", v.anilist_title as "anilistTitle",
+                  pt.order_index as "orderIndex", pt.id as "trackId"
+           FROM playlist_tracks pt
+           JOIN videos v ON pt.video_id = v.id
+           WHERE pt.playlist_id = $1
+           ORDER BY pt.order_index ASC`,
+          [cleanPlaylistId]
+        );
+
+        console.log(`Admin set track ${targetTrackId} as first video in playlist ${cleanPlaylistId}`);
+
+        if (typeof callback === 'function') {
+          callback({ success: true, videos: updatedRes.rows });
+        }
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error setting first video as admin:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

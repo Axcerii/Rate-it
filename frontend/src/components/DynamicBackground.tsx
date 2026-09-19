@@ -6,9 +6,9 @@ import { usePathname } from 'next/navigation';
 export const SECTION_COLORS = {
   MENU: '#FEEC66',     // Main Menu
   HOST: '#24B3F1',     // Hosting & Hosting playing
-  PLAYLIST: '#4BD66F', // Creating a Playlist
+  PLAYLIST: '#BF1539', // Playlists & Creating a Playlist
   PLAY: '#DD4DCC',     // Joining & Rating
-  ADMIN: '#BF1539',    // Admin
+  ADMIN: '#1b1b1b',    // Admin
 } as const;
 
 export default function DynamicBackground({ children }: { children: React.ReactNode }) {
