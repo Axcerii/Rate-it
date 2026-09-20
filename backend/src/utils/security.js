@@ -479,12 +479,14 @@ export const ALLOWED_PLAYLIST_CATEGORIES = [
   'Youtube',
   'KPop',
   'JPop',
+  'Jeux Vidéo',
+  'Dessins Animés/Cartoons',
 ];
 
 /**
  * Strict regex ensuring only exact, valid category strings without harmful characters.
  */
-export const CATEGORY_REGEX = /^(Film\/Cinéma|Série\/TV|Anime\/Manga|Musique|Streaming\/VTuber|Youtube|KPop|JPop)$/;
+export const CATEGORY_REGEX = /^(Film\/Cinéma|Série\/TV|Anime\/Manga|Musique|Streaming\/VTuber|Youtube|KPop|JPop|Jeux Vidéo|Dessins Animés\/Cartoons)$/;
 
 /**
  * Validates and sanitizes a list of category tags to strictly prevent XSS and injection attacks.

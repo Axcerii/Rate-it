@@ -9,6 +9,8 @@ export const ALLOWED_CATEGORIES = [
   'Youtube',
   'KPop',
   'JPop',
+  'Jeux Vidéo',
+  'Dessins Animés/Cartoons',
 ];
 
 export async function runPlaylistCategoriesMigration() {

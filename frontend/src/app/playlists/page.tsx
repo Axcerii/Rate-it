@@ -31,6 +31,8 @@ const CATEGORIES = [
   'Youtube',
   'KPop',
   'JPop',
+  'Jeux Vidéo',
+  'Dessins Animés/Cartoons',
 ] as const;
 
 export default function PlaylistsPage() {
