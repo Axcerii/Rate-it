@@ -483,10 +483,13 @@ export const ALLOWED_PLAYLIST_CATEGORIES = [
   'Dessins Animés/Cartoons',
 ];
 
+export const DEFAULT_PLAYLIST_CATEGORIES = ALLOWED_PLAYLIST_CATEGORIES;
+
 /**
- * Strict regex ensuring only exact, valid category strings without harmful characters.
+ * Regex ensuring safe category strings without harmful characters or script injections.
+ * Allows letters (including unicode accents), numbers, spaces, and common safe punctuation (-, _, /, ', &, (, )).
  */
-export const CATEGORY_REGEX = /^(Film\/Cinéma|Série\/TV|Anime\/Manga|Musique|Streaming\/VTuber|Youtube|KPop|JPop|Jeux Vidéo|Dessins Animés\/Cartoons)$/;
+export const CATEGORY_REGEX = /^[\p{L}\p{N}\s\-_/'&()]{1,50}$/u;
 
 /**
  * Validates and sanitizes a list of category tags to strictly prevent XSS and injection attacks.
@@ -507,7 +510,7 @@ export function validateAndSanitizeCategories(categories) {
   for (const item of rawList) {
     if (typeof item !== 'string') continue;
     const clean = sanitizeText(item, 50).trim();
-    if (CATEGORY_REGEX.test(clean) && !sanitized.includes(clean)) {
+    if (clean.length > 0 && CATEGORY_REGEX.test(clean) && !sanitized.includes(clean)) {
       sanitized.push(clean);
     }
   }

@@ -633,18 +633,22 @@ export function registerPlaylistHandlers(io, socket) {
       verifyAdminAuth(password, socket);
 
       const cleanId = sanitizeText(id, 50);
-      const cleanName = sanitizeText(name, 100);
-      const cleanDesc = sanitizeText(description, 1000);
+      const cleanName = name !== undefined ? sanitizeText(name, 100) : null;
+      const cleanDesc = description !== undefined ? sanitizeText(description, 1000) : null;
       const cleanCategories = categories !== undefined ? validateAndSanitizeCategories(categories) : null;
 
-      if (!cleanId || !cleanName) {
-        throw new Error('ID et Nom de playlist obligatoires');
+      if (!cleanId) {
+        throw new Error('ID de playlist obligatoire');
+      }
+
+      if (name !== undefined && !cleanName) {
+        throw new Error('Le nom de la playlist ne peut pas être vide');
       }
 
       const updateRes = await pool.query(
         `UPDATE playlists 
-         SET name = $1,
-             description = $2,
+         SET name = COALESCE($1, name),
+             description = COALESCE($2, description),
              is_validated = COALESCE($3, is_validated),
              is_custom = COALESCE($4, is_custom),
              categories = COALESCE($5, categories)

@@ -116,6 +116,7 @@ export default function PlaylistCard({
                   </span>
                 ))}
             </div>
+
           </div>
         </div>
 
@@ -184,20 +185,22 @@ export default function PlaylistCard({
               Aucune vidéo trouvée dans cette playlist.
             </p>
           ) : (
-            <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
-              {displayedTracks.map((track, idx) => (
-                <PlaylistTrackCard
-                  key={track.trackId || track.id || idx}
-                  track={track}
-                  index={idx}
-                />
-              ))}
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[440px] overflow-y-auto p-1 scrollbar-thin">
+                {displayedTracks.map((track, idx) => (
+                  <PlaylistTrackCard
+                    key={track.trackId || track.id || idx}
+                    track={track}
+                    index={idx}
+                  />
+                ))}
+              </div>
 
               {remainingCount > 0 && (
                 <button
                   type="button"
                   onClick={() => onShowMoreTracks(playlist.id)}
-                  className="w-full py-2 mt-1 bg-slate-100 hover:bg-slate-200 active:translate-x-0.5 active:translate-y-0.5 text-black border-2 border-black rounded-xl font-black text-xs uppercase transition text-center shadow-none"
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:translate-x-0.5 active:translate-y-0.5 text-black border-2 border-black rounded-xl font-black text-xs uppercase transition text-center shadow-none"
                 >
                   + Afficher les morceaux suivants ({remainingCount} restants)
                 </button>

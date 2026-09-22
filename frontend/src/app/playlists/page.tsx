@@ -37,6 +37,19 @@ export default function PlaylistsPage() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Dynamic union of standard categories and any custom categories found in playlists
+  const allCategories = useMemo(() => {
+    const set = new Set<string>(CATEGORIES);
+    [...playlists.validated, ...playlists.community].forEach((pl) => {
+      if (Array.isArray(pl.categories)) {
+        pl.categories.forEach((cat: string) => {
+          if (cat && typeof cat === 'string') set.add(cat.trim());
+        });
+      }
+    });
+    return Array.from(set);
+  }, [playlists]);
+
   // Expand / collapse tracks for playlists
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [tracksCache, setTracksCache] = useState<{ [id: string]: any[] }>({});
@@ -148,9 +161,9 @@ export default function PlaylistsPage() {
 
   return (
     <div className="relative flex flex-col flex-1 items-center bg-transparent px-3 sm:px-6 py-4 sm:py-8 font-sans w-full max-w-full overflow-x-hidden">
-      <div className="w-full max-w-5xl z-10 flex flex-col gap-5 sm:gap-7">
+      <div className="w-full max-w-7xl z-10 flex flex-col gap-6">
         {/* Top Header Navigation */}
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-black pb-4">
+        <header className="flex flex-wrap items-center justify-between gap-3 pb-2">
           <button
             type="button"
             onClick={() => router.push('/')}
@@ -165,7 +178,7 @@ export default function PlaylistsPage() {
             <img
               src="/PLAYLIST/PlaylistText.png"
               alt="Playlists"
-              className="h-9 sm:h-12 w-auto object-contain"
+              className="h-9 sm:h-20 object-contain"
             />
           </div>
 
@@ -181,65 +194,85 @@ export default function PlaylistsPage() {
           </button>
         </header>
 
-        {/* Modular Category Filters, Tabs & Search Bar */}
-        <PlaylistFilters
-          categories={CATEGORIES}
-          activeCategory={activeCategory}
-          onSelectCategory={setActiveCategory}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-          validatedCount={playlists.validated.length}
-          communityCount={playlists.community.length}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
+        {/* Layout Container: Desktop Sidebar + Main Content Column */}
+        <div className="flex flex-col lg:flex-row items-start gap-6 w-full">
+          {/* Sidebar Filters (Desktop Sticky Sidebar & Mobile Controls) */}
+          <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6 z-20">
+            <PlaylistFilters
+              categories={allCategories}
+              activeCategory={activeCategory}
+              onSelectCategory={setActiveCategory}
+              activeTab={activeTab}
+              onSelectTab={setActiveTab}
+              validatedCount={playlists.validated.length}
+              communityCount={playlists.community.length}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          </aside>
 
-        {/* Playlists List */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-black">
-            <Loader2 className="w-10 h-10 animate-spin mb-3 text-black" />
-            <p className="font-black text-sm uppercase">Chargement des playlists...</p>
-          </div>
-        ) : displayedPlaylists.length === 0 ? (
-          <div className="p-8 sm:p-12 border-4 border-black bg-white rounded-3xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
-            <ListMusic className="w-12 h-12 text-slate-400" />
-            <h3 className="font-title text-xl font-black text-black">Aucune playlist trouvée</h3>
-            <p className="text-xs font-bold text-slate-600 max-w-md">
-              {searchQuery || activeCategory !== 'all'
-                ? 'Aucune playlist ne correspond aux filtres sélectionnés. Essayez de réinitialiser la recherche ou de changer de catégorie.'
-                : 'Aucune playlist disponible pour le moment.'}
-            </p>
-            {(searchQuery || activeCategory !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory('all');
-                }}
-                className="mt-2 px-4 py-2 bg-black text-white border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-slate-800 shadow-none"
-              >
-                Réinitialiser les filtres
-              </button>
+          {/* Main Playlists List Column */}
+          <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
+            {/* Header info showing count and active category */}
+            <div className="flex items-center justify-between px-1 text-xs font-black text-slate-800 uppercase">
+              <span>
+                {displayedPlaylists.length} playlist{displayedPlaylists.length > 1 ? 's' : ''} disponible{displayedPlaylists.length > 1 ? 's' : ''}
+              </span>
+              {activeCategory !== 'all' && (
+                <span className="text-[11px] font-bold text-slate-500">
+                  Filtre : <span className="text-[#BF1539] font-black">{activeCategory}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Playlists List */}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 text-black">
+                <Loader2 className="w-10 h-10 animate-spin mb-3 text-black" />
+                <p className="font-black text-sm uppercase">Chargement des playlists...</p>
+              </div>
+            ) : displayedPlaylists.length === 0 ? (
+              <div className="p-8 sm:p-12 border-4 border-black bg-white rounded-3xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
+                <ListMusic className="w-12 h-12 text-slate-400" />
+                <h3 className="font-title text-xl font-black text-black">Aucune playlist trouvée</h3>
+                <p className="text-xs font-bold text-slate-600 max-w-md">
+                  {searchQuery || activeCategory !== 'all'
+                    ? 'Aucune playlist ne correspond aux filtres sélectionnés. Essayez de réinitialiser la recherche ou de changer de catégorie.'
+                    : 'Aucune playlist disponible pour le moment.'}
+                </p>
+                {(searchQuery || activeCategory !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveCategory('all');
+                    }}
+                    className="mt-2 px-4 py-2 bg-black text-white border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-slate-800 shadow-none"
+                  >
+                    Réinitialiser les filtres
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {displayedPlaylists.map((playlist) => (
+                  <PlaylistCard
+                    key={playlist.id}
+                    playlist={playlist}
+                    isExpanded={expandedIds.has(playlist.id)}
+                    onToggleExpand={handleToggleExpand}
+                    tracks={tracksCache[playlist.id] || []}
+                    isLoadingTracks={Boolean(loadingTracks[playlist.id])}
+                    onHost={handleHostPlaylist}
+                    isStartingHost={startingHostId === playlist.id}
+                    visibleCount={visibleTrackCounts[playlist.id] || 15}
+                    onShowMoreTracks={handleShowMoreTracks}
+                  />
+                ))}
+              </div>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {displayedPlaylists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                isExpanded={expandedIds.has(playlist.id)}
-                onToggleExpand={handleToggleExpand}
-                tracks={tracksCache[playlist.id] || []}
-                isLoadingTracks={Boolean(loadingTracks[playlist.id])}
-                onHost={handleHostPlaylist}
-                isStartingHost={startingHostId === playlist.id}
-                visibleCount={visibleTrackCounts[playlist.id] || 15}
-                onShowMoreTracks={handleShowMoreTracks}
-              />
-            ))}
-          </div>
-        )}
+          </main>
+        </div>
       </div>
     </div>
   );

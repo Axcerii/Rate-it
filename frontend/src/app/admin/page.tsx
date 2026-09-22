@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import {
@@ -28,9 +28,11 @@ import {
   Key,
   Copy,
   Check,
+  Tag,
+  Filter,
 } from 'lucide-react';
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   'Film/Cinéma',
   'Série/TV',
   'Anime/Manga',
@@ -43,6 +45,8 @@ const CATEGORIES = [
   'Dessins Animés/Cartoons',
 ] as const;
 
+const CATEGORIES = DEFAULT_CATEGORIES;
+
 export default function AdminConsole() {
   const router = useRouter();
   const {
@@ -52,6 +56,7 @@ export default function AdminConsole() {
     cleanStalePlaylists,
     getPlaylistDetails,
     adminUpdatePlaylist,
+    adminUpdatePlaylistCategories,
     adminSetFirstVideo,
     adminAddVideo,
     adminAddExistingVideo,
@@ -73,6 +78,7 @@ export default function AdminConsole() {
   const [validatedLists, setValidatedLists] = useState<any[]>([]);
   const [communityLists, setCommunityLists] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'validated' | 'all' | 'videos' | 'analytics'>('pending');
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
 
   // Playlist Metadata Edit Modal state
   const [modalPlaylist, setModalPlaylist] = useState<any | null>(null);
@@ -81,10 +87,24 @@ export default function AdminConsole() {
   const [editPlaylistIsValidated, setEditPlaylistIsValidated] = useState(false);
   const [editPlaylistIsCustom, setEditPlaylistIsCustom] = useState(true);
   const [editPlaylistCategories, setEditPlaylistCategories] = useState<string[]>([]);
+  const [modalNewCategory, setModalNewCategory] = useState('');
   const [editPlaylistSecret, setEditPlaylistSecret] = useState('');
   const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
   const [editPlaylistError, setEditPlaylistError] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+
+  // Set of all known categories (default + anything found in playlists)
+  const allKnownCategories = useMemo(() => {
+    const set = new Set<string>(DEFAULT_CATEGORIES);
+    [...validatedLists, ...communityLists].forEach((pl) => {
+      if (Array.isArray(pl.categories)) {
+        pl.categories.forEach((cat: string) => {
+          if (cat && typeof cat === 'string') set.add(cat.trim());
+        });
+      }
+    });
+    return Array.from(set);
+  }, [validatedLists, communityLists]);
 
   const handleSetFirstVideo = async (trackId: string | number) => {
     if (!editingPlaylistId) return;
@@ -131,10 +151,13 @@ export default function AdminConsole() {
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Playlist track editing states
+  // Playlist track & category editing states
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [editingPlaylistName, setEditingPlaylistName] = useState<string>('');
   const [editingPlaylistTracks, setEditingPlaylistTracks] = useState<any[]>([]);
+  const [editingPlaylistCategories, setEditingPlaylistCategories] = useState<string[]>([]);
+  const [sidebarNewCategory, setSidebarNewCategory] = useState<string>('');
+  const [isUpdatingSidebarCategories, setIsUpdatingSidebarCategories] = useState<boolean>(false);
   const [isEditingLoading, setIsEditingLoading] = useState(false);
 
   // New Track inputs for editor
@@ -330,7 +353,18 @@ export default function AdminConsole() {
     setEditPlaylistIsCustom(playlist.is_custom !== false);
     setEditPlaylistSecret(playlist.secretCode || '');
     setEditPlaylistCategories(Array.isArray(playlist.categories) ? playlist.categories : []);
+    setModalNewCategory('');
     setEditPlaylistError(null);
+  };
+
+  const handleAddModalCategory = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = modalNewCategory.trim();
+    if (!trimmed) return;
+    if (!editPlaylistCategories.includes(trimmed)) {
+      setEditPlaylistCategories((prev) => [...prev, trimmed]);
+    }
+    setModalNewCategory('');
   };
 
   const handleSaveModalPlaylist = async (e: React.FormEvent) => {
@@ -411,14 +445,59 @@ export default function AdminConsole() {
     setTrackAddMode('new');
     setExistingVideoResults([]);
     setExistingVideoSearchQuery('');
+    setSidebarNewCategory('');
     try {
       const res = await getPlaylistDetails(id);
       setEditingPlaylistTracks(res.videos);
+      setEditingPlaylistCategories(Array.isArray(res.playlist?.categories) ? res.playlist.categories : []);
     } catch (err: any) {
       setError(err.message || 'Échec de la récupération des pistes de la playlist');
       setEditingPlaylistId(null);
     } finally {
       setIsEditingLoading(false);
+    }
+  };
+
+  const handleToggleSidebarCategory = async (cat: string) => {
+    if (!editingPlaylistId) return;
+    const isPresent = editingPlaylistCategories.includes(cat);
+    const updated = isPresent
+      ? editingPlaylistCategories.filter((c) => c !== cat)
+      : [...editingPlaylistCategories, cat];
+
+    setEditingPlaylistCategories(updated);
+    setIsUpdatingSidebarCategories(true);
+    try {
+      await adminUpdatePlaylistCategories(editingPlaylistId, updated, adminPassword);
+      setActionSuccess(`Catégories de la playlist mises à jour !`);
+      await fetchLists();
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la mise à jour des catégories');
+    } finally {
+      setIsUpdatingSidebarCategories(false);
+    }
+  };
+
+  const handleAddSidebarCustomCategory = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingPlaylistId || !sidebarNewCategory.trim()) return;
+    const trimmed = sidebarNewCategory.trim();
+    if (editingPlaylistCategories.includes(trimmed)) {
+      setSidebarNewCategory('');
+      return;
+    }
+    const updated = [...editingPlaylistCategories, trimmed];
+    setEditingPlaylistCategories(updated);
+    setSidebarNewCategory('');
+    setIsUpdatingSidebarCategories(true);
+    try {
+      await adminUpdatePlaylistCategories(editingPlaylistId, updated, adminPassword);
+      setActionSuccess(`Catégorie "${trimmed}" ajoutée à la playlist !`);
+      await fetchLists();
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'ajout de la catégorie");
+    } finally {
+      setIsUpdatingSidebarCategories(false);
     }
   };
 
@@ -755,9 +834,83 @@ export default function AdminConsole() {
               </div>
 
               {isEditingLoading ? (
-                <p className="text-xs text-slate-500 font-bold py-6 text-center animate-pulse">Chargement des pistes...</p>
+                <p className="text-xs text-slate-500 font-bold py-6 text-center animate-pulse">Chargement des données...</p>
               ) : (
                 <>
+                  {/* Playlist Categories in Sidebar Editor */}
+                  <div className="border-2 border-black bg-white p-3 rounded-xl flex flex-col gap-2">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                      <span className="text-[9px] font-black uppercase text-slate-700 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-[#1b1b1b]" />
+                        <span>Catégories</span>
+                      </span>
+                      {isUpdatingSidebarCategories && (
+                        <span className="text-[8px] font-black text-[#24B3F1] animate-pulse">Sauvegarde...</span>
+                      )}
+                    </div>
+
+                    {/* Current Assigned Categories Badges */}
+                    <div className="flex flex-wrap gap-1">
+                      {editingPlaylistCategories.length === 0 ? (
+                        <span className="text-[9px] text-slate-400 italic">Aucune catégorie assignée.</span>
+                      ) : (
+                        editingPlaylistCategories.map((cat) => (
+                          <span
+                            key={cat}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-black bg-rose-100 text-rose-950 text-[9px] font-black uppercase"
+                          >
+                            <span>{cat}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSidebarCategory(cat)}
+                              disabled={isUpdatingSidebarCategories}
+                              className="hover:text-red-600 ml-0.5"
+                              title={`Retirer la catégorie ${cat}`}
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Quick Add Custom Category Input */}
+                    <form onSubmit={handleAddSidebarCustomCategory} className="flex gap-1 pt-1">
+                      <input
+                        type="text"
+                        value={sidebarNewCategory}
+                        onChange={(e) => setSidebarNewCategory(e.target.value)}
+                        placeholder="Nouvelle catégorie..."
+                        className="flex-1 px-2 py-1 border border-slate-300 rounded-lg text-[10px] font-bold text-black focus:outline-none focus:border-black"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!sidebarNewCategory.trim() || isUpdatingSidebarCategories}
+                        className="px-2 py-1 bg-[#24B3F1] hover:bg-[#009EE3] text-black border border-black rounded-lg text-[9px] font-black uppercase disabled:opacity-40 btn-action-hover"
+                        title="Ajouter cette catégorie"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </form>
+
+                    {/* Quick Toggle Existing Known Categories */}
+                    <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-100 max-h-24 overflow-y-auto">
+                      {allKnownCategories
+                        .filter((cat) => !editingPlaylistCategories.includes(cat))
+                        .map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => handleToggleSidebarCategory(cat)}
+                            disabled={isUpdatingSidebarCategories}
+                            className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[8px] font-bold uppercase transition-all"
+                            title={`Ajouter ${cat}`}
+                          >
+                            + {cat}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
                   {/* Current Tracks List */}
                   <div className="border-2 border-black bg-white p-3 rounded-xl max-h-64 overflow-y-auto">
                     <p className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-200 pb-1 mb-2 flex items-center justify-between">
@@ -1429,55 +1582,141 @@ export default function AdminConsole() {
           {activeTab !== 'analytics' && activeTab !== 'videos' && (
             <div>
               {(() => {
-                const list = activeTab === 'pending' ? communityLists : activeTab === 'validated' ? validatedLists : allLists;
-
-                if (list.length === 0) {
-                  return (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
-                      <FolderX className="w-10 h-10 text-slate-400 mb-2" />
-                      <p className="mt-2 text-xs font-bold text-slate-600">Aucune playlist trouvée dans cet onglet.</p>
-                    </div>
-                  );
-                }
+                const rawList = activeTab === 'pending' ? communityLists : activeTab === 'validated' ? validatedLists : allLists;
+                const list = rawList.filter((playlist) => {
+                  if (adminCategoryFilter === 'uncategorized') {
+                    return !Array.isArray(playlist.categories) || playlist.categories.length === 0;
+                  }
+                  if (adminCategoryFilter !== 'all') {
+                    return Array.isArray(playlist.categories) && playlist.categories.includes(adminCategoryFilter);
+                  }
+                  return true;
+                });
 
                 return (
-                  <div className="flex flex-col gap-4 overflow-y-auto max-h-[480px] pr-1">
-                    {list.map((playlist) => (
-                      <div
-                        key={playlist.id}
-                        className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000]"
+                  <div className="flex flex-col gap-3">
+                    {/* Category Filter Bar */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 scrollbar-thin">
+                      <span className="text-[10px] font-black uppercase text-slate-500 shrink-0 flex items-center gap-1 mr-1">
+                        <Tag className="w-3 h-3 text-slate-600" />
+                        <span>Catégorie :</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAdminCategoryFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all whitespace-nowrap ${
+                          adminCategoryFilter === 'all'
+                            ? 'bg-black text-white border-black'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
                       >
-                        <div className="flex justify-between items-start border-b border-slate-200 pb-2">
-                          <div>
-                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">
-                              ID: {playlist.id}
-                            </span>
-                            <h3 className="font-black text-sm text-black mt-1">
-                              {playlist.name}
-                            </h3>
-                            <p className="text-[10px] text-slate-600 mt-1 italic">
-                              {playlist.description || 'Sans description'}
-                            </p>
-                          </div>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${playlist.is_validated ? 'bg-emerald-100 text-emerald-700 border-emerald-500' : 'bg-amber-100 text-amber-700 border-amber-500'}`}>
-                            {playlist.is_validated ? 'Validée' : 'En attente'}
-                          </span>
-                        </div>
+                        Toutes ({rawList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdminCategoryFilter('uncategorized')}
+                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all whitespace-nowrap ${
+                          adminCategoryFilter === 'uncategorized'
+                            ? 'bg-[#990000] text-white border-black'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        Sans catégorie ({rawList.filter((p) => !Array.isArray(p.categories) || p.categories.length === 0).length})
+                      </button>
+                      {allKnownCategories.map((cat) => {
+                        const count = rawList.filter((p) => Array.isArray(p.categories) && p.categories.includes(cat)).length;
+                        if (count === 0 && !DEFAULT_CATEGORIES.includes(cat as any)) return null;
+                        const isSelected = adminCategoryFilter === cat;
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setAdminCategoryFilter(isSelected ? 'all' : cat)}
+                            className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-[#24B3F1] text-black border-black font-black shadow-[1px_1px_0px_#000]'
+                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                            }`}
+                          >
+                            {cat} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                        <div className="flex flex-wrap text-[10px] font-black text-slate-500 gap-4 mt-1">
-                          <span className="flex items-center gap-1">
-                            <Gamepad2 className="w-3 h-3 text-slate-500" />
-                            <span>Parties jouées : {playlist.played_count || 0}</span>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-500" />
-                            <span>Dernière partie : {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Jamais'}</span>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-500" />
-                            <span>Créée le : {new Date(playlist.created_at).toLocaleDateString()}</span>
-                          </span>
-                        </div>
+                    {list.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+                        <FolderX className="w-10 h-10 text-slate-400 mb-2" />
+                        <p className="mt-2 text-xs font-bold text-slate-600">Aucune playlist trouvée pour ce filtre.</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-4 overflow-y-auto max-h-[480px] pr-1">
+                        {list.map((playlist) => (
+                          <div
+                            key={playlist.id}
+                            className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000]"
+                          >
+                            <div className="flex justify-between items-start border-b border-slate-200 pb-2">
+                              <div>
+                                <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">
+                                  ID: {playlist.id}
+                                </span>
+                                <h3 className="font-black text-sm text-black mt-1">
+                                  {playlist.name}
+                                </h3>
+                                <p className="text-[10px] text-slate-600 mt-1 italic">
+                                  {playlist.description || 'Sans description'}
+                                </p>
+                              </div>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${playlist.is_validated ? 'bg-emerald-100 text-emerald-700 border-emerald-500' : 'bg-amber-100 text-amber-700 border-amber-500'}`}>
+                                {playlist.is_validated ? 'Validée' : 'En attente'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap text-[10px] font-black text-slate-500 gap-4 mt-1">
+                              <span className="flex items-center gap-1">
+                                <Gamepad2 className="w-3 h-3 text-slate-500" />
+                                <span>Parties jouées : {playlist.played_count || 0}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-500" />
+                                <span>Dernière partie : {playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Jamais'}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-slate-500" />
+                                <span>Créée le : {new Date(playlist.created_at).toLocaleDateString()}</span>
+                              </span>
+                            </div>
+
+                            {/* Category Badges on Card */}
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 pt-1.5 border-t border-slate-100">
+                              <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1">
+                                <Tag className="w-2.5 h-2.5 text-slate-500" />
+                                <span>Catégories :</span>
+                              </span>
+                              {Array.isArray(playlist.categories) && playlist.categories.length > 0 ? (
+                                playlist.categories.map((cat: string) => (
+                                  <span
+                                    key={cat}
+                                    className="px-2 py-0.5 rounded-md border border-black bg-rose-100 text-rose-950 font-black text-[9px] uppercase tracking-wide"
+                                  >
+                                    {cat}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[9px] font-bold text-slate-400 italic">
+                                  Aucune catégorie
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPlaylistModal(playlist)}
+                                className="text-[9px] font-black text-[#24B3F1] hover:underline ml-1 uppercase"
+                                title="Gérer les catégories"
+                              >
+                                + Gérer
+                              </button>
+                            </div>
 
                         {/* Secret Code Display & Copy in Card */}
                         {playlist.secretCode && (
@@ -1549,12 +1788,14 @@ export default function AdminConsole() {
                       </div>
                     ))}
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })()}
         </div>
-      </div>
+      )}
+    </div>
+  </div>
 
       {/* ========================================================================= */}
       {/* EDIT VIDEO MODAL                                                          */}
@@ -1896,14 +2137,47 @@ export default function AdminConsole() {
                 </label>
               </div>
 
-              {/* Category Tags Selector */}
-              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-2 shadow-none">
-                <label className="text-[10px] font-black uppercase text-slate-800 flex items-center justify-between">
-                  <span>Catégories / Filtres</span>
-                  <span className="text-[9px] text-slate-500 font-normal">Sélectionnez les tags applicables</span>
-                </label>
-                <div className="flex flex-wrap gap-1.5 mt-0.5">
-                  {CATEGORIES.map((cat) => {
+              {/* Category Tags Selector with custom category input */}
+              <div className="p-3 bg-white/90 border-2 border-white rounded-2xl flex flex-col gap-2.5 shadow-none">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase text-slate-800 flex items-center gap-1.5">
+                    <Tag className="w-3 h-3 text-[#1b1b1b]" />
+                    <span>Catégories / Tags</span>
+                  </label>
+                  <span className="text-[9px] text-slate-500 font-normal">
+                    {editPlaylistCategories.length} sélectionnée{editPlaylistCategories.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {/* Input to add a new custom category */}
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={modalNewCategory}
+                    onChange={(e) => setModalNewCategory(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddModalCategory();
+                      }
+                    }}
+                    placeholder="Ajouter une nouvelle catégorie..."
+                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold text-black focus:outline-none focus:border-black bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddModalCategory()}
+                    disabled={!modalNewCategory.trim()}
+                    className="px-3 py-1.5 bg-[#24B3F1] hover:bg-[#009EE3] text-black border border-black rounded-xl text-xs font-black uppercase inline-flex items-center gap-1 disabled:opacity-40 btn-action-hover"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Ajouter</span>
+                  </button>
+                </div>
+
+                {/* Categories Pills (All known + currently selected) */}
+                <div className="flex flex-wrap gap-1.5 mt-0.5 max-h-40 overflow-y-auto pr-1">
+                  {Array.from(new Set([...allKnownCategories, ...editPlaylistCategories])).map((cat) => {
                     const isSelected = editPlaylistCategories.includes(cat);
                     return (
                       <button
@@ -1914,7 +2188,7 @@ export default function AdminConsole() {
                             isSelected ? prev.filter((c) => c !== cat) : [...prev, cat]
                           );
                         }}
-                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all ${
+                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all flex items-center gap-1 ${
                           isSelected
                             ? 'bg-[#1b1b1b] text-white border-black'
                             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'

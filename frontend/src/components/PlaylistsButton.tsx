@@ -25,7 +25,7 @@ export default function PlaylistsButton({
       aria-label={ariaText}
       aria-busy={loading}
       aria-disabled={disabled || loading}
-      className={`group relative w-full cursor-pointer select-none text-left focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`group relative z-40 w-full cursor-pointer select-none text-left focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       {/* Visually Hidden Text for Screen Readers */}
       <span className="sr-only">{ariaText}</span>
@@ -49,7 +49,7 @@ export default function PlaylistsButton({
           src="/PLAYLIST/Video.png"
           alt=""
           aria-hidden="true"
-          className="absolute left-[12%] sm:left-[15%] top-[-10%] sm:top-[-14%] w-[26%] sm:w-[24%] h-auto object-contain pointer-events-none z-10 -rotate-[8deg] transition-transform duration-300 ease-out origin-bottom-left group-hover:-translate-x-1.5 group-focus:-translate-x-1.5 group-hover:-translate-y-2 group-focus:-translate-y-2 group-hover:-rotate-[13deg] group-focus:-rotate-[13deg] group-hover:scale-105 group-focus:scale-105"
+          className="absolute left-[10%] top-[0%] w-[33%] h-auto object-contain pointer-events-none z-51 -rotate-[15deg] transition-transform duration-300 ease-out origin-bottom-left group-hover:-translate-x-1.5 group-focus:-translate-x-1.5 group-hover:-translate-y-2 group-focus:-translate-y-2 group-hover:-rotate-[13deg] group-focus:-rotate-[13deg] group-hover:scale-105 group-focus:scale-105"
         />
 
         {/* 3. Parchemin.png - Scroll in the center-top */}
@@ -57,7 +57,7 @@ export default function PlaylistsButton({
           src="/PLAYLIST/Parchemin.png"
           alt=""
           aria-hidden="true"
-          className="absolute left-[39%] sm:left-[41%] -top-[28%] sm:-top-[34%] w-[19%] sm:w-[17%] h-auto object-contain pointer-events-none z-10 transition-transform duration-300 ease-out origin-bottom group-hover:-translate-y-2.5 group-focus:-translate-y-2.5 group-hover:scale-108 group-focus:scale-108 group-hover:rotate-[2deg] group-focus:rotate-[2deg]"
+          className="absolute left-[38%] top-[-30%] w-[19%] rotate-[20deg] h-auto object-contain pointer-events-none z-51 transition-transform duration-300 ease-out origin-bottom group-hover:-translate-y-2.5 group-focus:-translate-y-2.5 group-hover:scale-108 group-focus:scale-108 group-hover:rotate-[15deg] group-focus:rotate-[15deg]"
         />
 
         {/* 4. disk.png - Vinyl disk on the right */}
@@ -65,7 +65,7 @@ export default function PlaylistsButton({
           src="/PLAYLIST/disk.png"
           alt=""
           aria-hidden="true"
-          className="absolute right-[20%] sm:right-[23%] -top-[14%] sm:-top-[20%] w-[22%] sm:w-[20%] h-auto object-contain pointer-events-none z-10 transition-transform duration-500 ease-out origin-center group-hover:rotate-[45deg] group-focus:rotate-[45deg] group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
+          className="absolute right-[8%] top-[-18%] w-[28%] h-auto object-contain pointer-events-none z-51 transition-transform duration-500 ease-out origin-center group-hover:rotate-[45deg] group-focus:rotate-[45deg] group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
         />
 
         {/* 5. PlaylistText.png - Front 'Playlists' logo */}
@@ -73,7 +73,7 @@ export default function PlaylistsButton({
           src="/PLAYLIST/PlaylistText.png"
           alt=""
           aria-hidden="true"
-          className="absolute left-1/2 top-[58%] -translate-x-1/2 -translate-y-1/2 z-20 w-[84%] sm:w-[72%] md:w-[65%] max-w-none h-auto object-contain pointer-events-none transition-transform duration-300 ease-out origin-center group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-[62%] group-focus:-translate-y-[62%]"
+          className="absolute left-1/2 top-[77%] -translate-x-1/2 -translate-y-1/2 z-60 w-[84%] sm:w-[72%] md:w-[65%] max-w-none h-auto object-contain pointer-events-none transition-transform duration-300 ease-out origin-center group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-[62%] group-focus:-translate-y-[62%]"
         />
 
         {/* Loading Spinner Overlay */}

@@ -49,7 +49,8 @@ interface SocketContextType {
   getAnilistVideos: (username: string) => Promise<any[]>;
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
-  adminUpdatePlaylist: (id: string, data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] }, password?: string) => Promise<any>;
+  adminUpdatePlaylist: (id: string, data: { name?: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] }, password?: string) => Promise<any>;
+  adminUpdatePlaylistCategories: (id: string, categories: string[], password?: string) => Promise<any>;
   adminSetFirstVideo: (playlistId: string, trackId: string | number, password?: string) => Promise<any>;
   adminAddVideo: (playlistId: string, title: string, youtubeId: string, artistName: string, description: string, malAnimeId?: number | string, malTitle?: string, password?: string, anilistId?: number | string, anilistTitle?: string) => Promise<string>;
   adminAddExistingVideo: (playlistId: string, videoId: string | number, password?: string) => Promise<string>;
@@ -727,7 +728,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const adminUpdatePlaylist = (
     id: string,
-    data: { name: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] },
+    data: { name?: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] },
     password?: string
   ): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -740,6 +741,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
     });
+  };
+
+  const adminUpdatePlaylistCategories = (
+    id: string,
+    categories: string[],
+    password?: string
+  ): Promise<any> => {
+    return adminUpdatePlaylist(id, { categories }, password);
   };
 
   const adminSetFirstVideo = (
@@ -915,6 +924,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getVideoStats,
         getGlobalStats,
         adminUpdatePlaylist,
+        adminUpdatePlaylistCategories,
         adminSetFirstVideo,
         adminAddVideo,
         adminAddExistingVideo,
