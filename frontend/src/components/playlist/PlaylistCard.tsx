@@ -2,9 +2,7 @@
 
 import React from 'react';
 import {
-  Play,
   Film,
-  ListMusic,
   ChevronDown,
   ChevronUp,
   Loader2,
@@ -14,11 +12,16 @@ import PlaylistTrackCard, { PlaylistTrack } from './PlaylistTrackCard';
 export interface PlaylistData {
   id: string;
   name: string;
-  description?: string;
-  first_video_youtube_id?: string;
+  description?: string | null;
+  first_video_youtube_id?: string | null;
   played_count?: number;
   video_count?: number;
   categories?: string[];
+  is_custom?: boolean;
+  is_validated?: boolean;
+  created_at?: string;
+  last_played?: string | null;
+  secretCode?: string;
 }
 
 export interface PlaylistCardProps {
@@ -39,174 +42,243 @@ export default function PlaylistCard({
   onToggleExpand,
   tracks,
   isLoadingTracks,
-  onHost,
-  isStartingHost,
   visibleCount,
   onShowMoreTracks,
 }: PlaylistCardProps) {
   const displayedTracks = tracks.slice(0, visibleCount);
   const remainingCount = tracks.length - visibleCount;
 
+  // Données de la première piste pour affichage dès le chargement des playlists
+  const firstTrack: PlaylistTrack | null = playlist.first_video_youtube_id
+    ? {
+      youtubeId: playlist.first_video_youtube_id,
+      title: tracks[0]?.title || playlist.name,
+      artistName: tracks[0]?.artistName || 'Piste 1',
+      malTitle: tracks[0]?.malTitle,
+    }
+    : null;
+
   return (
-    <article className="bg-white border-4 border-black rounded-2xl p-4 sm:p-5 flex flex-col gap-4 transition-transform hover:scale-[1.005] shadow-none">
-      {/* Playlist Card Header / Main Row */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-        {/* Left: Thumbnail & Details */}
-        <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
-          {/* Thumbnail: 16:9 of 1st video */}
-          <div className="relative w-28 sm:w-40 aspect-video rounded-xl border-2 border-black overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center">
-            {playlist.first_video_youtube_id ? (
-              <img
-                src={`https://img.youtube.com/vi/${playlist.first_video_youtube_id}/mqdefault.jpg`}
-                alt={playlist.name}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center text-white/50 p-2">
-                <ListMusic className="w-6 h-6" />
+    <article className="w-full flex flex-col transition-all duration-300">
+      {/* 1. ÉTAT NON DÉPLOYÉ (AVANT LE DÉROULÉ) :
+          Uniquement le blanc de l'étiquette avec un léger contour équilibré (border-2 border-black).
+          - Le premier film est visible à gauche dans son cadre Film.png
+          - Le titre et la description au centre
+          - Les catégories (style étiquettes jaune cassé) et le bouton Dérouler sur le côté blanc à droite
+      */}
+      {!isExpanded ? (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onToggleExpand(playlist.id)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onToggleExpand(playlist.id);
+            }
+          }}
+          className="group relative w-full bg-white hover:bg-slate-50 border-2 border-black rounded-2xl p-3 sm:p-4 select-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3.5"
+          title={`Dérouler la cassette ${playlist.name}`}
+        >
+          {/* Côté gauche : Premier film visible dès l'affichage des playlists + Titre/Description */}
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            {/* Premier Film visible au format Film.png */}
+            {firstTrack && (
+              <div className="w-24 sm:w-28 md:w-32 aspect-[500/410] shrink-0 relative select-none">
+                <PlaylistTrackCard track={firstTrack} index={0} />
               </div>
             )}
-          </div>
 
-          {/* Text details */}
-          <div className="min-w-0 flex-1 text-left">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-title text-base sm:text-lg font-black text-black leading-tight truncate max-w-full">
+            {/* Titre & Description inscrits sur le blanc de l'étiquette */}
+            <div className="flex flex-col justify-center min-w-0 flex-1">
+              <h3
+                className="font-title text-black font-black text-sm sm:text-base md:text-lg leading-tight truncate uppercase tracking-tight"
+                title={playlist.name}
+              >
                 {playlist.name}
               </h3>
+              {playlist.description ? (
+                <p
+                  className="text-xs sm:text-sm font-bold text-slate-700 leading-tight truncate mt-1"
+                  title={playlist.description}
+                >
+                  {playlist.description}
+                </p>
+              ) : (
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
+              )}
             </div>
+          </div>
 
-            {playlist.description && (
-              <p className="text-xs font-bold text-slate-700 mt-1 line-clamp-2">
-                {playlist.description}
-              </p>
-            )}
-
-            {/* Badges: Times Played, Video Count, Categories */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {/* Times Played */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border-2 border-black bg-[#FEEC66] font-black text-[10px] text-black uppercase">
-                <Play className="w-2.5 h-2.5 fill-black" />
-                <span>
-                  {playlist.played_count || 0} partie{(playlist.played_count || 0) > 1 ? 's' : ''}
-                </span>
-              </span>
-
-              {/* Video Count */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border-2 border-black bg-slate-100 font-black text-[10px] text-black uppercase">
-                <Film className="w-2.5 h-2.5" />
-                <span>
-                  {playlist.video_count || 0} vidéo{(playlist.video_count || 0) > 1 ? 's' : ''}
-                </span>
-              </span>
-
-              {/* Categories */}
-              {Array.isArray(playlist.categories) &&
-                playlist.categories.map((cat: string) => (
+          {/* Côté droit sur le blanc : Catégories style étiquettes jaune cassé & bouton dérouler */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Catégories */}
+            {Array.isArray(playlist.categories) &&
+              playlist.categories.slice(0, 3).map((cat: string, catIdx: number) => {
+                const rotations = ['rotate-[-1.5deg]', 'rotate-[1.5deg]', 'rotate-[-1deg]'];
+                const rot = rotations[catIdx % rotations.length];
+                return (
                   <span
                     key={cat}
-                    className="px-2 py-0.5 rounded-lg border border-black bg-rose-100 text-rose-950 font-black text-[10px] uppercase"
+                    className={`px-2.5 py-1 rounded-lg border-2 border-black bg-[#FAF0CA] text-black font-black text-[10px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none`}
                   >
                     {cat}
                   </span>
-                ))}
-            </div>
+                );
+              })}
 
+            {/* Nombre de vidéos */}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border-2 border-black bg-[#FAF0CA] font-black text-[10px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none">
+              <Film className="w-3 h-3" />
+              <span>{playlist.video_count || 0} vidéos</span>
+            </span>
+
+            {/* Bouton dérouler avec chevron */}
+            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-black text-white rounded-xl font-black text-xs uppercase group-hover:bg-slate-800 transition-colors ml-1 shadow-none">
+              <span>Dérouler</span>
+              <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5" />
+            </div>
           </div>
         </div>
-
-        {/* Right: Actions (HOST Button & Accordion Toggle) */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-          {/* HOST Button using /HOST/HostText.png */}
-          <button
-            type="button"
-            onClick={() => onHost(playlist.id)}
-            disabled={isStartingHost}
-            aria-label={`Lancer un host avec la playlist ${playlist.name}`}
-            className="flex-1 sm:flex-none px-4 py-2 bg-[#009EE3] hover:bg-[#24B3F1] active:translate-x-0.5 active:translate-y-0.5 text-white border-3 border-black rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 shadow-none"
+      ) : (
+        /* 2. ÉTAT DÉPLOYÉ (DÉROULÉ) :
+            Utilise Cassette.png.
+            - Aucun rounded ajouté au conteneur (l'image possède le bon rounded d'origine).
+            - Aucun bg-black (évite toute bande noire sur le côté droit).
+            - Conteneur des films remonté avec un blur translucide doux.
+            - Animation fluide d'ouverture (slide-in-from-top-4).
+        */
+        <div className="w-full flex flex-col animate-in fade-in slide-in-from-top-4 duration-300 ease-out select-none shadow-none">
+          {/* Conteneur de la cassette sans border ni rounded parasites */}
+          <div
+            className="relative w-full overflow-hidden select-none bg-[url('/PLAYLIST/CassetteRecadrée.png')] bg-cover"
+            style={{ aspectRatio: '945 / 692' }}
           >
-            {isStartingHost ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Lancement...</span>
-              </>
-            ) : (
-              <div className="flex items-center gap-1">
-                <img
-                  src="/HOST/HostText.png"
-                  alt="HOST"
-                  className="h-5 sm:h-6 w-auto object-contain pointer-events-none"
-                />
-              </div>
-            )}
-          </button>
 
-          {/* Expand / Collapse Button */}
-          <button
-            type="button"
-            onClick={() => onToggleExpand(playlist.id)}
-            aria-expanded={isExpanded}
-            className="px-3 py-2 bg-white hover:bg-slate-100 active:translate-x-0.5 active:translate-y-0.5 text-black border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1 transition-all shrink-0 shadow-none"
-          >
-            <span>{isExpanded ? 'Masquer' : 'Morceaux'}</span>
-            {isExpanded ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Accordion: Video List Dropdown */}
-      {isExpanded && (
-        <div className="border-t-2 border-black pt-3 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-[11px] font-black uppercase text-slate-600 px-1">
-            <span>Pistes de la playlist ({tracks.length || playlist.video_count || 0})</span>
-            {playlist.first_video_youtube_id && (
-              <span className="text-[10px] text-emerald-800 font-bold flex items-center gap-1">
-                <span>⭐ Piste 1 = miniature</span>
-              </span>
-            )}
-          </div>
-
-          {isLoadingTracks ? (
-            <div className="flex items-center justify-center py-6 gap-2 text-xs font-bold text-slate-600">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Chargement des vidéos...</span>
-            </div>
-          ) : tracks.length === 0 ? (
-            <p className="text-xs font-bold text-slate-400 py-3 text-center">
-              Aucune vidéo trouvée dans cette playlist.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[440px] overflow-y-auto p-1 scrollbar-thin">
-                {displayedTracks.map((track, idx) => (
-                  <PlaylistTrackCard
-                    key={track.trackId || track.id || idx}
-                    track={track}
-                    index={idx}
-                  />
-                ))}
-              </div>
-
-              {remainingCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onShowMoreTracks(playlist.id)}
-                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:translate-x-0.5 active:translate-y-0.5 text-black border-2 border-black rounded-xl font-black text-xs uppercase transition text-center shadow-none"
+            {/* A. Bande blanche de Cassette.png (Titre, Description & Catégories) */}
+            <div
+              onClick={() => onToggleExpand(playlist.id)}
+              className="absolute z-20 flex items-center justify-between px-3 sm:px-5 md:px-6 cursor-pointer overflow-hidden"
+              style={{
+                top: '7.67%',
+                left: '6.25%',
+                right: '6.14%',
+                height: '12.45%',
+              }}
+              title="Cliquer pour replier la cassette"
+            >
+              {/* Titre & Description */}
+              <div className="flex flex-col justify-center min-w-0 flex-1 pr-3">
+                <h3
+                  className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate uppercase tracking-tight"
+                  title={playlist.name}
                 >
-                  + Afficher les morceaux suivants ({remainingCount} restants)
-                </button>
+                  {playlist.name}
+                </h3>
+                {playlist.description ? (
+                  <p
+                    className="text-[10px] sm:text-xs font-bold text-slate-800 leading-tight truncate mt-0.5"
+                    title={playlist.description}
+                  >
+                    {playlist.description}
+                  </p>
+                ) : (
+                  <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 italic">Rate-it Mixtape</span>
+                )}
+              </div>
+
+              {/* Catégories sur la bande blanche */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {Array.isArray(playlist.categories) &&
+                  playlist.categories.slice(0, 2).map((cat: string, catIdx: number) => {
+                    const rotations = ['rotate-[-1.5deg]', 'rotate-[1.5deg]'];
+                    const rot = rotations[catIdx % rotations.length];
+                    return (
+                      <span
+                        key={cat}
+                        className={`px-2 py-0.5 rounded-lg border-2 border-black bg-[#FAF0CA] text-black font-black text-[9px] sm:text-[10px] uppercase ${rot} shadow-none truncate max-w-[110px]`}
+                      >
+                        {cat}
+                      </span>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* B. PARTIE COLORÉE VERTE DE CASSETTE.PNG :
+                - Zone blur parfaitement centrée sur la zone verte (left: 11%, right: 11%, top: 24.5%, bottom: 24.5%)
+                - Les films commencent en haut à droite du conteneur (items-start justify-end)
+            */}
+            <div
+              className="absolute z-20 flex flex-col overflow-hidden backdrop-blur-md bg-black/20 border border-white/25 rounded-2xl p-2.5 sm:p-3.5 shadow-none"
+              style={{
+                top: '24.5%',
+                bottom: '24.5%',
+                left: '11%',
+                right: '11%',
+              }}
+            >
+              {isLoadingTracks ? (
+                <div className="flex items-center justify-center flex-1 gap-2 text-xs sm:text-sm font-black text-white">
+                  <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  <span>Chargement des films de la cassette...</span>
+                </div>
+              ) : tracks.length === 0 ? (
+                <div className="flex items-center justify-center flex-1 text-xs sm:text-sm font-black text-white/80">
+                  Aucune vidéo trouvée dans cette cassette.
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-start gap-3 p-1.5 overflow-y-auto scrollbar-thin h-full w-full">
+                  {displayedTracks.map((track, idx) => (
+                    <div
+                      key={track.trackId || track.id || idx}
+                      className="w-[28%] sm:w-[22%] md:w-[18%] min-w-[120px] max-w-[175px] aspect-[500/410] shrink-0"
+                    >
+                      <PlaylistTrackCard
+                        track={track}
+                        index={idx}
+                      />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          )}
+
+            {/* C. Zone trapézoïdale grise de Cassette.png avec le bouton Replier */}
+            <div
+              className="absolute z-20 flex items-center justify-between"
+              style={{
+                bottom: '3.5%',
+                left: '8%',
+                right: '8%',
+              }}
+            >
+              <div className="text-[10px] sm:text-xs font-black uppercase text-black">
+                {tracks.length || playlist.video_count || 0} films dans la cassette
+              </div>
+
+              <div className="flex items-center gap-2">
+                {remainingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onShowMoreTracks(playlist.id)}
+                    className="px-3 py-1 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-lg font-black text-[10px] uppercase shadow-none cursor-pointer"
+                  >
+                    + {remainingCount} morceaux
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => onToggleExpand(playlist.id)}
+                  className="px-3.5 sm:px-4 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-none active:scale-95 transition-all"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Replier</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </article>

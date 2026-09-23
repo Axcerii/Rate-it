@@ -41,23 +41,24 @@ import { runPlaylistCategoriesMigration } from './migrate_playlist_categories.js
 
 export async function initializeDatabase() {
   try {
-    // 1. Run many-to-many migration if needed
-    await runManyToManyMigration();
-
-    // 2. Run secret-code migration safely (adds column & backfills existing playlists)
-    await runSecretCodeMigration();
-
-    // 3. Ensure AniList columns exist
-    await ensureAniListColumns(pool);
-
-    // 4. Run playlist categories migration
-    await runPlaylistCategoriesMigration();
-
-    // 4. Initialize and verify schema definitions & seed data
+    // 1. Initialize and verify base schema definitions
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(schemaSql);
     console.log('Database schema initialized and verified successfully.');
+
+    // 2. Run many-to-many migration if needed
+    await runManyToManyMigration();
+
+    // 3. Run secret-code migration safely (adds column & backfills existing playlists)
+    await runSecretCodeMigration();
+
+    // 4. Ensure AniList columns exist
+    await ensureAniListColumns(pool);
+
+    // 5. Run playlist categories migration
+    await runPlaylistCategoriesMigration();
+
     return true;
   } catch (error) {
     console.error('Failed to initialize database schema:', error);

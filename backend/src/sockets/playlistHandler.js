@@ -1,4 +1,10 @@
 import pool from '../db/db.js';
+import {
+  getPlaylistsList,
+  getPlaylistById,
+  createPlaylistRecord,
+  invalidatePlaylistCaches,
+} from '../services/playlistService.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 import { fetchUserCompletedAnimeFromAnilist, resolveAnilistForAnime } from '../services/anilistService.js';
@@ -83,43 +89,12 @@ export function registerPlaylistHandlers(io, socket) {
         }
       }
 
-      const secretField = isAdmin ? ', secret_code as "secretCode"' : '';
-
-      // Fetch validated playlists
-      const validatedRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
-                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
-                (SELECT v.youtube_id 
-                 FROM playlist_tracks pt 
-                 JOIN videos v ON pt.video_id = v.id 
-                 WHERE pt.playlist_id = playlists.id 
-                 ORDER BY pt.order_index ASC 
-                 LIMIT 1) AS first_video_youtube_id
-         FROM playlists
-         WHERE is_validated = TRUE
-         ORDER BY played_count DESC, created_at DESC`
-      );
-
-      // Fetch community (custom & not validated) playlists
-      const communityRes = await pool.query(
-        `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
-                (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
-                (SELECT v.youtube_id 
-                 FROM playlist_tracks pt 
-                 JOIN videos v ON pt.video_id = v.id 
-                 WHERE pt.playlist_id = playlists.id 
-                 ORDER BY pt.order_index ASC 
-                 LIMIT 1) AS first_video_youtube_id
-         FROM playlists
-         WHERE is_custom = TRUE AND is_validated = FALSE
-         ORDER BY played_count DESC, created_at DESC`
-      );
-
+      const result = await getPlaylistsList({ isAdmin });
       if (typeof callback === 'function') {
         callback({
           success: true,
-          validated: validatedRes.rows,
-          community: communityRes.rows,
+          validated: result.validated,
+          community: result.community,
         });
       }
     } catch (error) {
@@ -132,132 +107,16 @@ export function registerPlaylistHandlers(io, socket) {
 
   // 2. Create custom playlist (Bounded to max 200 tracks to prevent DoS)
   socket.on('playlist:create', async ({ name, description, videos, categories }, callback) => {
-    const client = await pool.connect();
     try {
-      const cleanName = sanitizeText(name, 100);
-      const cleanDescription = sanitizeText(description, 1000);
-      const cleanCategories = validateAndSanitizeCategories(categories);
-
-      if (!cleanName || !Array.isArray(videos) || videos.length === 0) {
-        throw new Error('Le nom de la playlist et au moins un titre sont requis.');
-      }
-
-      if (videos.length > 200) {
-        throw new Error('Une playlist ne peut pas contenir plus de 200 pistes.');
-      }
-
-      await client.query('BEGIN');
-
-      const playlistId = generatePlaylistId();
-      const secretCode = generatePlaylistSecretCode();
-
-      // Insert playlist with secret_code and categories
-      await client.query(
-        `INSERT INTO playlists (id, name, description, is_custom, is_validated, secret_code, categories)
-         VALUES ($1, $2, $3, TRUE, FALSE, $4, $5)`,
-        [playlistId, cleanName, cleanDescription, secretCode, cleanCategories]
-      );
-
-      // Identify videos already in database to avoid redundant YouTube API calls
-      const candidateYtIds = videos.map((v) => validateYoutubeId(v.youtubeId)).filter(Boolean);
-      let existingVideosMap = new Map();
-      if (candidateYtIds.length > 0) {
-        const existingRes = await client.query(
-          'SELECT youtube_id, id FROM videos WHERE youtube_id = ANY($1)',
-          [candidateYtIds]
-        );
-        existingVideosMap = new Map(existingRes.rows.map((r) => [r.youtube_id, r.id]));
-      }
-
-      // Insert videos (only verify with YouTube if the video is not yet in the database)
-      for (let i = 0; i < videos.length; i++) {
-        const video = videos[i];
-        const cleanTitle = sanitizeText(video.title, 255);
-        const validYtId = validateYoutubeId(video.youtubeId);
-        const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
-        const cleanVideoDesc = sanitizeText(video.description, 1000);
-        let cleanMalTitle = sanitizeText(video.malTitle, 255);
-        let cleanAnilistTitle = sanitizeText(video.anilistTitle, 255);
-        let parsedMalAnimeId = video.malAnimeId ? parseInt(video.malAnimeId, 10) : null;
-        let parsedAnilistId = video.anilistId ? parseInt(video.anilistId, 10) : null;
-
-        if (!cleanTitle || !validYtId) {
-          throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
-        }
-
-        // Only verify on YouTube if this video is NOT already stored in the database
-        if (!existingVideosMap.has(validYtId)) {
-          const ytCheck = await verifyYoutubeVideo(validYtId);
-          if (!ytCheck.valid) {
-            throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
-          }
-
-          // Auto-resolve AniList <-> MAL link only if an anime reference is present
-          if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
-            try {
-              const resolved = await resolveAnilistForAnime({
-                malAnimeId: parsedMalAnimeId,
-                malTitle: cleanMalTitle,
-                anilistId: parsedAnilistId,
-              });
-              if (resolved) {
-                if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
-                if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
-                if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
-              }
-            } catch (_) {}
-          }
-        }
-
-        // Upsert into unique videos catalog
-        const videoUpsertRes = await client.query(
-          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (youtube_id) DO UPDATE SET
-             title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
-             artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
-             description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
-             mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
-             anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
-             anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
-           RETURNING id`,
-          [
-            validYtId,
-            cleanTitle,
-            cleanArtistName,
-            cleanVideoDesc,
-            parsedMalAnimeId,
-            cleanMalTitle || null,
-            parsedAnilistId,
-            cleanAnilistTitle || null,
-          ]
-        );
-
-        const videoId = videoUpsertRes.rows[0].id;
-
-        // Insert link into playlist_tracks
-        await client.query(
-          `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-           VALUES ($1, $2, $3)`,
-          [playlistId, videoId, i]
-        );
-      }
-
-      await client.query('COMMIT');
-      console.log(`Custom playlist created: ${playlistId} - "${name}" with ${videos.length} tracks (Secret code generated)`);
-
+      const result = await createPlaylistRecord({ name, description, videos, categories });
       if (typeof callback === 'function') {
-        callback({ success: true, playlistId, secretCode });
+        callback(result);
       }
     } catch (error) {
-      await client.query('ROLLBACK');
       console.error('Error creating custom playlist:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
-    } finally {
-      client.release();
     }
   });
 
@@ -470,6 +329,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       await client.query('COMMIT');
       console.log(`Playlist updated with secret code: ${cleanId} - "${cleanName}" (${videos.length} tracks)`);
+      await invalidatePlaylistCaches(cleanId);
 
       if (typeof callback === 'function') {
         callback({ success: true, playlistId: cleanId });
@@ -488,37 +348,12 @@ export function registerPlaylistHandlers(io, socket) {
   // 3. Get single playlist details (including tracks)
   socket.on('playlist:get', async ({ id }, callback) => {
     try {
-      const cleanId = sanitizeText(id, 50);
-      if (!cleanId) {
-        throw new Error('L\'ID de la playlist est requis');
-      }
-
-      const playlistRes = await pool.query(
-        'SELECT *, (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count FROM playlists WHERE id = $1',
-        [cleanId]
-      );
-
-      if (playlistRes.rows.length === 0) {
-        throw new Error('Playlist introuvable');
-      }
-
-      const videosRes = await pool.query(
-        `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
-                v.description, v.mal_anime_id as "malAnimeId", v.mal_title as "malTitle", 
-                v.anilist_id as "anilistId", v.anilist_title as "anilistTitle",
-                pt.order_index as "orderIndex", pt.id as "trackId"
-         FROM playlist_tracks pt
-         JOIN videos v ON pt.video_id = v.id
-         WHERE pt.playlist_id = $1
-         ORDER BY pt.order_index ASC`,
-        [cleanId]
-      );
-
+      const result = await getPlaylistById(id);
       if (typeof callback === 'function') {
         callback({
           success: true,
-          playlist: playlistRes.rows[0],
-          videos: videosRes.rows,
+          playlist: result.playlist,
+          videos: result.videos,
         });
       }
     } catch (error) {
@@ -615,6 +450,7 @@ export function registerPlaylistHandlers(io, socket) {
       );
 
       console.log(`Admin toggled validation for playlist: ${cleanId}`);
+      await invalidatePlaylistCaches(cleanId);
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -771,6 +607,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       await pool.query('DELETE FROM playlists WHERE id = $1', [cleanId]);
       console.log(`Admin deleted playlist: ${cleanId}`);
+      await invalidatePlaylistCaches(cleanId);
 
       if (typeof callback === 'function') {
         callback({ success: true });

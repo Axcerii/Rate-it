@@ -9,6 +9,7 @@ import pool, { checkDbConnection, initializeDatabase } from './db/db.js';
 import redisClient, { connectRedis } from './store/redis.js';
 import { isAllowedOrigin } from './utils/security.js';
 import { onConnection } from './sockets/index.js';
+import playlistRouter from './routes/playlistRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +58,9 @@ app.use(
 );
 
 app.use(express.json({ limit: '1mb' }));
+
+// REST API Routes
+app.use('/api/playlists', playlistRouter);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -171,4 +175,3 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startServer();
-

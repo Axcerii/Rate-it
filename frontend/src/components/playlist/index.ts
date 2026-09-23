@@ -6,3 +6,5 @@ export type { PlaylistTrackCardProps, PlaylistTrack } from './PlaylistTrackCard'
 
 export { default as PlaylistFilters } from './PlaylistFilters';
 export type { PlaylistFiltersProps } from './PlaylistFilters';
+
+export { default as PlaylistsClientView } from './PlaylistsClientView';

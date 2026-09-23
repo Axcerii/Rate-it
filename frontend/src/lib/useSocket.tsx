@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { GameSession } from '../../../shared/types';
+import { fetchPlaylistsApi, fetchPlaylistDetailsApi, createPlaylistApi } from './api';
 
 export type BannerType = 'error' | 'announcement' | 'info' | 'success' | 'warning';
 
@@ -522,30 +523,45 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const getPlaylists = (password?: string): Promise<{ validated: any[]; community: any[] }> => {
-    return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:list', { password }, (response: any) => {
-        if (response.success) {
-          resolve({ validated: response.validated, community: response.community });
-        } else {
-          reject(new Error(response.error || 'Failed to fetch playlists'));
-        }
+  const getPlaylists = async (password?: string): Promise<{ validated: any[]; community: any[] }> => {
+    try {
+      return await fetchPlaylistsApi({ password });
+    } catch (err) {
+      // Fallback to socket if HTTP fails
+      return new Promise((resolve, reject) => {
+        if (!socket) return reject(err);
+        socket.emit('playlist:list', { password }, (response: any) => {
+          if (response?.success) {
+            resolve({ validated: response.validated, community: response.community });
+          } else {
+            reject(new Error(response?.error || 'Failed to fetch playlists'));
+          }
+        });
       });
-    });
+    }
   };
 
-  const createPlaylist = (name: string, description: string, videos: any[], categories?: string[]): Promise<{ playlistId: string; secretCode: string }> => {
-    return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:create', { name, description, videos, categories }, (response: any) => {
-        if (response.success) {
-          resolve({ playlistId: response.playlistId, secretCode: response.secretCode });
-        } else {
-          reject(new Error(response.error || 'Failed to create playlist'));
-        }
+  const createPlaylist = async (
+    name: string,
+    description: string,
+    videos: any[],
+    categories?: string[]
+  ): Promise<{ playlistId: string; secretCode: string }> => {
+    try {
+      return await createPlaylistApi({ name, description, videos, categories });
+    } catch (err) {
+      // Fallback to socket if HTTP fails
+      return new Promise((resolve, reject) => {
+        if (!socket) return reject(err);
+        socket.emit('playlist:create', { name, description, videos, categories }, (response: any) => {
+          if (response?.success) {
+            resolve({ playlistId: response.playlistId, secretCode: response.secretCode });
+          } else {
+            reject(new Error(response?.error || 'Failed to create playlist'));
+          }
+        });
       });
-    });
+    }
   };
 
   const verifyPlaylistSecret = (secretCode: string): Promise<{ playlist: any; videos: any[] }> => {
@@ -580,17 +596,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const getPlaylistDetails = (id: string): Promise<{ playlist: any; videos: any[] }> => {
-    return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket not initialized'));
-      socket.emit('playlist:get', { id }, (response: any) => {
-        if (response.success) {
-          resolve({ playlist: response.playlist, videos: response.videos });
-        } else {
-          reject(new Error(response.error || 'Failed to get playlist details'));
-        }
+  const getPlaylistDetails = async (id: string): Promise<{ playlist: any; videos: any[] }> => {
+    try {
+      return await fetchPlaylistDetailsApi(id);
+    } catch (err) {
+      // Fallback to socket if HTTP fails
+      return new Promise((resolve, reject) => {
+        if (!socket) return reject(err);
+        socket.emit('playlist:get', { id }, (response: any) => {
+          if (response?.success) {
+            resolve({ playlist: response.playlist, videos: response.videos });
+          } else {
+            reject(new Error(response?.error || 'Failed to get playlist details'));
+          }
+        });
       });
-    });
+    }
   };
 
   const searchVideos = (query: string): Promise<any[]> => {

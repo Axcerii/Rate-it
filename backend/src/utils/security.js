@@ -62,7 +62,10 @@ export function sanitizeText(input, maxLength = 255) {
   // 4. Strip dangerous script protocols
   str = str.replace(/(javascript|vbscript|data):/gi, '');
 
-  // 5. Trim whitespace and truncate to maximum length
+  // 5. Neutralize any remaining angle brackets to prevent broken tag reassembly
+  str = str.replace(/[<>]/g, '');
+
+  // 6. Trim whitespace and truncate to maximum length
   return str.trim().slice(0, maxLength);
 }
 
@@ -89,6 +92,26 @@ export function validateRoomCode(code) {
   if (!code) return null;
   const str = String(code).trim().toUpperCase();
   if (/^[A-Z0-9]{6}$/.test(str) || /^PL-[A-Z0-9]{6}$/.test(str)) {
+    return str;
+  }
+  return null;
+}
+
+/**
+ * Regex for playlist ID format (e.g., "PL-DGRWQV" or 4-12 alphanumeric characters).
+ */
+export const PLAYLIST_ID_REGEX = /^[a-zA-Z0-9_-]{2,50}$/;
+
+/**
+ * Validates and formats a playlist ID.
+ *
+ * @param {any} id
+ * @returns {string|null} Clean uppercase playlist ID or null if invalid
+ */
+export function validatePlaylistId(id) {
+  if (!id) return null;
+  const str = String(id).trim().toUpperCase();
+  if (PLAYLIST_ID_REGEX.test(str)) {
     return str;
   }
   return null;
