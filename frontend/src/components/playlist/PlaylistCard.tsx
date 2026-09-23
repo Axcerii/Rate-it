@@ -134,7 +134,7 @@ export default function PlaylistCard({
 
             </div>
             {/* Nombre de vidéos */}
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border-2 border-black bg-[#FAF0CA] font-black text-[10px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF0CA] font-black text-[10px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none">
               <Film className="w-3 h-3" />
               <span>{playlist.video_count || 0} vidéos</span>
             </span>
@@ -164,26 +164,20 @@ export default function PlaylistCard({
             {/* A. Bande blanche de Cassette.png (Titre, Description & Catégories) */}
             <div
               onClick={() => onToggleExpand(playlist.id)}
-              className="absolute z-20 flex items-center justify-between px-3 sm:px-5 md:px-6 cursor-pointer overflow-hidden"
-              style={{
-                top: '7.67%',
-                left: '6.25%',
-                right: '6.14%',
-                height: '12.45%',
-              }}
+              className="z-20 my-[7%] px-[8%] flex items-center justify-between  cursor-pointer overflow-hidden"
               title="Cliquer pour replier la cassette"
             >
               {/* Titre & Description */}
               <div className="flex flex-col justify-center min-w-0 flex-1 pr-3">
                 <h3
-                  className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate uppercase tracking-tight"
+                  className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate tracking-tight"
                   title={playlist.name}
                 >
                   {playlist.name}
                 </h3>
                 {playlist.description ? (
                   <p
-                    className="text-[10px] sm:text-xs font-bold text-slate-800 leading-tight truncate mt-0.5"
+                    className="text-[10px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
                     title={playlist.description}
                   >
                     {playlist.description}
@@ -216,13 +210,7 @@ export default function PlaylistCard({
                 - Les films commencent en haut à droite du conteneur (items-start justify-end)
             */}
             <div
-              className="absolute z-20 flex flex-col overflow-hidden backdrop-blur-md bg-black/20 border border-white/25 rounded-2xl p-2.5 sm:p-3.5 shadow-none"
-              style={{
-                top: '24.5%',
-                bottom: '24.5%',
-                left: '11%',
-                right: '11%',
-              }}
+              className="z-20 w-4/5 h-3/5 m-auto flex flex-col overflow-hidden backdrop-blur-md bg-black/20 border border-white/25 rounded-2xl sm:p-3.5 shadow-none"
             >
               {isLoadingTracks ? (
                 <div className="flex items-center justify-center flex-1 gap-2 text-xs sm:text-sm font-black text-white">
@@ -259,9 +247,6 @@ export default function PlaylistCard({
                 right: '8%',
               }}
             >
-              <div className="text-[10px] sm:text-xs font-black uppercase text-black">
-                {tracks.length || playlist.video_count || 0} films dans la cassette
-              </div>
 
               <div className="flex items-center gap-2">
                 {remainingCount > 0 && (
