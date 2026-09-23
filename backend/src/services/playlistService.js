@@ -60,32 +60,44 @@ export async function getPlaylistsList({ isAdmin = false } = {}) {
 
   // 1. Fetch validated playlists
   const validatedRes = await pool.query(
-    `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
+    `SELECT playlists.id, playlists.name, playlists.description, playlists.is_custom, playlists.played_count, playlists.last_played, playlists.is_validated, playlists.categories, playlists.created_at${secretField},
             (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
-            (SELECT v.youtube_id 
-             FROM playlist_tracks pt 
-             JOIN videos v ON pt.video_id = v.id 
-             WHERE pt.playlist_id = playlists.id 
-             ORDER BY pt.order_index ASC 
-             LIMIT 1) AS first_video_youtube_id
+            fv.youtube_id AS first_video_youtube_id,
+            fv.title AS first_video_title,
+            fv.artist_name AS first_video_artist_name,
+            fv.mal_title AS first_video_mal_title
      FROM playlists
-     WHERE is_validated = TRUE
-     ORDER BY played_count DESC, created_at DESC`
+     LEFT JOIN LATERAL (
+       SELECT v.youtube_id, v.title, v.artist_name, v.mal_title
+       FROM playlist_tracks pt 
+       JOIN videos v ON pt.video_id = v.id 
+       WHERE pt.playlist_id = playlists.id 
+       ORDER BY pt.order_index ASC 
+       LIMIT 1
+     ) fv ON TRUE
+     WHERE playlists.is_validated = TRUE
+     ORDER BY playlists.played_count DESC, playlists.created_at DESC`
   );
 
   // 2. Fetch community (custom & not validated) playlists
   const communityRes = await pool.query(
-    `SELECT id, name, description, is_custom, played_count, last_played, is_validated, categories, created_at${secretField},
+    `SELECT playlists.id, playlists.name, playlists.description, playlists.is_custom, playlists.played_count, playlists.last_played, playlists.is_validated, playlists.categories, playlists.created_at${secretField},
             (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count,
-            (SELECT v.youtube_id 
-             FROM playlist_tracks pt 
-             JOIN videos v ON pt.video_id = v.id 
-             WHERE pt.playlist_id = playlists.id 
-             ORDER BY pt.order_index ASC 
-             LIMIT 1) AS first_video_youtube_id
+            fv.youtube_id AS first_video_youtube_id,
+            fv.title AS first_video_title,
+            fv.artist_name AS first_video_artist_name,
+            fv.mal_title AS first_video_mal_title
      FROM playlists
-     WHERE is_custom = TRUE AND is_validated = FALSE
-     ORDER BY played_count DESC, created_at DESC`
+     LEFT JOIN LATERAL (
+       SELECT v.youtube_id, v.title, v.artist_name, v.mal_title
+       FROM playlist_tracks pt 
+       JOIN videos v ON pt.video_id = v.id 
+       WHERE pt.playlist_id = playlists.id 
+       ORDER BY pt.order_index ASC 
+       LIMIT 1
+     ) fv ON TRUE
+     WHERE playlists.is_custom = TRUE AND playlists.is_validated = FALSE
+     ORDER BY playlists.played_count DESC, playlists.created_at DESC`
   );
 
   const result = {

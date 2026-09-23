@@ -66,7 +66,7 @@ export default function PlaylistTrackCard({ track, index }: PlaylistTrackCardPro
       {/* 3. Titre en blanc sur la bande noire du dessus */}
       <div className="absolute top-0 left-[14%] right-[14%] h-[21%] z-20 flex items-center justify-center px-1.5 text-center pointer-events-none">
         <h4
-          className="text-white font-black text-[11px] sm:text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors uppercase tracking-tight"
+          className="text-white font-black text-[11px] sm:text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors tracking-tight"
           title={track.title}
         >
           {track.title}

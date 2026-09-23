@@ -23,6 +23,9 @@ export interface PlaylistSummary {
   created_at: string;
   video_count: number;
   first_video_youtube_id: string | null;
+  first_video_title?: string | null;
+  first_video_artist_name?: string | null;
+  first_video_mal_title?: string | null;
   secretCode?: string;
 }
 

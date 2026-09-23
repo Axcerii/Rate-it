@@ -14,6 +14,9 @@ export interface PlaylistData {
   name: string;
   description?: string | null;
   first_video_youtube_id?: string | null;
+  first_video_title?: string | null;
+  first_video_artist_name?: string | null;
+  first_video_mal_title?: string | null;
   played_count?: number;
   video_count?: number;
   categories?: string[];
@@ -52,9 +55,9 @@ export default function PlaylistCard({
   const firstTrack: PlaylistTrack | null = playlist.first_video_youtube_id
     ? {
       youtubeId: playlist.first_video_youtube_id,
-      title: tracks[0]?.title || playlist.name,
-      artistName: tracks[0]?.artistName || 'Piste 1',
-      malTitle: tracks[0]?.malTitle,
+      title: tracks[0]?.title || playlist.first_video_title || 'Titre inconnu',
+      artistName: tracks[0]?.artistName || playlist.first_video_artist_name || 'Artiste inconnu',
+      malTitle: tracks[0]?.malTitle || playlist.first_video_mal_title,
     }
     : null;
 
@@ -84,7 +87,7 @@ export default function PlaylistCard({
           <div className="flex items-center gap-3.5 min-w-0 flex-1">
             {/* Premier Film visible au format Film.png */}
             {firstTrack && (
-              <div className="w-24 sm:w-28 md:w-32 aspect-[500/410] shrink-0 relative select-none">
+              <div className="w-24 sm:w-28 md:w-32 aspect-[500/410] shrink-0 relative select-none -rotate-4">
                 <PlaylistTrackCard track={firstTrack} index={0} />
               </div>
             )}
@@ -92,14 +95,14 @@ export default function PlaylistCard({
             {/* Titre & Description inscrits sur le blanc de l'étiquette */}
             <div className="flex flex-col justify-center min-w-0 flex-1">
               <h3
-                className="font-title text-black font-black text-sm sm:text-base md:text-lg leading-tight truncate uppercase tracking-tight"
+                className="font-title text-black font-black text-sm sm:text-base md:text-lg leading-tight truncate tracking-tight"
                 title={playlist.name}
               >
                 {playlist.name}
               </h3>
               {playlist.description ? (
                 <p
-                  className="text-xs sm:text-sm font-bold text-slate-700 leading-tight truncate mt-1"
+                  className="text-xs sm:text-sm font-bold text-slate-700 leading-tight mt-1"
                   title={playlist.description}
                 >
                   {playlist.description}
@@ -113,20 +116,23 @@ export default function PlaylistCard({
           {/* Côté droit sur le blanc : Catégories style étiquettes jaune cassé & bouton dérouler */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* Catégories */}
-            {Array.isArray(playlist.categories) &&
-              playlist.categories.slice(0, 3).map((cat: string, catIdx: number) => {
-                const rotations = ['rotate-[-1.5deg]', 'rotate-[1.5deg]', 'rotate-[-1deg]'];
-                const rot = rotations[catIdx % rotations.length];
-                return (
-                  <span
-                    key={cat}
-                    className={`px-2.5 py-1 rounded-lg border-2 border-black bg-[#FAF0CA] text-black font-black text-[10px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none`}
-                  >
-                    {cat}
-                  </span>
-                );
-              })}
+            <div className="flex flex-col items-center gap-1">
 
+              {Array.isArray(playlist.categories) &&
+                playlist.categories.slice(0, 3).map((cat: string, catIdx: number) => {
+                  const rotations = ['rotate-[-2deg]', 'rotate-[2deg]', 'rotate-[-2deg]'];
+                  const rot = rotations[catIdx % rotations.length];
+                  return (
+                    <span
+                      key={cat}
+                      className={`px-2.5 py-1 rounded-lg bg-menu text-black font-black text-[10px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none`}
+                    >
+                      {cat}
+                    </span>
+                  );
+                })}
+
+            </div>
             {/* Nombre de vidéos */}
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border-2 border-black bg-[#FAF0CA] font-black text-[10px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none">
               <Film className="w-3 h-3" />

@@ -195,9 +195,6 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
           <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
             {/* Header info showing count and active category */}
             <div className="flex items-center justify-between px-1 text-xs font-black text-slate-800 uppercase">
-              <span>
-                {displayedPlaylists.length} playlist{displayedPlaylists.length > 1 ? 's' : ''} disponible{displayedPlaylists.length > 1 ? 's' : ''}
-              </span>
               {activeCategory !== 'all' && (
                 <span className="text-[11px] font-bold text-slate-500">
                   Filtre : <span className="text-[#BF1539] font-black">{activeCategory}</span>
