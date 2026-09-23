@@ -40,7 +40,7 @@ const getBannerConfig = (type: BannerType = 'error', sender?: string): ThemeConf
         badgeText: 'text-playlist',
         badgeLabel: 'SUCCÈS',
         textColor: 'text-black',
-        icon: <CheckCircle2 className="w-5 h-5 text-black" />,
+        icon: <CheckCircle2 className="w-5 h-5 text-playlist" />,
       };
     case 'warning':
       return {
@@ -54,12 +54,12 @@ const getBannerConfig = (type: BannerType = 'error', sender?: string): ThemeConf
     case 'error':
     default:
       return {
-        bgClass: 'bg-admin text-white',
+        bgClass: 'bg-red-600 text-white',
         badgeBg: 'bg-black',
-        badgeText: 'text-admin',
+        badgeText: 'text-red-500',
         badgeLabel: 'ERREUR',
         textColor: 'text-white',
-        icon: <AlertOctagon className="w-5 h-5 text-admin" />,
+        icon: <AlertOctagon className="w-5 h-5 text-red-500" />,
       };
   }
 };

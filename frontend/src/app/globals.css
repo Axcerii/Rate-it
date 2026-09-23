@@ -156,6 +156,18 @@ button {
   overflow: hidden;
 }
 
+.info-card.overflow-y-auto,
+.info-card.overflow-auto,
+.info-card.\!overflow-y-auto,
+.info-card.\!overflow-auto {
+  overflow-y: auto !important;
+}
+
+.info-card.overflow-visible,
+.info-card.\!overflow-visible {
+  overflow: visible !important;
+}
+
 .info-card::before {
   content: '';
   position: absolute;

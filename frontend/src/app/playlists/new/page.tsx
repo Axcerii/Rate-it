@@ -994,8 +994,8 @@ export default function NewPlaylist() {
       {/* 1. CREATION SUCCESS MODAL WITH ONE-TIME SECRET CODE & SHARE CODE POPUP    */}
       {/* ========================================================================= */}
       {createdResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-8 flex flex-col gap-5 text-left relative max-h-[92vh] overflow-y-auto shadow-none">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center animate-in fade-in duration-200">
+          <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-8 flex flex-col gap-5 text-left relative max-h-[90vh] !overflow-y-auto shadow-none my-auto scrollbar-thin">
             {/* Header */}
             <div className="flex items-center gap-3.5 border-b-2 border-white/70 pb-4">
               <div className="p-3 bg-white text-black border-2 border-white rounded-2xl shrink-0 shadow-none">
