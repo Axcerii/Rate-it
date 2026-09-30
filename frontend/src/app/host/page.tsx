@@ -40,10 +40,23 @@ import {
   ArrowUp,
   ArrowUpDown,
   RotateCcw,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import gsap from 'gsap';
 import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
 import HomeButton from '@/components/HomeButton';
+import { PlaylistCard, PlaylistFilters } from '@/components/playlist';
+
+const CATEGORIES = [
+  'Anime/Manga',
+  'Film/Cinéma',
+  'Jeux Vidéo',
+  'Série/TV',
+  'Dessins Animés/Cartoons',
+  'Streaming/VTuber',
+  'Youtube',
+] as const;
 
 export default function HostLobby() {
   const router = useRouter();
@@ -100,6 +113,16 @@ export default function HostLobby() {
   const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [tracksCache, setTracksCache] = useState<{ [id: string]: any[] }>({});
+  const [loadingTracks, setLoadingTracks] = useState<{ [id: string]: boolean }>({});
+  const [visibleTrackCounts, setVisibleTrackCounts] = useState<{ [id: string]: number }>({});
+  const [isStartingGame, setIsStartingGame] = useState(false);
+  const [isPlayersTabCollapsed, setIsPlayersTabCollapsed] = useState(false);
+  const [showMobilePlayersModal, setShowMobilePlayersModal] = useState(false);
+  const initialUrlLoadedRef = useRef(false);
+
   const [animePlatform, setAnimePlatform] = useState<'mal' | 'anilist'>('mal');
   const [anilistUsername, setAnilistUsername] = useState('');
   const [animeConnectedPlatform, setAnimeConnectedPlatform] = useState<'mal' | 'anilist'>('mal');
@@ -229,30 +252,48 @@ export default function HostLobby() {
     }
   }, [session?.status, getPlaylists]);
 
-  // Fetch selected playlist details
+  // Fetch selected playlist details and cache tracks
   useEffect(() => {
-    if (session?.status === 'LOBBY') {
-      if (selectedPlaylistId) {
-        getPlaylistDetails(selectedPlaylistId).then(res => {
-          setSelectedPlaylistTracks(res.videos || []);
-        }).catch(err => console.error(err));
-      } else {
-        setSelectedPlaylistTracks([]);
+    if (session?.status === 'LOBBY' && selectedPlaylistId) {
+      if (!tracksCache[selectedPlaylistId] && !loadingTracks[selectedPlaylistId]) {
+        setLoadingTracks((prev) => ({ ...prev, [selectedPlaylistId]: true }));
+        getPlaylistDetails(selectedPlaylistId)
+          .then((res) => {
+            const vids = res.videos || [];
+            setTracksCache((prev) => ({
+              ...prev,
+              [selectedPlaylistId]: vids,
+            }));
+            setSelectedPlaylistTracks(vids);
+          })
+          .catch((err) => console.error(err))
+          .finally(() => {
+            setLoadingTracks((prev) => ({ ...prev, [selectedPlaylistId]: false }));
+          });
+      } else if (tracksCache[selectedPlaylistId]) {
+        setSelectedPlaylistTracks(tracksCache[selectedPlaylistId]);
       }
     }
-  }, [session?.status, selectedPlaylistId, getPlaylistDetails]);
+  }, [session?.status, selectedPlaylistId, getPlaylistDetails, tracksCache, loadingTracks]);
 
   // Pre-select playlist if passed via URL query parameter (?playlistId=...)
+  // Runs ONCE on mount so that subsequent playlist selections are not overridden!
   useEffect(() => {
-    if (typeof window !== 'undefined' && session?.status === 'LOBBY') {
+    if (typeof window !== 'undefined' && session?.status === 'LOBBY' && !initialUrlLoadedRef.current) {
       const params = new URLSearchParams(window.location.search);
       const preselectedId = params.get('playlistId');
-      if (preselectedId && preselectedId !== selectedPlaylistId) {
+      if (preselectedId) {
+        initialUrlLoadedRef.current = true;
         setSelectedPlaylistId(preselectedId);
         setQuizMode('playlist');
+        setExpandedIds(new Set([preselectedId]));
+        // Clean URL so the query param doesn't lock playlist selection
+        const url = new URL(window.location.href);
+        url.searchParams.delete('playlistId');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
       }
     }
-  }, [session?.status, selectedPlaylistId]);
+  }, [session?.status]);
 
   // YouTube API Player setup
   useEffect(() => {
@@ -325,7 +366,12 @@ export default function HostLobby() {
 
   const handleStartGame = async () => {
     setSearchPlaylistError(null);
+    if (activeConnectedPlayers.length === 0) {
+      showBanner('Veuillez attendre au moins un joueur connecté ou cochez "Host joueur"', 'error');
+      return;
+    }
 
+    setIsStartingGame(true);
     if (quizMode === 'mal') {
       const currentPlatform = animeConnectedPlatform || animePlatform;
       const username = currentPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
@@ -336,6 +382,7 @@ export default function HostLobby() {
             : 'Indiquez votre nom d\'utilisateur MyAnimeList pour commencer.',
           'warning'
         );
+        setIsStartingGame(false);
         return;
       }
 
@@ -363,10 +410,12 @@ export default function HostLobby() {
         showBanner(error.message || 'Erreur : Impossible de commencer la partie.', 'error');
       } finally {
         setLoadingMessage(null);
+        setIsStartingGame(false);
       }
     } else {
       if (!selectedPlaylistId) {
         showBanner('Veuillez sélectionner une playlist pour commencer la partie.', 'warning');
+        setIsStartingGame(false);
         return;
       }
       setLoadingMessage('Récupération de la playlist...');
@@ -376,7 +425,91 @@ export default function HostLobby() {
         showBanner(error.message || 'Erreur : Impossible de commencer la partie.', 'error');
       } finally {
         setLoadingMessage(null);
+        setIsStartingGame(false);
       }
+    }
+  };
+
+  const handleToggleExpand = async (playlistId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playlistId)) {
+        next.delete(playlistId);
+      } else {
+        next.add(playlistId);
+      }
+      return next;
+    });
+
+    if (!tracksCache[playlistId] && !loadingTracks[playlistId]) {
+      setLoadingTracks((prev) => ({ ...prev, [playlistId]: true }));
+      try {
+        const details = await getPlaylistDetails(playlistId);
+        const videos = details.videos || [];
+        setTracksCache((prev) => ({
+          ...prev,
+          [playlistId]: videos,
+        }));
+        if (playlistId === selectedPlaylistId) {
+          setSelectedPlaylistTracks(videos);
+        }
+      } catch (err: any) {
+        console.error('Failed to load tracks for playlist:', err);
+        showBanner(err.message || 'Impossible de charger les morceaux de cette playlist', 'error');
+      } finally {
+        setLoadingTracks((prev) => ({ ...prev, [playlistId]: false }));
+      }
+    }
+  };
+
+  const handleShowMoreTracks = (playlistId: string) => {
+    setVisibleTrackCounts((prev) => ({
+      ...prev,
+      [playlistId]: (prev[playlistId] || 50) + 50,
+    }));
+  };
+
+  const handleSelectPlaylist = async (playlistId: string) => {
+    setSelectedPlaylistId(playlistId);
+    if (!expandedIds.has(playlistId)) {
+      handleToggleExpand(playlistId);
+    }
+  };
+
+  const handleToggleAllTracks = async (playlistId: string, enableAll: boolean) => {
+    const tracks = tracksCache[playlistId] || selectedPlaylistTracks;
+    if (!tracks || tracks.length === 0) return;
+    const disabledMap = session?.disabledVideoIds || {};
+    for (const track of tracks) {
+      const trackId = String(track.id || track.trackId || '');
+      const isCurrentlyDisabled = Boolean(disabledMap[trackId]);
+      if (enableAll && isCurrentlyDisabled) {
+        await toggleLobbyVideo(trackId).catch(console.error);
+      } else if (!enableAll && !isCurrentlyDisabled) {
+        await toggleLobbyVideo(trackId).catch(console.error);
+      }
+    }
+  };
+
+  const handleStartGameWithPlaylist = async (playlistId: string) => {
+    setSelectedPlaylistId(playlistId);
+    if (activeConnectedPlayers.length === 0) {
+      showBanner('Veuillez attendre au moins un joueur connecté ou cochez "Host joueur"', 'error');
+      return;
+    }
+    try {
+      setIsStartingGame(true);
+      await startGame(
+        undefined,
+        playlistId,
+        isShuffleEnabled,
+        undefined
+      );
+    } catch (error: any) {
+      console.error('Erreur lors du lancement de la partie:', error);
+      showBanner(error.message || 'Impossible de lancer la partie', 'error');
+    } finally {
+      setIsStartingGame(false);
     }
   };
 
@@ -425,11 +558,40 @@ export default function HostLobby() {
         }));
       }
       setSelectedPlaylistId(res.playlist.id);
+      setSelectedPlaylistTracks(res.videos || []);
+      setTracksCache(prev => ({
+        ...prev,
+        [res.playlist.id]: res.videos || [],
+      }));
+      setExpandedIds(prev => new Set(prev).add(res.playlist.id));
       setSearchPlaylistId('');
+      showBanner(`Playlist "${res.playlist.name}" chargée avec succès !`, 'success');
     } catch (err: any) {
       setSearchPlaylistError(err.message || 'Playlist non trouvée.');
     }
   };
+
+  const displayedPlaylists = React.useMemo(() => {
+    const list = playlistTab === 'validated' ? playlists.validated : playlists.community;
+
+    return list
+      .filter((pl) => {
+        if (activeCategory !== 'all') {
+          if (!pl.categories || !Array.isArray(pl.categories) || !pl.categories.includes(activeCategory)) {
+            return false;
+          }
+        }
+        if (playlistSearchQuery.trim()) {
+          const q = playlistSearchQuery.toLowerCase().trim();
+          const matchName = pl.name && pl.name.toLowerCase().includes(q);
+          const matchDesc = pl.description && pl.description.toLowerCase().includes(q);
+          const matchId = pl.id && pl.id.toLowerCase().includes(q);
+          if (!matchName && !matchDesc && !matchId) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (b.played_count || 0) - (a.played_count || 0));
+  }, [playlists, playlistTab, activeCategory, playlistSearchQuery]);
 
   const handleLoadAnimeTracks = async (e: React.FormEvent, platform?: 'mal' | 'anilist') => {
     e.preventDefault();
@@ -845,448 +1007,466 @@ export default function HostLobby() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-8 py-6 sm:py-12 font-sans w-full max-w-full overflow-x-hidden">
-        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-6 sm:gap-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between pb-4 sm:pb-6 gap-4 text-center sm:text-left">
-            <div className="flex flex-col items-center sm:items-start">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 lg:px-8 py-4 sm:py-6 font-sans w-full max-w-full overflow-x-hidden min-h-screen">
+        <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-5 sm:gap-6">
+          
+          {/* Header Row: Title/Logo + Mode switcher + Exit Button */}
+          <header className="flex flex-col md:flex-row items-center justify-between gap-4 pb-2 w-full text-center md:text-left">
+            <div className="flex items-center gap-3">
               <img
                 src="/HOST/HostText.png"
                 alt="Host Lobby"
-                className="h-12 sm:h-20 w-auto object-contain max-w-full"
+                className="h-10 sm:h-14 md:h-16 w-auto object-contain max-w-full select-none pointer-events-none"
               />
-              <p className="text-xl font-bold text-black mt-1">Configurez la salle et invitez vos compagnons !</p>
+              <p className="hidden sm:block text-xs sm:text-sm font-bold text-slate-700">
+                Configurez la session et invitez vos compagnons !
+              </p>
             </div>
+
+            {/* Quiz Mode Selector (Playlists vs AnimeLists) */}
+            <div className="flex border-2 border-black rounded-xl overflow-hidden font-black text-xs uppercase shadow-none shrink-0 bg-white">
+              <button
+                type="button"
+                onClick={() => setQuizMode('playlist')}
+                className={`py-2 px-3 sm:px-4 text-center cursor-pointer transition-colors ${
+                  quizMode === 'playlist'
+                    ? 'bg-playlist text-black font-black'
+                    : 'bg-white text-black hover:bg-slate-100'
+                }`}
+              >
+                Playlists
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuizMode('mal')}
+                className={`py-2 px-3 sm:px-4 text-center border-l-2 border-black cursor-pointer transition-colors ${
+                  quizMode === 'mal'
+                    ? 'bg-playlist text-black font-black'
+                    : 'bg-white text-black hover:bg-slate-100'
+                }`}
+              >
+                AnimeLists (MAL / AniList)
+              </button>
+            </div>
+
+            {/* Exit Room / Home Button */}
             <div className="flex items-center gap-2 shrink-0">
               <HomeButton
                 onClick={handleBackToHome}
-                sizeClassName="h-10 sm:h-14 md:h-16"
-                title="Fermer la session et retourner à l'accueil"
-                ariaLabel="Fermer la session et retourner à l'accueil"
+                sizeClassName="h-9 sm:h-12 md:h-14"
+                title="Quitter et fermer la salle"
+                ariaLabel="Quitter et fermer la salle"
               />
             </div>
-          </div>
+          </header>
 
-          {/* Quiz Mode Selector (Goofy Wario style) */}
-          <div className="flex flex-col sm:flex-row border-4 border-black rounded-2xl overflow-hidden font-black text-xs sm:text-sm uppercase shrink-0">
-            <button
-              onClick={() => setQuizMode('playlist')}
-              className={`flex-1 py-3.5 sm:py-4 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 ${quizMode === 'playlist'
-                ? 'bg-playlist text-black font-black'
-                : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
+          {/* TOP OPTIONS ROW (LIGNE D'OPTIONS EN HAUT) */}
+          {/* Code de la salle + QR code, HOST est un joueur + Les vidéos sont dans un ordre aléatoire, Connexion à Twitch */}
+          <div className="w-full bg-[#FAF0CA] border-2 border-black rounded-2xl p-2.5 sm:p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 shadow-none">
+            
+            {/* 1. Salle & Invitation (Code + Copier + QR Code) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl px-2.5 py-1.5 shadow-none">
+                <span className="text-[11px] font-black uppercase text-slate-600">Salle :</span>
+                <span className="font-mono font-black text-sm sm:text-base text-black select-all">
+                  {showRoomCode ? session.sessionId : '••••••'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRoomCode(!showRoomCode)}
+                  className="p-0.5 text-slate-600 hover:text-black cursor-pointer"
+                  title={showRoomCode ? 'Masquer le code' : 'Afficher le code'}
+                >
+                  {showRoomCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="px-3 py-1.5 border-2 border-black bg-host hover:bg-sky-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 cursor-pointer shadow-none"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedLink ? 'Lien copié !' : 'Copier le lien'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowQRCode(!showQRCode)}
+                className={`px-3 py-1.5 border-2 border-black rounded-xl font-black text-xs uppercase inline-flex items-center gap-1.5 cursor-pointer shadow-none transition-colors ${
+                  showQRCode ? 'bg-black text-[#FEEC66]' : 'bg-white hover:bg-slate-100 text-black'
                 }`}
-            >
-              <span className="uppercase">Choisir une playlist</span>
-            </button>
-            <button
-              onClick={() => setQuizMode('mal')}
-              className={`flex-1 py-3.5 sm:py-4 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${quizMode === 'mal'
-                ? 'bg-playlist text-black font-black'
-                : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
-                }`}
-            >
-              <span className="uppercase">Basé sur mes AnimeLists (MAL / AniList)</span>
-            </button>
-          </div>
-
-          <div className="grid gap-6 sm:gap-8 lg:grid-cols-5 flex-1 items-start w-full max-w-full">
-            {/* Left side parameters (2/5) */}
-            <div className="lg:col-span-2 flex flex-col gap-6 w-full max-w-full">
-              {/* Room Code Card */}
-              <div className="info-card p-3.5 sm:p-6 text-center rounded-2xl flex flex-col items-center w-full max-w-full">
-                <h3 className="text-xs sm:text-sm font-black uppercase text-slate-600">Code de la Salle</h3>
-
-                <div className="mt-3 w-full text-2xl sm:text-4xl font-black tracking-wider sm:tracking-widest text-black bg-white py-2.5 sm:py-3 rounded-xl border-2 border-black flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden px-2">
-                  <span className="font-mono select-all">
-                    {showRoomCode ? session.sessionId : '••••••'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowRoomCode(!showRoomCode)}
-                    title={showRoomCode ? 'Cacher le code' : 'Afficher le code'}
-                    className="btn-action-hover p-1 text-slate-700"
-                  >
-                    {showRoomCode ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
-                </div>
-
-                <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center w-full">
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="px-3 sm:px-4 py-2.5 border-2 border-black bg-host text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
-                  >
-                    {copiedLink ? (
-                      <>
-                        <Check className="w-4 h-4 shrink-0" />
-                        <span>Lien copié !</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 shrink-0" />
-                        <span>Copier le lien d'invitation</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowQRCode(!showQRCode)}
-                    className="px-3 sm:px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-1.5"
-                  >
-                    {showQRCode ? (
-                      <>
-                        <EyeOff className="w-4 h-4 shrink-0" />
-                        <span>Cacher le QR Code</span>
-                      </>
-                    ) : (
-                      <>
-                        <QrCode className="w-4 h-4 shrink-0" />
-                        <span>Afficher le QR Code</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {showQRCode && joinUrl && (
-                  <div className="mt-4 flex flex-col items-center gap-4 w-full">
-                    <div className="p-3 bg-white border-2 border-black rounded-xl">
-                      <QRCodeSVG value={joinUrl} size={140} level="H" includeMargin={false} />
-                    </div>
-                    <p className="text-xs text-slate-700 font-bold leading-relaxed max-w-xs mt-1">
-                      Scanner le QR Code pour rejoindre la salle :
-                      <br />
-                      <span className="text-host break-all select-all font-mono font-bold">{joinUrl}</span>
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Host Options Card */}
-              <div className="info-card p-3.5 sm:p-5 rounded-2xl flex flex-col gap-3.5 w-full max-w-full !overflow-visible z-20">
-                {/* Host Player Option */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none shrink-0">
-                      <input
-                        type="checkbox"
-                        id="hostIsPlayerLobbyToggle"
-                        checked={session.isHostPlayer !== false}
-                        onChange={async (e) => {
-                          const checked = e.target.checked;
-                          try {
-                            const finalName = hostCustomName.trim() || 'HOST';
-                            await toggleHostPlayer(checked, finalName);
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        }}
-                        className="h-4 w-4 accent-host cursor-pointer"
-                      />
-                      <span>Le Host est un joueur</span>
-                    </label>
-
-                    {/* Hoverable Tooltip "?" */}
-                    <div className="group relative inline-flex items-center justify-center">
-                      <span
-                        tabIndex={0}
-                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-xs font-black flex items-center justify-center cursor-help focus:outline-none focus:ring-1 focus:ring-black"
-                      >
-                        ?
-                      </span>
-                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-64 p-3 bg-black text-white text-xs font-bold rounded-xl text-center leading-snug z-50">
-                        Permet au Host de voter. À décocher si vous voulez jouer sur votre téléphone avec vos amis dans la vraie vie.
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Input for Host player name beside checkbox (disabled when unchecked) */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Entre ton pseudo"
-                      value={hostCustomName}
-                      disabled={session.isHostPlayer === false}
-                      onChange={(e) => setHostCustomName(e.target.value)}
-                      onBlur={async () => {
-                        const trimmed = hostCustomName.trim();
-                        const finalName = trimmed || 'HOST';
-                        if (trimmed) {
-                          localStorage.setItem('rate_it_host_name', trimmed);
-                        } else {
-                          localStorage.removeItem('rate_it_host_name');
-                        }
-                        if (session.isHostPlayer !== false) {
-                          try {
-                            await toggleHostPlayer(true, finalName);
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        }
-                      }}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter') {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                      className="px-3 py-1.5 text-xs sm:text-sm font-black bg-white border-2 border-black rounded-xl text-black placeholder:text-slate-400 placeholder:font-black disabled:opacity-40 disabled:bg-slate-100 disabled:cursor-not-allowed max-w-[150px] sm:max-w-[180px] outline-none focus:ring-2 focus:ring-black"
-                      title={session.isHostPlayer === false ? 'Cochez "Le Host est un joueur" pour modifier votre nom' : 'Pseudonyme du Host en tant que joueur'}
-                    />
-                  </div>
-                </div>
-
-                {/* Shuffle Random Order Option */}
-                <div className="flex items-center justify-between gap-3 border-t border-black/15 pt-3">
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="shuffleOpeningsToggle" className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
-                      <input
-                        type="checkbox"
-                        id="shuffleOpeningsToggle"
-                        checked={isShuffleEnabled}
-                        onChange={(e) => setIsShuffleEnabled(e.target.checked)}
-                        className="h-4 w-4 accent-host cursor-pointer"
-                      />
-                      <span className="flex items-center gap-1.5">
-                        <span>Les vidéos sont dans un ordre aléatoire</span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-
-
-              {/* Twitch Votes */}
-              <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col gap-3 w-full max-w-full overflow-hidden">
-                <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 border-b border-black pb-2">
-                  <span>Twitch</span>
-                  <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded font-black uppercase">optionnel</span>
-                </h3>
-                <p className="text-xs text-slate-700 font-bold leading-relaxed">
-                  Laisse participer ton chat en les laissant taper un chiffre entre 1 et 5 et regarde leurs votes !
-                </p>
-                {session.twitchChannel ? (
-                  <div className="flex flex-col gap-2 bg-purple-50 p-3.5 border-2 border-purple-300 rounded-xl">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs sm:text-sm text-purple-900 font-black flex items-center gap-1.5 truncate">
-                        <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse shrink-0" />
-                        Connecté au compte : #{session.twitchChannel}
-                      </span>
-                      <button
-                        onClick={handleDisconnectTwitch}
-                        className="text-xs text-accent-red hover:text-red-500 focus:text-red-500 focus-visible:text-red-500 font-black shrink-0 btn-action-hover underline"
-                      >
-                        Déconnexion
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={twitchChannel}
-                      onChange={(e) => setTwitchChannel(e.target.value)}
-                      placeholder="pseudo_twitch..."
-                      className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none text-xs sm:text-sm font-bold rounded-xl"
-                    />
-                    <button
-                      onClick={handleConnectTwitch}
-                      disabled={isTwitchConnecting}
-                      className="px-4 py-2.5 bg-host text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0"
-                    >
-                      {isTwitchConnecting ? '...' : 'Connexion'}
-                    </button>
-                  </div>
-                )}
-                {twitchError && (
-                  <p className="text-xs text-accent-red font-black flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>{twitchError}</span>
-                  </p>
-                )}
-              </div>
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>QR Code</span>
+              </button>
             </div>
 
-            {/* Right side parameters (3/5) */}
-            <div className="lg:col-span-3 flex flex-col gap-6 w-full max-w-full overflow-hidden">
-              {quizMode === 'playlist' ? (
-                /* PLAYLIST SELECTION CARD */
-                <div className="info-card p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden">
-                  <h3 className="text-sm sm:text-base font-black text-black uppercase border-b-2 border-black pb-2.5 mb-4 text-cyan-950">
-                    Playlist & Sélection des vidéos
-                  </h3>
+            {/* 2. Options de jeu (HOST est un joueur + Vidéos aléatoires) */}
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 py-2 xl:py-0 border-t xl:border-t-0 xl:border-l xl:border-r border-black/15 xl:px-4">
+              {/* Host est un joueur */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                  <input
+                    type="checkbox"
+                    id="hostIsPlayerLobbyToggle"
+                    checked={session.isHostPlayer !== false}
+                    onChange={async (e) => {
+                      const checked = e.target.checked;
+                      try {
+                        const finalName = hostCustomName.trim() || 'HOST';
+                        await toggleHostPlayer(checked, finalName);
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                    className="h-4 w-4 accent-host cursor-pointer"
+                  />
+                  <span>Host joueur</span>
+                </label>
 
-                  {/* Search Playlist ID */}
-                  <form onSubmit={handleSearchPlaylist} className="flex flex-col sm:flex-row gap-2 mb-4">
+                {/* Tooltip "?" */}
+                <div className="group relative inline-flex items-center justify-center">
+                  <span
+                    tabIndex={0}
+                    className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help"
+                  >
+                    ?
+                  </span>
+                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col w-56 p-2.5 bg-black text-white text-[11px] font-bold rounded-xl text-center leading-snug z-50 shadow-none">
+                    Permet au Host de voter. À décocher si vous jouez avec vos amis sur votre téléphone en physique.
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                  </div>
+                </div>
+
+                {/* Pseudo Host input when player */}
+                {session.isHostPlayer !== false && (
+                  <input
+                    type="text"
+                    placeholder="Pseudo Host"
+                    value={hostCustomName}
+                    onChange={(e) => setHostCustomName(e.target.value)}
+                    onBlur={async () => {
+                      const trimmed = hostCustomName.trim();
+                      const finalName = trimmed || 'HOST';
+                      if (trimmed) {
+                        localStorage.setItem('rate_it_host_name', trimmed);
+                      } else {
+                        localStorage.removeItem('rate_it_host_name');
+                      }
+                      try {
+                        await toggleHostPlayer(true, finalName);
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className="px-2 py-1 text-xs font-bold bg-white border-2 border-black rounded-lg text-black placeholder:text-slate-400 w-24 sm:w-28 outline-none shadow-none"
+                    title="Pseudonyme du Host"
+                  />
+                )}
+              </div>
+
+              {/* Vidéos en ordre aléatoire */}
+              <label htmlFor="shuffleToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                <input
+                  type="checkbox"
+                  id="shuffleToggle"
+                  checked={isShuffleEnabled}
+                  onChange={(e) => setIsShuffleEnabled(e.target.checked)}
+                  className="h-4 w-4 accent-host cursor-pointer"
+                />
+                <span className="flex items-center gap-1">
+                  <Shuffle className="w-3.5 h-3.5 text-slate-700" />
+                  <span>Ordre aléatoire</span>
+                </span>
+              </label>
+            </div>
+
+            {/* 3. Twitch */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-[#9146FF]" />
+                <span>Twitch</span>
+              </span>
+
+              {session.twitchChannel ? (
+                <div className="flex items-center gap-2 bg-purple-50 border-2 border-[#9146FF] px-2.5 py-1 rounded-xl">
+                  <span className="text-xs text-purple-900 font-black truncate max-w-[130px]">
+                    #{session.twitchChannel}
+                  </span>
+                  <button
+                    onClick={handleDisconnectTwitch}
+                    className="text-[10px] text-accent-red hover:underline font-black cursor-pointer"
+                  >
+                    Déconnexion
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={twitchChannel}
+                    onChange={(e) => setTwitchChannel(e.target.value)}
+                    placeholder="chaîne_twitch..."
+                    className="px-2.5 py-1.5 border-2 border-black bg-white rounded-xl text-xs font-bold text-black focus:outline-none w-28 sm:w-36 shadow-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleConnectTwitch}
+                    disabled={isTwitchConnecting || !twitchChannel.trim()}
+                    className="px-3 py-1.5 bg-[#9146FF] hover:bg-purple-600 disabled:opacity-50 text-white font-black text-xs uppercase border-2 border-black rounded-xl cursor-pointer shadow-none transition-colors"
+                  >
+                    {isTwitchConnecting ? '...' : 'Lier'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* QR Code Modal Overlay if toggled */}
+          {showQRCode && joinUrl && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white border-4 border-black rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
+                <button
+                  type="button"
+                  onClick={() => setShowQRCode(false)}
+                  className="absolute top-3 right-3 p-1 rounded-lg border-2 border-black hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <h3 className="font-title text-base font-black uppercase text-black text-center">
+                  Rejoindre la salle
+                </h3>
+                <div className="p-3 bg-white border-2 border-black rounded-xl shadow-none">
+                  <QRCodeSVG value={joinUrl} size={180} level="H" includeMargin={false} />
+                </div>
+                <p className="text-xs font-bold text-slate-700 text-center leading-relaxed">
+                  Scannez le QR Code avec votre téléphone :
+                  <br />
+                  <span className="font-mono text-host font-bold break-all">{joinUrl}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="w-full py-2.5 px-4 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 shadow-none cursor-pointer"
+                >
+                  {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedLink ? 'Lien copié !' : 'Copier le lien d\'invitation'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MAIN CONTENT AREA */}
+          {quizMode === 'playlist' ? (
+            /* PLAYLISTS VIEW WITH FILTERS & CARDS (REUSING PLAYLISTCARD & PLAYLISTFILTERS) */
+            <div className="flex flex-col lg:flex-row items-start gap-6 w-full flex-1">
+              
+              {/* Sidebar Filters */}
+              <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-4 z-20 flex flex-col gap-3">
+                <PlaylistFilters
+                  categories={CATEGORIES}
+                  activeCategory={activeCategory}
+                  onSelectCategory={setActiveCategory}
+                  activeTab={playlistTab}
+                  onSelectTab={setPlaylistTab}
+                  validatedCount={playlists.validated.length}
+                  communityCount={playlists.community.length}
+                  searchQuery={playlistSearchQuery}
+                  onSearchChange={setPlaylistSearchQuery}
+                />
+
+                {/* Form to load custom playlist by share code */}
+                <form
+                  onSubmit={handleSearchPlaylist}
+                  className="bg-white border-2 border-black rounded-xl p-2.5 flex flex-col gap-1.5 shadow-none"
+                >
+                  <span className="text-[10px] font-black uppercase text-slate-500">
+                    Charger par code de partage
+                  </span>
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="text"
                       value={searchPlaylistId}
                       onChange={(e) => setSearchPlaylistId(e.target.value)}
-                      placeholder="Code de partage de playlist..."
-                      className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white text-xs sm:text-sm font-bold focus:outline-none rounded-xl"
+                      placeholder="Code playlist..."
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold rounded-lg focus:outline-none shadow-none"
                     />
                     <button
                       type="submit"
-                      className="px-5 py-2.5 border-2 border-black bg-white text-cyan-950 font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover shrink-0"
+                      className="px-3 py-1.5 bg-[#FEEC66] hover:bg-yellow-300 text-black border-2 border-black rounded-lg font-black text-xs uppercase cursor-pointer shadow-none"
                     >
-                      Charger
+                      OK
                     </button>
-                  </form>
+                  </div>
                   {searchPlaylistError && (
-                    <p className="text-xs text-accent-red font-black mb-3 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>{searchPlaylistError}</span>
+                    <p className="text-[10px] text-accent-red font-black mt-0.5">
+                      {searchPlaylistError}
                     </p>
                   )}
+                </form>
+              </aside>
 
-                  {/* Search / Filter Playlists Bar */}
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={playlistSearchQuery}
-                      onChange={(e) => setPlaylistSearchQuery(e.target.value)}
-                      placeholder="Rechercher une playlist par nom, description ou ID..."
-                      className="w-full pl-10 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:bg-cream"
-                    />
-                    {playlistSearchQuery && (
+              {/* Main Playlists List */}
+              <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
+                {displayedPlaylists.length === 0 ? (
+                  <div className="p-8 sm:p-12 border-2 border-black bg-[#FAF0CA] rounded-2xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
+                    <h3 className="font-title text-lg font-black text-black">
+                      Aucune playlist trouvée
+                    </h3>
+                    <p className="text-xs font-bold text-slate-600 max-w-md">
+                      {activeCategory !== 'all'
+                        ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`
+                        : playlistSearchQuery
+                        ? `Aucun résultat pour "${playlistSearchQuery}".`
+                        : 'Aucune playlist disponible pour le moment.'}
+                    </p>
+                    {(playlistSearchQuery || activeCategory !== 'all') && (
                       <button
                         type="button"
-                        onClick={() => setPlaylistSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black p-0.5"
-                        title="Effacer la recherche"
+                        onClick={() => {
+                          setPlaylistSearchQuery('');
+                          setActiveCategory('all');
+                        }}
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase shadow-none cursor-pointer"
                       >
-                        <X className="w-4 h-4" />
+                        Réinitialiser les filtres
                       </button>
                     )}
                   </div>
+                ) : (
+                  <div className="flex flex-col gap-6 w-full">
+                    {displayedPlaylists.map((playlist) => (
+                      <PlaylistCard
+                        key={playlist.id}
+                        playlist={playlist}
+                        isExpanded={expandedIds.has(playlist.id)}
+                        onToggleExpand={handleToggleExpand}
+                        tracks={tracksCache[playlist.id] || []}
+                        isLoadingTracks={Boolean(loadingTracks[playlist.id])}
+                        onHost={() => handleStartGameWithPlaylist(playlist.id)}
+                        isStartingHost={isStartingGame}
+                        visibleCount={visibleTrackCounts[playlist.id] || 50}
+                        onShowMoreTracks={handleShowMoreTracks}
+                        isHostLobby={true}
+                        isSelected={selectedPlaylistId === playlist.id}
+                        onSelectPlaylist={handleSelectPlaylist}
+                        disabledVideoIds={session.disabledVideoIds || {}}
+                        onToggleTrack={handleToggleTrack}
+                        onToggleAllTracks={(enableAll) => handleToggleAllTracks(playlist.id, enableAll)}
+                        canStartGame={activeConnectedPlayers.length > 0}
+                        onStartGame={handleStartGame}
+                      />
+                    ))}
+                  </div>
+                )}
+              </main>
+            </div>
+          ) : (
+            /* ANIMELIST (MAL / ANILIST) SELECTION VIEW */
+            <div className="bg-[#FAF0CA] border-2 border-black p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden shadow-none">
+              {/* Platform Selector & Connexion form */}
+              <div className="border-b-2 border-black pb-4 mb-4 flex flex-col gap-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black pb-2">
+                  <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 text-accent-red">
+                    <span>{animePlatform === 'anilist' ? 'AniList Connexion' : 'MyAnimeList Connexion'}</span>
+                  </h3>
 
-                  {/* Playlist Tabs (Validated vs Community) */}
-                  <div className="flex flex-col sm:flex-row border-2 sm:border-4 border-black rounded-xl sm:rounded-2xl overflow-hidden font-black text-xs sm:text-sm uppercase mb-4 shrink-0">
+                  {/* Segmented Platform Toggle */}
+                  <div className="inline-flex border-2 border-black rounded-xl overflow-hidden text-xs font-black shrink-0">
                     <button
                       type="button"
-                      onClick={() => setPlaylistTab('validated')}
-                      className={`flex-1 py-2.5 sm:py-3 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 ${playlistTab === 'validated'
-                        ? 'bg-playlist text-black font-black'
-                        : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
-                        }`}
+                      onClick={() => {
+                        setAnimePlatform('mal');
+                        setMalLoadError(null);
+                      }}
+                      className={`px-3 py-1.5 uppercase transition ${
+                        animePlatform === 'mal'
+                          ? 'bg-[#2E51A2] text-white'
+                          : 'bg-white text-black hover:bg-slate-100'
+                      }`}
                     >
-                      <span className="uppercase">
-                        Playlists vérifiées ({playlistSearchQuery.trim() ? `${filterPlaylists(playlists.validated).length}/${playlists.validated.length}` : playlists.validated.length})
-                      </span>
+                      MyAnimeList
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPlaylistTab('community')}
-                      className={`flex-1 py-2.5 sm:py-3 px-2 text-center btn-choice-hover inline-flex items-center justify-center gap-2 border-t-2 sm:border-t-0 sm:border-l-2 border-black ${playlistTab === 'community'
-                        ? 'bg-playlist text-black font-black'
-                        : 'bg-white text-black hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100'
-                        }`}
+                      onClick={() => {
+                        setAnimePlatform('anilist');
+                        setMalLoadError(null);
+                      }}
+                      className={`px-3 py-1.5 uppercase transition border-l-2 border-black ${
+                        animePlatform === 'anilist'
+                          ? 'bg-[#02A9FF] text-white'
+                          : 'bg-white text-black hover:bg-slate-100'
+                      }`}
                     >
-                      <span className="uppercase">
-                        Playlists de la communauté ({playlistSearchQuery.trim() ? `${filterPlaylists(playlists.community).length}/${playlists.community.length}` : playlists.community.length})
-                      </span>
+                      AniList
                     </button>
                   </div>
+                </div>
 
-                  {/* Playlist Cards List (Scrollable box) */}
-                  <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-72 sm:max-h-80 overflow-y-auto mb-5 flex flex-col gap-3.5">
-                    {(() => {
-                      const filteredValidated = filterPlaylists(playlists.validated);
-                      const filteredCommunity = filterPlaylists(playlists.community);
-                      const activeLists = playlistTab === 'validated' ? filteredValidated : filteredCommunity;
+                <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
+                  {animePlatform === 'anilist'
+                    ? 'Entrez votre pseudo AniList pour prendre automatiquement les openings des animes que vous avez complétés.'
+                    : 'Entrez votre pseudo MyAnimeList pour prendre automatiquement les openings des animes que vous avez complétés.'}
+                </p>
 
-                      if (activeLists.length === 0) {
-                        if (playlistSearchQuery.trim()) {
-                          return (
-                            <div className="text-center py-8 flex flex-col items-center gap-2">
-                              <p className="text-xs sm:text-sm text-slate-600 font-bold">
-                                Aucune playlist ne correspond à &quot;{playlistSearchQuery}&quot; dans cet onglet.
-                              </p>
-                              {playlistTab === 'validated' && filteredCommunity.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPlaylistTab('community')}
-                                  className="text-xs font-black text-host hover:underline"
-                                >
-                                  Voir les {filteredCommunity.length} résultat{filteredCommunity.length > 1 ? 's' : ''} dans la communauté →
-                                </button>
-                              )}
-                              {playlistTab === 'community' && filteredValidated.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPlaylistTab('validated')}
-                                  className="text-xs font-black text-host hover:underline"
-                                >
-                                  Voir les {filteredValidated.length} résultat{filteredValidated.length > 1 ? 's' : ''} dans les vérifiées →
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setPlaylistSearchQuery('')}
-                                className="mt-1 px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover"
-                              >
-                                Réinitialiser la recherche
-                              </button>
-                            </div>
-                          );
-                        }
-                        return <p className="text-xs sm:text-sm text-slate-500 font-bold text-center py-8">Aucune playlist n'a été trouvée.</p>;
-                      }
-                      return activeLists.map((p) => {
-                        const isSelected = p.id === selectedPlaylistId;
-                        const videoCount = (isSelected && selectedPlaylistTracks.length > 0)
-                          ? selectedPlaylistTracks.length
-                          : (p.video_count ?? p.videoCount ?? 0);
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => setSelectedPlaylistId(p.id)}
-                            className={`p-3.5 sm:p-4 rounded-2xl transition cursor-pointer flex justify-between items-start gap-3 sm:gap-4 ${isSelected
-                              ? 'border-4 border-black bg-yellow-100'
-                              : 'border-2 border-black bg-white hover:bg-slate-50 focus:bg-slate-50 focus-visible:bg-slate-50'
-                              }`}
-                          >
-                            <div className="text-left flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                {isSelected && <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" />}
-                                <span className="font-black text-sm sm:text-base text-black block">
-                                  {p.name}
-                                </span>
-                              </div>
-                              {p.description && (
-                                <p className="text-xs sm:text-sm text-slate-700 font-bold mt-1 line-clamp-2 leading-relaxed break-words">
-                                  {p.description}
-                                </p>
-                              )}
-                              <span className="text-xs font-mono text-slate-500 block mt-1.5 uppercase font-bold">
-                                ID: {p.id}
-                              </span>
-                            </div>
-                            <div className="text-right flex flex-col items-end gap-2 shrink-0">
-                              <span className="text-xs bg-slate-100 border border-slate-300 text-slate-700 px-2.5 py-1 rounded-lg font-black uppercase flex items-center gap-1.5">
-                                <MonitorPlay className="w-3.5 h-3.5" />
-                                <span>{videoCount} {videoCount <= 1 ? 'vidéo' : 'vidéos'}</span>
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
+                <form onSubmit={handleLoadAnimeTracks} className="flex flex-col sm:flex-row gap-2 mt-1">
+                  {animePlatform === 'anilist' ? (
+                    <input
+                      type="text"
+                      value={anilistUsername}
+                      onChange={(e) => setAnilistUsername(e.target.value)}
+                      placeholder="Pseudo AniList..."
+                      className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl shadow-none"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={malUsername}
+                      onChange={(e) => setMalUsername(e.target.value)}
+                      placeholder="Pseudo MyAnimeList..."
+                      className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl shadow-none"
+                    />
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isLoadingMalTracks}
+                    className="px-5 py-2.5 border-2 border-black bg-white text-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0 shadow-none cursor-pointer"
+                  >
+                    {isLoadingMalTracks ? '...' : 'Charger'}
+                  </button>
+                </form>
 
-                  {/* Tracks list inside selected playlist with toggles */}
-                  <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-72 sm:max-h-80 overflow-y-auto mb-4">
-                    <p className="text-xs sm:text-sm font-black text-slate-600 uppercase border-b border-slate-200 pb-2 mb-3">
-                      Vidéos de la Playlist (Décocher pour exclure)
+                {malLoadError && (
+                  <p className="text-xs text-accent-red font-black flex items-center gap-1.5 mt-1">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{malLoadError}</span>
+                  </p>
+                )}
+              </div>
+
+              {malConnectedUser ? (
+                <div className="flex-1 flex flex-col gap-4">
+                  <div className="bg-emerald-50 p-3.5 border-2 border-emerald-500 rounded-xl text-left shrink-0 shadow-none">
+                    <p className="text-xs sm:text-sm text-emerald-950 font-black">
+                      Voici la liste des openings trouvés pour le compte {animeConnectedPlatform === 'anilist' ? 'AniList' : 'MyAnimeList'}: <span className="underline">{malConnectedUser}</span> ({malTracks.length} openings trouvés)
                     </p>
-                    {selectedPlaylistTracks.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-6 text-center font-bold">
-                        {selectedPlaylistId ? 'Chargement des vidéos...' : 'Sélectionnez une playlist ci-dessus pour afficher et gérer ses vidéos.'}
-                      </p>
+                  </div>
+
+                  {/* Tracks list checklist with toggles */}
+                  <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-[340px] overflow-y-auto mb-4 shadow-none">
+                    <p className="text-xs sm:text-sm font-black text-slate-600 uppercase border-b border-slate-200 pb-2 mb-3">
+                      Openings trouvés (Décocher pour exclure)
+                    </p>
+                    {malTracks.length === 0 ? (
+                      <p className="text-xs sm:text-sm text-slate-400 py-6 text-center font-bold">Aucun opening trouvé.</p>
                     ) : (
                       <div className="flex flex-col gap-2.5">
-                        {selectedPlaylistTracks.map((track) => {
+                        {malTracks.map((track) => {
                           const isDisabled = session.disabledVideoIds?.[track.id] || false;
                           return (
                             <div key={track.id} className="flex items-center justify-between text-xs sm:text-sm font-bold py-1.5 border-b border-slate-100 last:border-b-0 gap-3">
@@ -1302,7 +1482,7 @@ export default function HostLobby() {
                                   type="checkbox"
                                   checked={!isDisabled}
                                   onChange={() => handleToggleTrack(track.id)}
-                                  className="h-4 w-4 accent-host cursor-pointer"
+                                  className="h-4 w-4 accent-accent-red cursor-pointer"
                                 />
                               </label>
                             </div>
@@ -1313,188 +1493,186 @@ export default function HostLobby() {
                   </div>
                 </div>
               ) : (
-                /* ANIMELIST (MAL / ANILIST) SELECTION CARD */
-                <div className="info-card p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden">
-                  {/* Platform Selector & Connexion form */}
-                  <div className="border-b-2 border-black pb-4 mb-4 flex flex-col gap-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black pb-2">
-                      <h3 className="text-sm sm:text-base font-black text-black uppercase flex items-center gap-2 text-accent-red">
-                        <span>{animePlatform === 'anilist' ? 'AniList Connexion' : 'MyAnimeList Connexion'}</span>
-                      </h3>
-
-                      {/* Segmented Platform Toggle */}
-                      <div className="inline-flex border-2 border-black rounded-xl overflow-hidden text-xs font-black shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAnimePlatform('mal');
-                            setMalLoadError(null);
-                          }}
-                          className={`px-3 py-1.5 uppercase transition ${
-                            animePlatform === 'mal'
-                              ? 'bg-[#2E51A2] text-white'
-                              : 'bg-white text-black hover:bg-slate-100'
-                          }`}
-                        >
-                          MyAnimeList
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAnimePlatform('anilist');
-                            setMalLoadError(null);
-                          }}
-                          className={`px-3 py-1.5 uppercase transition border-l-2 border-black ${
-                            animePlatform === 'anilist'
-                              ? 'bg-[#02A9FF] text-white'
-                              : 'bg-white text-black hover:bg-slate-100'
-                          }`}
-                        >
-                          AniList
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
-                      {animePlatform === 'anilist'
-                        ? 'Entrez votre pseudo AniList pour prendre automatiquement les openings des animes que vous avez complétés.'
-                        : 'Entrez votre pseudo MyAnimeList pour prendre automatiquement les openings des animes que vous avez complétés.'}
-                    </p>
-
-                    <form onSubmit={handleLoadAnimeTracks} className="flex flex-col sm:flex-row gap-2 mt-1">
-                      {animePlatform === 'anilist' ? (
-                        <input
-                          type="text"
-                          value={anilistUsername}
-                          onChange={(e) => setAnilistUsername(e.target.value)}
-                          placeholder="Pseudo AniList..."
-                          className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={malUsername}
-                          onChange={(e) => setMalUsername(e.target.value)}
-                          placeholder="Pseudo MyAnimeList..."
-                          className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl"
-                        />
-                      )}
-                      <button
-                        type="submit"
-                        disabled={isLoadingMalTracks}
-                        className="px-5 py-2.5 border-2 border-black bg-white text-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-50 shrink-0"
-                      >
-                        {isLoadingMalTracks ? '...' : 'Charger'}
-                      </button>
-                    </form>
-
-                    {malLoadError && (
-                      <p className="text-xs text-accent-red font-black flex items-center gap-1.5 mt-1">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>{malLoadError}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {malConnectedUser ? (
-                    <div className="flex-1 flex flex-col gap-4">
-                      <div className="bg-emerald-50 p-3.5 border-2 border-emerald-500 rounded-xl text-left shrink-0">
-                        <p className="text-xs sm:text-sm text-emerald-950 font-black">
-                          Voici la liste des openings trouvés pour le compte {animeConnectedPlatform === 'anilist' ? 'AniList' : 'MyAnimeList'}: <span className="underline">{malConnectedUser}</span> ({malTracks.length} openings trouvés)
-                        </p>
-                      </div>
-
-                      {/* Tracks list checklist with toggles */}
-                      <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-[340px] overflow-y-auto mb-4">
-                        <p className="text-xs sm:text-sm font-black text-slate-600 uppercase border-b border-slate-200 pb-2 mb-3">
-                          Openings trouvés (Décocher pour exclure)
-                        </p>
-                        {malTracks.length === 0 ? (
-                          <p className="text-xs sm:text-sm text-slate-400 py-6 text-center font-bold">Aucun opening trouvé.</p>
-                        ) : (
-                          <div className="flex flex-col gap-2.5">
-                            {malTracks.map((track) => {
-                              const isDisabled = session.disabledVideoIds?.[track.id] || false;
-                              return (
-                                <div key={track.id} className="flex items-center justify-between text-xs sm:text-sm font-bold py-1.5 border-b border-slate-100 last:border-b-0 gap-3">
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="text-black text-xs sm:text-sm leading-snug">
-                                      <span className="font-black">{track.title}</span>
-                                      <span className="text-slate-600 font-bold"> par {track.artistName || 'Artiste Non-Renseigné'}</span>
-                                      {track.description && <span className="text-slate-500 font-normal"> — {track.description}</span>}
-                                    </span>
-                                  </div>
-                                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={!isDisabled}
-                                      onChange={() => handleToggleTrack(track.id)}
-                                      className="h-4 w-4 accent-accent-red cursor-pointer"
-                                    />
-                                  </label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8 text-center">
-                      <p className="text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
-                        Rentrez votre pseudo {animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
-                      </p>
-                    </div>
-                  )}
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8 text-center">
+                  <p className="text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
+                    Rentrez votre pseudo {animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
+                  </p>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Connected players list */}
-              <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[220px] w-full max-w-full overflow-hidden">
-                <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
-                  <h3 className="text-sm font-black text-black uppercase flex items-center gap-2">
-                    Joueurs connectés
-                    <span className="bg-black text-cream px-2 py-0.5 rounded text-xs font-mono">
-                      {playersList.length}
-                    </span>
-                  </h3>
+          {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-left) */}
+          <div className="hidden sm:flex flex-col fixed bottom-4 left-4 z-40 w-72 sm:w-80 bg-[#FAF0CA] border-3 border-black rounded-2xl overflow-hidden shadow-none transition-all">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setIsPlayersTabCollapsed(!isPlayersTabCollapsed)}
+              className="px-3.5 py-2.5 bg-[#FAF0CA] hover:bg-[#faeaaf] flex items-center justify-between cursor-pointer border-b-2 border-black/20 select-none"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-black" />
+                <span className="font-title text-xs font-black uppercase text-black">
+                  Joueurs connectés
+                </span>
+                <span className="bg-black text-[#FEEC66] px-2 py-0.5 rounded-lg text-xs font-mono font-black">
+                  {activeConnectedPlayers.length}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  isPlayersTabCollapsed ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+
+            {!isPlayersTabCollapsed && (
+              <div className="p-3 flex flex-col gap-2.5 bg-[#FAF0CA]">
+                <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+                  {playersList.length === 0 ? (
+                    <div className="py-4 text-center flex flex-col items-center gap-1.5">
+                      <UserX className="w-6 h-6 text-slate-500 animate-pulse" />
+                      <p className="text-[11px] font-bold text-slate-700 leading-tight">
+                        En attente de joueurs...
+                      </p>
+                      {session.isHostPlayer === false && (
+                        <p className="text-[10px] text-slate-500 font-bold">
+                          Cochez &quot;Host joueur&quot; en haut si vous jouez seul.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    playersList.map((player) => {
+                      const isHost = player.isHost || player.id === session.hostPlayerId;
+                      return (
+                        <div
+                          key={player.id}
+                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border-2 border-black ${
+                            player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                                player.isConnected
+                                  ? 'bg-emerald-500 border border-black'
+                                  : 'bg-slate-400'
+                              }`}
+                            />
+                            <span className="font-black text-xs text-black truncate">
+                              {player.name}
+                            </span>
+                          </div>
+                          {isHost && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-black uppercase shrink-0">
+                              <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />
+                              <span>Host</span>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
-                {playersList.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-6 text-center">
-                    <UserX className="w-8 h-8 text-slate-400 animate-pulse mb-2" />
-                    <p className="text-xs font-bold text-slate-600 mt-2">En attente de joueurs... <br /> Si seul, veuillez cocher la case "Le Host est un joueur"</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 max-h-40 overflow-y-auto pr-1">
-                    {playersList.map((player) => (
-                      <div
-                        key={player.id}
-                        className={`flex items-center justify-between p-2.5 sm:p-3 border-2 border-black bg-white rounded-xl ${player.isConnected ? 'opacity-100' : 'opacity-50 bg-slate-100'
-                          }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-                          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-500'}`} />
-                          <span className="font-black text-xs text-black truncate">{player.name}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-auto pt-4 border-t border-black flex justify-end">
+                <div className="pt-2 border-t border-black/15">
                   <button
+                    type="button"
                     onClick={handleStartGame}
-                    disabled={playersList.length === 0}
-                    className="w-full sm:w-auto px-6 py-3 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-2"
+                    disabled={activeConnectedPlayers.length === 0 || isStartingGame}
+                    className="w-full py-2.5 px-3 bg-host hover:bg-sky-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-none cursor-pointer"
                   >
-                    <span>Commencer la partie ({playersList.length} joueurs)</span>
-                    <ArrowRight className="w-4 h-4 shrink-0" />
+                    {isStartingGame ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Démarrage...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Lancer ({activeConnectedPlayers.length})</span>
+                        <ArrowRight className="w-4 h-4 shrink-0" />
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
+
+          {/* MOBILE RESPONSIVE FLOATING TAB (< sm) */}
+          <div className="sm:hidden fixed bottom-3 left-3 z-40">
+            <button
+              type="button"
+              onClick={() => setShowMobilePlayersModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-[#FAF0CA] border-2 border-black font-black text-xs uppercase text-black flex items-center gap-2 shadow-none cursor-pointer"
+            >
+              <Users className="w-4 h-4" />
+              <span>{activeConnectedPlayers.length} joueur{activeConnectedPlayers.length > 1 ? 's' : ''}</span>
+            </button>
+          </div>
+
+          {/* MOBILE PLAYERS MODAL */}
+          {showMobilePlayersModal && (
+            <div className="sm:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-3 animate-fade-in">
+              <div className="w-full bg-[#FAF0CA] border-3 border-black rounded-2xl p-4 flex flex-col gap-3 shadow-none max-h-[80vh]">
+                <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-black" />
+                    <h3 className="font-title text-sm font-black uppercase text-black">
+                      Joueurs connectés ({activeConnectedPlayers.length})
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMobilePlayersModal(false)}
+                    className="p-1 rounded-lg border-2 border-black bg-white hover:bg-slate-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2 overflow-y-auto max-h-56 pr-1">
+                  {playersList.map((player) => (
+                    <div
+                      key={player.id}
+                      className={`flex items-center justify-between p-2 rounded-xl border-2 border-black ${
+                        player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                            player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-400'
+                          }`}
+                        />
+                        <span className="font-black text-xs text-black truncate">{player.name}</span>
+                      </div>
+                      {(player.isHost || player.id === session.hostPlayerId) && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-black uppercase">
+                          <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />
+                          <span>Host</span>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobilePlayersModal(false);
+                    handleStartGame();
+                  }}
+                  disabled={activeConnectedPlayers.length === 0 || isStartingGame}
+                  className="w-full py-3 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-2 shadow-none"
+                >
+                  <span>Lancer la partie ({activeConnectedPlayers.length})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );

@@ -6,6 +6,8 @@ import {
   Film,
   Loader2,
   Plus,
+  Check,
+  X,
 } from 'lucide-react';
 import PlaylistTrackCard, { PlaylistTrack } from './PlaylistTrackCard';
 
@@ -34,9 +36,18 @@ export interface PlaylistCardProps {
   tracks: PlaylistTrack[];
   isLoadingTracks: boolean;
   onHost: (id: string) => void;
-  isStartingHost: boolean;
+  isStartingHost?: boolean;
   visibleCount?: number;
   onShowMoreTracks: (id: string) => void;
+  // Host lobby selection & track toggle props:
+  isHostLobby?: boolean;
+  isSelected?: boolean;
+  onSelectPlaylist?: (id: string) => void;
+  disabledVideoIds?: { [id: string]: boolean };
+  onToggleTrack?: (videoId: string) => void;
+  onToggleAllTracks?: (enableAll: boolean) => void;
+  canStartGame?: boolean;
+  onStartGame?: () => void;
 }
 
 export default function PlaylistCard({
@@ -49,9 +60,21 @@ export default function PlaylistCard({
   isStartingHost = false,
   visibleCount = 50,
   onShowMoreTracks,
+  isHostLobby = false,
+  isSelected = false,
+  onSelectPlaylist,
+  disabledVideoIds,
+  onToggleTrack,
+  onToggleAllTracks,
+  canStartGame = true,
+  onStartGame,
 }: PlaylistCardProps) {
   const displayedTracks = tracks.slice(0, visibleCount);
   const remainingCount = tracks.length - visibleCount;
+
+  const activeTracksCount = isHostLobby && disabledVideoIds
+    ? tracks.filter((t) => !disabledVideoIds[String(t.id || t.trackId || '')]).length
+    : tracks.length;
 
   // État local pour gérer l'animation de repliement fluide avant démontage
   const [isClosing, setIsClosing] = useState(false);
@@ -110,14 +133,24 @@ export default function PlaylistCard({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => onToggleExpand(playlist.id)}
+          onClick={() => {
+            onToggleExpand(playlist.id);
+            if (isHostLobby && onSelectPlaylist) {
+              onSelectPlaylist(playlist.id);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               onToggleExpand(playlist.id);
+              if (isHostLobby && onSelectPlaylist) {
+                onSelectPlaylist(playlist.id);
+              }
             }
           }}
-          className="group relative w-full bg-white hover:bg-slate-50 border-[12px] sm:border-[24px] md:border-36 border-[#1b1b1b] rounded-lg sm:rounded-md p-3 sm:p-4 select-none cursor-pointer transition-[transform,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5"
+          className={`group relative w-full bg-white hover:bg-slate-50 border-[12px] sm:border-[24px] md:border-36 rounded-lg sm:rounded-md p-3 sm:p-4 select-none cursor-pointer transition-[transform,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5 ${
+            isHostLobby && isSelected ? 'border-[#FEEC66]' : 'border-[#1b1b1b]'
+          }`}
           title={`Dérouler la cassette ${playlist.name}`}
         >
           {/* Indication Dérouler : sur mobile un peu plus bas en haut à droite (-top-1.5 au lieu de -top-3.5), sur desktop au centre en hover */}
@@ -137,12 +170,20 @@ export default function PlaylistCard({
 
             {/* Titre & Description inscrits sur le blanc de l'étiquette */}
             <div className="flex flex-col justify-center min-w-0 flex-1">
-              <h3
-                className="font-title text-black font-black text-xs sm:text-base md:text-lg leading-tight line-clamp-2 sm:truncate tracking-tight"
-                title={playlist.name}
-              >
-                {playlist.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3
+                  className="font-title text-black font-black text-xs sm:text-base md:text-lg leading-tight line-clamp-2 sm:truncate tracking-tight"
+                  title={playlist.name}
+                >
+                  {playlist.name}
+                </h3>
+                {isHostLobby && isSelected && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500 text-white font-black text-[9px] sm:text-[10px] uppercase shadow-none shrink-0">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    <span>Choisie</span>
+                  </span>
+                )}
+              </div>
               {playlist.description ? (
                 <p
                   className="text-[11px] sm:text-sm font-bold text-slate-700 leading-tight mt-1 line-clamp-2"
@@ -195,7 +236,7 @@ export default function PlaylistCard({
           {/* A. VERSION DESKTOP (sm:block) - STRICTEMENT INTROUVABLEMENT INTACTE       */}
           {/* ========================================================================= */}
           <div
-            className="hidden sm:block relative w-full overflow-hidden select-none bg-[url('/PLAYLIST/CassetteRecadrée.png')] bg-cover"
+            className="hidden sm:block relative w-full overflow-hidden select-none bg-[url('/PLAYLIST/CassetteRecadrée.png')] bg-cover shadow-none"
             style={{ aspectRatio: '945 / 692' }}
           >
             {/* Bande blanche de Cassette.png (Titre, Description & Catégories) */}
@@ -206,12 +247,20 @@ export default function PlaylistCard({
             >
               {/* Titre & Description */}
               <div className="flex flex-col justify-center min-w-0 flex-1 pr-3">
-                <h3
-                  className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate tracking-tight"
-                  title={playlist.name}
-                >
-                  {playlist.name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3
+                    className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate tracking-tight"
+                    title={playlist.name}
+                  >
+                    {playlist.name}
+                  </h3>
+                  {isHostLobby && isSelected && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500 text-white font-black text-[10px] uppercase shadow-none shrink-0">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      <span>Choisie</span>
+                    </span>
+                  )}
+                </div>
                 {playlist.description ? (
                   <p
                     className="text-[10px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
@@ -263,41 +312,86 @@ export default function PlaylistCard({
                   Aucune vidéo trouvée dans cette playlist.
                 </div>
               ) : (
-                <div className="flex flex-wrap items-start gap-3 p-1.5 overflow-y-auto scrollbar-thin h-full w-full">
-                  {displayedTracks.map((track, idx) => (
-                    <div
-                      key={track.trackId || track.id || idx}
-                      className="w-[28%] sm:w-[22%] md:w-[18%] min-w-[120px] max-w-[175px] aspect-[500/410] shrink-0"
-                    >
-                      <PlaylistTrackCard
-                        track={track}
-                        index={idx}
-                      />
-                    </div>
-                  ))}
-
-                  {remainingCount > 0 && (
-                    <div className="w-full pt-2 pb-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowMoreTracks(playlist.id);
-                        }}
-                        className="w-full py-2.5 sm:py-3 px-4 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs sm:text-sm uppercase flex items-center justify-center gap-2 cursor-pointer shadow-none active:scale-[0.99] transition-all"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>
-                          Afficher plus de morceaux ({remainingCount} restant{remainingCount > 1 ? 's' : ''})
-                        </span>
-                      </button>
+                <div className="flex flex-col h-full w-full overflow-hidden">
+                  {/* Barre d'action de sélection / comptage pour le Host */}
+                  {isHostLobby && (
+                    <div className="w-full flex items-center justify-between px-3 py-1.5 mb-2 bg-black/50 backdrop-blur-xs rounded-xl border border-white/20 text-white text-xs font-black shadow-none shrink-0">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${activeTracksCount > 0 ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                        <span>{activeTracksCount} / {tracks.length} musiques actives</span>
+                      </span>
+                      {onToggleAllTracks && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleAllTracks(true);
+                            }}
+                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black cursor-pointer shadow-none transition-colors"
+                            title="Activer toutes les musiques"
+                          >
+                            Tout cocher
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleAllTracks(false);
+                            }}
+                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black cursor-pointer shadow-none transition-colors"
+                            title="Désactiver toutes les musiques"
+                          >
+                            Tout décocher
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <div className="flex flex-wrap items-start gap-3 p-1.5 overflow-y-auto scrollbar-thin h-full w-full">
+                    {displayedTracks.map((track, idx) => {
+                      const trackKey = String(track.id || track.trackId || idx);
+                      const isTrackChecked = disabledVideoIds ? !disabledVideoIds[trackKey] : true;
+                      return (
+                        <div
+                          key={trackKey}
+                          className="w-[28%] sm:w-[22%] md:w-[18%] min-w-[120px] max-w-[175px] aspect-[500/410] shrink-0"
+                        >
+                          <PlaylistTrackCard
+                            track={track}
+                            index={idx}
+                            selectable={isHostLobby}
+                            isChecked={isTrackChecked}
+                            onToggle={() => onToggleTrack?.(trackKey)}
+                          />
+                        </div>
+                      );
+                    })}
+
+                    {remainingCount > 0 && (
+                      <div className="w-full pt-2 pb-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onShowMoreTracks(playlist.id);
+                          }}
+                          className="w-full py-2.5 sm:py-3 px-4 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs sm:text-sm uppercase flex items-center justify-center gap-2 cursor-pointer shadow-none active:scale-[0.99] transition-all"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>
+                            Afficher plus de morceaux ({remainingCount} restant{remainingCount > 1 ? 's' : ''})
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Bas de la cassette : Bouton "HOST" */}
+            {/* Bas de la cassette : Bouton "HOST" ou "Choisir cette playlist" */}
             <div
               className="absolute z-20 flex items-center justify-center pointer-events-auto"
               style={{
@@ -306,37 +400,79 @@ export default function PlaylistCard({
                 right: '0',
               }}
             >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onHost(playlist.id);
-                }}
-                disabled={isStartingHost}
-                className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-115 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
-                title="Lancer une partie avec cette playlist (HOST)"
-                aria-label="Lancer la partie (HOST)"
-              >
-                {isStartingHost ? (
-                  <div className="flex items-center gap-2 bg-black/75 backdrop-blur-sm px-4 py-1.5 rounded-xl text-white font-black text-xs uppercase border border-white/20">
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Lancement...</span>
-                  </div>
+              {isHostLobby ? (
+                isSelected ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onStartGame) onStartGame();
+                      else onHost(playlist.id);
+                    }}
+                    disabled={isStartingHost || !canStartGame}
+                    className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-115 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
+                    title="Lancer une partie avec cette playlist (HOST)"
+                    aria-label="Lancer la partie (HOST)"
+                  >
+                    {isStartingHost ? (
+                      <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-1.5 rounded-xl text-white font-black text-xs uppercase border border-white/20">
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Lancement...</span>
+                      </div>
+                    ) : (
+                      <img
+                        src="/HOST/HostText.png"
+                        alt="HOST"
+                        className="h-10 sm:h-14 md:h-20 w-auto object-contain pointer-events-none"
+                      />
+                    )}
+                  </button>
                 ) : (
-                  <img
-                    src="/HOST/HostText.png"
-                    alt="HOST"
-                    className="h-10 sm:h-14 md:h-20 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pointer-events-none"
-                  />
-                )}
-              </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectPlaylist?.(playlist.id);
+                    }}
+                    className="px-5 py-2.5 bg-[#FAF0CA] hover:bg-white text-black border-2 border-black rounded-xl font-black text-xs sm:text-sm uppercase flex items-center gap-2 cursor-pointer transition-transform active:scale-95 shadow-none"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Choisir cette playlist</span>
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHost(playlist.id);
+                  }}
+                  disabled={isStartingHost}
+                  className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-115 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
+                  title="Lancer une partie avec cette playlist (HOST)"
+                  aria-label="Lancer la partie (HOST)"
+                >
+                  {isStartingHost ? (
+                    <div className="flex items-center gap-2 bg-black/75 backdrop-blur-sm px-4 py-1.5 rounded-xl text-white font-black text-xs uppercase border border-white/20">
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Lancement...</span>
+                    </div>
+                  ) : (
+                    <img
+                      src="/HOST/HostText.png"
+                      alt="HOST"
+                      className="h-10 sm:h-14 md:h-20 w-auto object-contain pointer-events-none"
+                    />
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
           {/* ========================================================================= */}
           {/* B. VERSION MOBILE (< sm) - CASSETTE MIXTAPE INGÉNIEUSE & TACTILE          */}
           {/* ========================================================================= */}
-          <div className="sm:hidden w-full flex flex-col bg-[#1b1b1b] border-4 border-[#111111] rounded-lg shadow-2xl overflow-hidden relative select-none">
+          <div className="sm:hidden w-full flex flex-col bg-[#1b1b1b] border-4 border-[#111111] rounded-lg shadow-none overflow-hidden relative select-none">
             {/* Détails du boîtier cassette (Vis d'angle et stries supérieures) */}
             <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[#555]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none">
@@ -363,18 +499,26 @@ export default function PlaylistCard({
                   handleCollapse();
                 }
               }}
-              className="bg-[#FAF9F5] hover:bg-slate-50 border border-black/20 rounded-lg p-3 mx-2 select-none flex flex-col gap-2 shadow-xs cursor-pointer transition-colors"
+              className="bg-[#FAF9F5] hover:bg-slate-50 border border-black/20 rounded-lg p-3 mx-2 select-none flex flex-col gap-2 shadow-none cursor-pointer transition-colors"
               title="Cliquer pour replier la cassette"
             >
               {/* En-tête étiquette : Titre & Indicateur Replier */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-col min-w-0 flex-1">
-                  <h3
-                    className="font-title text-black font-black text-sm leading-tight break-words"
-                    title={playlist.name}
-                  >
-                    {playlist.name}
-                  </h3>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3
+                      className="font-title text-black font-black text-sm leading-tight break-words"
+                      title={playlist.name}
+                    >
+                      {playlist.name}
+                    </h3>
+                    {isHostLobby && isSelected && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-500 text-white font-black text-[9px] uppercase shadow-none shrink-0">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>Choisie</span>
+                      </span>
+                    )}
+                  </div>
                   {playlist.description ? (
                     <p className="text-[11px] font-semibold text-slate-700 leading-snug mt-1 break-words">
                       {playlist.description}
@@ -414,7 +558,7 @@ export default function PlaylistCard({
             </div>
 
             {/* 2. COMPARTIMENT VERT ET BOBINES DE LA CASSETTE */}
-            <div className="bg-[#2fc355] border-2 border-black/30 rounded-lg mx-2 my-2 p-2 flex flex-col gap-2 relative shadow-inner overflow-hidden">
+            <div className="bg-[#2fc355] border-2 border-black/30 rounded-lg mx-2 my-2 p-2 flex flex-col gap-2 relative shadow-none overflow-hidden">
               {/* Bobines rotatives animées de la bande magnétique */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-black/45 backdrop-blur-xs rounded-lg border border-white/20 text-white">
                 {/* Bobine gauche */}
@@ -427,7 +571,7 @@ export default function PlaylistCard({
                 {/* Compteur de bande centrale */}
                 <div className="flex flex-col items-center justify-center">
                   <span className="font-mono text-[8px] tracking-widest text-white/90 font-bold uppercase">
-                    [ MORCEAUX • {tracks.length} TITRES ]
+                    [ MORCEAUX • {isHostLobby ? `${activeTracksCount}/${tracks.length} ACTIFS` : `${tracks.length} TITRES`} ]
                   </span>
                 </div>
 
@@ -451,19 +595,55 @@ export default function PlaylistCard({
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
+                  {/* Toolbar Host pour mobile */}
+                  {isHostLobby && onToggleAllTracks && (
+                    <div className="flex items-center justify-between px-2 py-1 bg-black/50 rounded-lg border border-white/20 text-white text-[10px] font-black">
+                      <span>{activeTracksCount} actifs</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleAllTracks(true);
+                          }}
+                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-[9px] cursor-pointer"
+                        >
+                          Tout cocher
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleAllTracks(false);
+                          }}
+                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-[9px] cursor-pointer"
+                        >
+                          Tout décocher
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Grille 2 colonnes parfaitement dimensionnée pour mobile */}
                   <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[300px] p-1 scrollbar-thin [scrollbar-color:var(--bg-menu)_rgba(0,0,0,0.2)]">
-                    {displayedTracks.map((track, idx) => (
-                      <div
-                        key={track.trackId || track.id || idx}
-                        className="w-full aspect-[500/410]"
-                      >
-                        <PlaylistTrackCard
-                          track={track}
-                          index={idx}
-                        />
-                      </div>
-                    ))}
+                    {displayedTracks.map((track, idx) => {
+                      const trackKey = String(track.id || track.trackId || idx);
+                      const isTrackChecked = disabledVideoIds ? !disabledVideoIds[trackKey] : true;
+                      return (
+                        <div
+                          key={trackKey}
+                          className="w-full aspect-[500/410]"
+                        >
+                          <PlaylistTrackCard
+                            track={track}
+                            index={idx}
+                            selectable={isHostLobby}
+                            isChecked={isTrackChecked}
+                            onToggle={() => onToggleTrack?.(trackKey)}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {remainingCount > 0 && (
@@ -496,31 +676,73 @@ export default function PlaylistCard({
                 <div className="w-2.5 h-2.5 rounded-full bg-white/70 border border-black/40" />
               </div>
 
-              {/* Bouton HOST principal sans chevauchement */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onHost(playlist.id);
-                }}
-                disabled={isStartingHost}
-                className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
-                title="Lancer une partie avec cette playlist (HOST)"
-                aria-label="Lancer la partie (HOST)"
-              >
-                {isStartingHost ? (
-                  <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-2 rounded-lg text-white font-black text-xs uppercase border border-white/20">
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Lancement...</span>
-                  </div>
+              {/* Bouton HOST principal ou Choisir */}
+              {isHostLobby ? (
+                isSelected ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onStartGame) onStartGame();
+                      else onHost(playlist.id);
+                    }}
+                    disabled={isStartingHost || !canStartGame}
+                    className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
+                    title="Lancer une partie avec cette playlist (HOST)"
+                    aria-label="Lancer la partie (HOST)"
+                  >
+                    {isStartingHost ? (
+                      <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-2 rounded-lg text-white font-black text-xs uppercase border border-white/20">
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Lancement...</span>
+                      </div>
+                    ) : (
+                      <img
+                        src="/HOST/HostText.png"
+                        alt="HOST"
+                        className="h-11 w-auto object-contain pointer-events-none"
+                      />
+                    )}
+                  </button>
                 ) : (
-                  <img
-                    src="/HOST/HostText.png"
-                    alt="HOST"
-                    className="h-11 w-auto object-contain drop-shadow-[0_3px_6px_rgba(0,0,0,0.6)] pointer-events-none"
-                  />
-                )}
-              </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectPlaylist?.(playlist.id);
+                    }}
+                    className="w-full py-2.5 bg-[#FAF0CA] hover:bg-white text-black border-2 border-black rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-none active:scale-[0.98]"
+                  >
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Choisir cette playlist</span>
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHost(playlist.id);
+                  }}
+                  disabled={isStartingHost}
+                  className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
+                  title="Lancer une partie avec cette playlist (HOST)"
+                  aria-label="Lancer la partie (HOST)"
+                >
+                  {isStartingHost ? (
+                    <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-2 rounded-lg text-white font-black text-xs uppercase border border-white/20">
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Lancement...</span>
+                    </div>
+                  ) : (
+                    <img
+                      src="/HOST/HostText.png"
+                      alt="HOST"
+                      className="h-11 w-auto object-contain pointer-events-none"
+                    />
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Vis inférieures du boîtier */}
@@ -538,4 +760,5 @@ export default function PlaylistCard({
     </article>
   );
 }
+
 
