@@ -117,11 +117,11 @@ export default function PlaylistCard({
               onToggleExpand(playlist.id);
             }
           }}
-          className="group relative w-full bg-white hover:bg-slate-50 border-[12px] sm:border-[24px] md:border-36 border-[#1b1b1b] rounded-xl sm:rounded-md p-3 sm:p-4 select-none cursor-pointer transition-[transform,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5"
+          className="group relative w-full bg-white hover:bg-slate-50 border-[12px] sm:border-[24px] md:border-36 border-[#1b1b1b] rounded-lg sm:rounded-md p-3 sm:p-4 select-none cursor-pointer transition-[transform,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-3.5"
           title={`Dérouler la cassette ${playlist.name}`}
         >
-          {/* Indication Dérouler : sur mobile en haut à droite pour ne jamais gêner le titre, sur desktop au centre en hover */}
-          <span className="pointer-events-none absolute -top-3.5 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-20 inline-flex items-center gap-1 px-2.5 sm:px-3 py-0.5 rounded-lg bg-play text-black font-black text-[11px] sm:text-[16px] rotate-2 sm:rotate-2 uppercase opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 shadow-none">
+          {/* Indication Dérouler : sur mobile un peu plus bas en haut à droite (-top-1.5 au lieu de -top-3.5), sur desktop au centre en hover */}
+          <span className="pointer-events-none absolute -top-1.5 right-3 sm:top-[-14px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-20 inline-flex items-center gap-1 px-2.5 sm:px-3 py-0.5 rounded-lg bg-play text-black font-black text-[11px] sm:text-[16px] rotate-2 sm:rotate-2 uppercase opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 shadow-none">
             <span>Dérouler</span>
             <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
           </span>
@@ -167,7 +167,7 @@ export default function PlaylistCard({
                   return (
                     <span
                       key={cat}
-                      className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-menu text-black font-black text-[9px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none truncate max-w-[120px] sm:max-w-none`}
+                      className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-menu text-black font-black text-[9px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none truncate max-w-[120px] sm:max-w-none`}
                     >
                       {cat}
                     </span>
@@ -176,7 +176,7 @@ export default function PlaylistCard({
             </div>
 
             {/* Nombre de vidéos */}
-            <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-[#FAF0CA] font-black text-[9px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-[#FAF0CA] font-black text-[9px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none shrink-0">
               <Film className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
               <span>{playlist.video_count || 0} vidéos</span>
             </span>
@@ -336,7 +336,7 @@ export default function PlaylistCard({
           {/* ========================================================================= */}
           {/* B. VERSION MOBILE (< sm) - CASSETTE MIXTAPE INGÉNIEUSE & TACTILE          */}
           {/* ========================================================================= */}
-          <div className="sm:hidden w-full flex flex-col bg-[#1b1b1b] border-4 border-[#111111] rounded-2xl shadow-2xl overflow-hidden relative select-none">
+          <div className="sm:hidden w-full flex flex-col bg-[#1b1b1b] border-4 border-[#111111] rounded-lg shadow-2xl overflow-hidden relative select-none">
             {/* Détails du boîtier cassette (Vis d'angle et stries supérieures) */}
             <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[#555]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none">
@@ -352,55 +352,61 @@ export default function PlaylistCard({
               </span>
             </div>
 
-            {/* 1. ÉTIQUETTE BLANCHE MIXTAPE */}
-            <div className="bg-[#FAF9F5] border border-black/20 rounded-xl p-3 mx-2 select-none flex flex-col gap-2 shadow-xs">
-              {/* En-tête étiquette : Badge FACE A et bouton Replier */}
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono font-black text-[9px] text-slate-600 uppercase tracking-wider">
-                  FACE A • MIXTAPE
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCollapse}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-play hover:brightness-105 active:scale-95 text-black font-black text-[10px] uppercase shadow-none transition-all cursor-pointer"
-                  title="Replier la cassette"
+            {/* 1. ÉTIQUETTE BLANCHE MIXTAPE (Toute la partie haute est cliquable pour replier) */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={handleCollapse}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCollapse();
+                }
+              }}
+              className="bg-[#FAF9F5] hover:bg-slate-50 border border-black/20 rounded-lg p-3 mx-2 select-none flex flex-col gap-2 shadow-xs cursor-pointer transition-colors"
+              title="Cliquer pour replier la cassette"
+            >
+              {/* En-tête étiquette : Titre & Indicateur Replier */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <h3
+                    className="font-title text-black font-black text-sm leading-tight break-words"
+                    title={playlist.name}
+                  >
+                    {playlist.name}
+                  </h3>
+                  {playlist.description ? (
+                    <p className="text-[11px] font-semibold text-slate-700 leading-snug mt-1 break-words">
+                      {playlist.description}
+                    </p>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
+                  )}
+                </div>
+
+                {/* Badge visuel Replier */}
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-play text-black font-black text-[10px] uppercase shadow-none shrink-0"
                 >
                   <span>Replier</span>
                   <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-                </button>
-              </div>
-
-              {/* Titre & Description */}
-              <div className="flex flex-col">
-                <h3
-                  className="font-title text-black font-black text-sm leading-tight break-words"
-                  title={playlist.name}
-                >
-                  {playlist.name}
-                </h3>
-                {playlist.description ? (
-                  <p className="text-[11px] font-semibold text-slate-700 leading-snug mt-1 break-words">
-                    {playlist.description}
-                  </p>
-                ) : (
-                  <span className="text-[10px] font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
-                )}
+                </span>
               </div>
 
               {/* Catégories & Nombre de vidéos */}
-              <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-200">
                 <div className="flex flex-wrap items-center gap-1">
                   {Array.isArray(playlist.categories) &&
                     playlist.categories.slice(0, 2).map((cat: string) => (
                       <span
                         key={cat}
-                        className="px-2 py-0.5 rounded bg-menu text-black font-black text-[9px] uppercase truncate max-w-[120px]"
+                        className="px-2 py-0.5 rounded-lg bg-menu text-black font-black text-[9px] uppercase truncate max-w-[120px]"
                       >
                         {cat}
                       </span>
                     ))}
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#FAF0CA] font-black text-[9px] text-black uppercase">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-[9px] text-black uppercase">
                   <Film className="w-2.5 h-2.5" />
                   <span>{playlist.video_count || 0} vidéos</span>
                 </span>
@@ -408,7 +414,7 @@ export default function PlaylistCard({
             </div>
 
             {/* 2. COMPARTIMENT VERT ET BOBINES DE LA CASSETTE */}
-            <div className="bg-[#2fc355] border-2 border-black/30 rounded-xl mx-2 my-2 p-2 flex flex-col gap-2 relative shadow-inner overflow-hidden">
+            <div className="bg-[#2fc355] border-2 border-black/30 rounded-lg mx-2 my-2 p-2 flex flex-col gap-2 relative shadow-inner overflow-hidden">
               {/* Bobines rotatives animées de la bande magnétique */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-black/45 backdrop-blur-xs rounded-lg border border-white/20 text-white">
                 {/* Bobine gauche */}
@@ -467,7 +473,7 @@ export default function PlaylistCard({
                         e.stopPropagation();
                         onShowMoreTracks(playlist.id);
                       }}
-                      className="w-full py-2 px-3 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer shadow-none active:scale-[0.98] transition-all"
+                      className="w-full py-2 px-3 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-lg font-black text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer shadow-none active:scale-[0.98] transition-all"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
                       <span>
@@ -480,7 +486,7 @@ export default function PlaylistCard({
             </div>
 
             {/* 3. TÊTE DE LECTURE INFÉRIEURE ET BOUTON HOST DÉDIÉ */}
-            <div className="mx-2 mb-2 p-2.5 bg-[#4a4c50] border-2 border-[#333] rounded-xl flex flex-col items-center justify-center gap-2">
+            <div className="mx-2 mb-2 p-2.5 bg-[#4a4c50] border-2 border-[#333] rounded-lg flex flex-col items-center justify-center gap-2">
               {/* Guides métalliques de tête de lecture */}
               <div className="flex items-center justify-center gap-4 pointer-events-none">
                 <div className="w-2.5 h-2.5 rounded-full bg-white/70 border border-black/40" />
@@ -503,7 +509,7 @@ export default function PlaylistCard({
                 aria-label="Lancer la partie (HOST)"
               >
                 {isStartingHost ? (
-                  <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-2 rounded-xl text-white font-black text-xs uppercase border border-white/20">
+                  <div className="flex items-center gap-2 bg-black/85 backdrop-blur-sm px-4 py-2 rounded-lg text-white font-black text-xs uppercase border border-white/20">
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span>Lancement...</span>
                   </div>

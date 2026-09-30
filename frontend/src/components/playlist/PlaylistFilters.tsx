@@ -52,7 +52,7 @@ export default function PlaylistFilters({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Rechercher une playlist..."
-              className="w-full pl-9 pr-8 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold text-black focus:outline-none shadow-none"
+              className="w-full pl-9 pr-8 py-2.5 border-2 border-black bg-white rounded-lg text-xs font-bold text-black focus:outline-none shadow-none"
             />
             {searchQuery && (
               <button
@@ -70,7 +70,7 @@ export default function PlaylistFilters({
           <button
             type="button"
             onClick={() => setIsMobileDrawerOpen(true)}
-            className={`px-3.5 py-2.5 border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-none cursor-pointer ${activeCategory !== 'all'
+            className={`px-3.5 py-2.5 border-2 border-black rounded-lg font-black text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-none cursor-pointer ${activeCategory !== 'all'
               ? 'bg-catalog text-white'
               : 'bg-white text-black hover:bg-slate-100'
               }`}
@@ -85,7 +85,7 @@ export default function PlaylistFilters({
         </div>
 
         {/* Mobile Tabs Switcher */}
-        <div className="flex border-2 border-black rounded-xl bg-[#FAF0CA] p-1 gap-1 w-full shadow-none">
+        <div className="flex border-2 border-black rounded-lg bg-[#FAF0CA] p-1 gap-1 w-full shadow-none">
           <button
             type="button"
             onClick={() => onSelectTab('validated')}
@@ -129,7 +129,7 @@ export default function PlaylistFilters({
 
         {/* Active Category Chip on Mobile */}
         {activeCategory !== 'all' && (
-          <div className="flex items-center justify-between bg-white border-2 border-black rounded-xl px-3 py-1.5 shadow-none">
+          <div className="flex items-center justify-between bg-white border-2 border-black rounded-lg px-3 py-1.5 shadow-none">
             <div className="flex items-center gap-2 truncate">
               <span className="text-[10px] font-black text-catalog uppercase bg-catalog/15 px-2 py-0.5 rounded-md">Filtre</span>
               <span className="text-xs font-black text-black uppercase truncate">{activeCategory}</span>
@@ -152,7 +152,7 @@ export default function PlaylistFilters({
             onClick={() => setIsMobileDrawerOpen(false)}
           >
             <div
-              className="bg-[#FAF7F2] border-t-4 sm:border-4 border-black rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-200 shadow-2xl"
+              className="bg-[#FAF7F2] border-t-4 sm:border-4 border-black rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-200 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Drawer Header */}
@@ -166,7 +166,7 @@ export default function PlaylistFilters({
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-1.5 rounded-xl border-2 border-black bg-white hover:bg-slate-100 cursor-pointer"
+                  className="p-1.5 rounded-lg border-2 border-black bg-white hover:bg-slate-100 cursor-pointer"
                   aria-label="Fermer"
                 >
                   <X className="w-4 h-4" />
@@ -264,7 +264,7 @@ export default function PlaylistFilters({
                       onSelectCategory('all');
                       setIsMobileDrawerOpen(false);
                     }}
-                    className="flex-1 py-3 border-2 border-black bg-slate-100 hover:bg-slate-200 text-black font-black text-xs uppercase rounded-xl cursor-pointer"
+                    className="flex-1 py-3 border-2 border-black bg-slate-100 hover:bg-slate-200 text-black font-black text-xs uppercase rounded-lg cursor-pointer"
                   >
                     Réinitialiser
                   </button>
@@ -272,7 +272,7 @@ export default function PlaylistFilters({
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="flex-1 py-3 bg-catalog hover:brightness-105 text-white border-2 border-black font-black text-xs uppercase rounded-xl cursor-pointer"
+                  className="flex-1 py-3 bg-catalog hover:brightness-105 text-white border-2 border-black font-black text-xs uppercase rounded-lg cursor-pointer"
                 >
                   Voir les résultats
                 </button>
