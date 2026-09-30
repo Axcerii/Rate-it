@@ -452,7 +452,7 @@ export default function PlaylistCard({
               ) : (
                 <div className="flex flex-col gap-2">
                   {/* Grille 2 colonnes parfaitement dimensionnée pour mobile */}
-                  <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[300px] p-1 scrollbar-thin">
+                  <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[300px] p-1 scrollbar-thin [scrollbar-color:var(--bg-menu)_rgba(0,0,0,0.2)]">
                     {displayedTracks.map((track, idx) => (
                       <div
                         key={track.trackId || track.id || idx}

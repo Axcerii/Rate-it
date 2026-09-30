@@ -206,6 +206,47 @@ body {
   scrollbar-color: var(--bg-playlist) var(--color-card-bg);
 }
 
+/* Scrollbars WebKit & Standards */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-playlist) rgba(0, 0, 0, 0.15);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--bg-playlist);
+  border-radius: 9999px;
+}
+
+/* Scrollbar mobile pour les playlists : thumb couleur "menu" (#FEEC66) */
+@media (max-width: 640px) {
+  html,
+  body {
+    scrollbar-color: var(--bg-menu) var(--color-card-bg);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--bg-menu);
+  }
+
+  .scrollbar-thin {
+    scrollbar-color: var(--bg-menu) rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--bg-menu) !important;
+  }
+}
+
 button {
   cursor: pointer;
 }
