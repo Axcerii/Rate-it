@@ -186,9 +186,9 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
 
             {/* Playlists List */}
             {displayedPlaylists.length === 0 ? (
-              <div className="p-8 sm:p-12 border-2 bg-[#FAF0CA] rounded-lg text-center flex flex-col items-center justify-center gap-4 shadow-none">
+              <div className="p-8 sm:p-12 info-card rounded-2xl text-center flex flex-col items-center justify-center gap-4 shadow-none">
                 <h3 className="font-title text-xl font-black text-black">Aucune playlist trouvée</h3>
-                <p className="text-xs font-bold text-slate-600 max-w-md">
+                <p className="text-xs font-bold text-slate-700 max-w-md">
                   {activeCategory !== 'all'
                     ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`
                     : searchQuery

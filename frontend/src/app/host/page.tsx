@@ -1062,7 +1062,7 @@ export default function HostLobby() {
 
           {/* TOP OPTIONS ROW (LIGNE D'OPTIONS EN HAUT) */}
           {/* Code de la salle + QR code, HOST est un joueur + Les vidéos sont dans un ordre aléatoire, Connexion à Twitch */}
-          <div className="w-full bg-[#FAF0CA] border-2 border-black rounded-2xl p-2.5 sm:p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 shadow-none">
+          <div className="w-full info-card !overflow-visible rounded-2xl p-2.5 sm:p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 shadow-none">
             
             {/* 1. Salle & Invitation (Code + Copier + QR Code) */}
             <div className="flex flex-wrap items-center gap-2">
@@ -1093,7 +1093,7 @@ export default function HostLobby() {
               <button
                 type="button"
                 onClick={() => setShowQRCode(!showQRCode)}
-                className={`px-3 py-1.5 border-2 border-black rounded-xl font-black text-xs uppercase inline-flex items-center gap-1.5 cursor-pointer shadow-none transition-colors ${
+                className={`px-3 py-1.5 border-2 border-black rounded-xl font-black text-xs uppercase inline-flex items-center gap-1.5 cursor-pointer shadow-none transition-colors btn-action-hover ${
                   showQRCode ? 'bg-black text-[#FEEC66]' : 'bg-white hover:bg-slate-100 text-black'
                 }`}
               >
@@ -1217,7 +1217,7 @@ export default function HostLobby() {
                     type="button"
                     onClick={handleConnectTwitch}
                     disabled={isTwitchConnecting || !twitchChannel.trim()}
-                    className="px-3 py-1.5 bg-[#9146FF] hover:bg-purple-600 disabled:opacity-50 text-white font-black text-xs uppercase border-2 border-black rounded-xl cursor-pointer shadow-none transition-colors"
+                    className="px-3 py-1.5 bg-[#9146FF] hover:bg-purple-600 disabled:opacity-50 text-white font-black text-xs uppercase border-2 border-black rounded-xl cursor-pointer shadow-none transition-colors btn-action-hover"
                   >
                     {isTwitchConnecting ? '...' : 'Lier'}
                   </button>
@@ -1229,11 +1229,11 @@ export default function HostLobby() {
           {/* QR Code Modal Overlay if toggled */}
           {showQRCode && joinUrl && (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white border-4 border-black rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
+              <div className="info-card rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
                 <button
                   type="button"
                   onClick={() => setShowQRCode(false)}
-                  className="absolute top-3 right-3 p-1 rounded-lg border-2 border-black hover:bg-slate-100 cursor-pointer"
+                  className="absolute top-3 right-3 p-1 rounded-lg border-2 border-black hover:bg-slate-100 cursor-pointer bg-white"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1246,7 +1246,7 @@ export default function HostLobby() {
                 <p className="text-xs font-bold text-slate-700 text-center leading-relaxed">
                   Scannez le QR Code avec votre téléphone :
                   <br />
-                  <span className="font-mono text-host font-bold break-all">{joinUrl}</span>
+                  <span className="font-mono text-black font-bold break-all bg-white px-2 py-0.5 rounded border border-black inline-block mt-1">{joinUrl}</span>
                 </p>
                 <button
                   type="button"
@@ -1313,11 +1313,11 @@ export default function HostLobby() {
               {/* Main Playlists List */}
               <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
                 {displayedPlaylists.length === 0 ? (
-                  <div className="p-8 sm:p-12 border-2 border-black bg-[#FAF0CA] rounded-2xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
+                  <div className="p-8 sm:p-12 info-card rounded-2xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
                     <h3 className="font-title text-lg font-black text-black">
                       Aucune playlist trouvée
                     </h3>
-                    <p className="text-xs font-bold text-slate-600 max-w-md">
+                    <p className="text-xs font-bold text-slate-700 max-w-md">
                       {activeCategory !== 'all'
                         ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`
                         : playlistSearchQuery
@@ -1331,7 +1331,7 @@ export default function HostLobby() {
                           setPlaylistSearchQuery('');
                           setActiveCategory('all');
                         }}
-                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase shadow-none cursor-pointer"
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase shadow-none cursor-pointer btn-action-hover"
                       >
                         Réinitialiser les filtres
                       </button>
@@ -1367,7 +1367,7 @@ export default function HostLobby() {
             </div>
           ) : (
             /* ANIMELIST (MAL / ANILIST) SELECTION VIEW */
-            <div className="bg-[#FAF0CA] border-2 border-black p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden shadow-none">
+            <div className="info-card p-4 sm:p-6 rounded-2xl flex flex-col min-h-[460px] w-full max-w-full overflow-hidden shadow-none">
               {/* Platform Selector & Connexion form */}
               <div className="border-b-2 border-black pb-4 mb-4 flex flex-col gap-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black pb-2">
@@ -1503,12 +1503,12 @@ export default function HostLobby() {
           )}
 
           {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-left) */}
-          <div className="hidden sm:flex flex-col fixed bottom-4 left-4 z-40 w-72 sm:w-80 bg-[#FAF0CA] border-3 border-black rounded-2xl overflow-hidden shadow-none transition-all">
+          <div className="hidden sm:flex flex-col fixed bottom-4 left-4 z-40 w-72 sm:w-80 info-card rounded-2xl overflow-hidden shadow-none transition-all">
             <div
               role="button"
               tabIndex={0}
               onClick={() => setIsPlayersTabCollapsed(!isPlayersTabCollapsed)}
-              className="px-3.5 py-2.5 bg-[#FAF0CA] hover:bg-[#faeaaf] flex items-center justify-between cursor-pointer border-b-2 border-black/20 select-none"
+              className="px-3.5 py-2.5 hover:bg-black/5 flex items-center justify-between cursor-pointer border-b border-black/10 select-none"
             >
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-black" />
@@ -1527,7 +1527,7 @@ export default function HostLobby() {
             </div>
 
             {!isPlayersTabCollapsed && (
-              <div className="p-3 flex flex-col gap-2.5 bg-[#FAF0CA]">
+              <div className="p-3 flex flex-col gap-2.5">
                 <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
                   {playersList.length === 0 ? (
                     <div className="py-4 text-center flex flex-col items-center gap-1.5">
@@ -1604,7 +1604,7 @@ export default function HostLobby() {
             <button
               type="button"
               onClick={() => setShowMobilePlayersModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-[#FAF0CA] border-2 border-black font-black text-xs uppercase text-black flex items-center gap-2 shadow-none cursor-pointer"
+              className="px-3.5 py-2 rounded-xl info-card font-black text-xs uppercase text-black flex items-center gap-2 shadow-none cursor-pointer btn-action-hover"
             >
               <Users className="w-4 h-4" />
               <span>{activeConnectedPlayers.length} joueur{activeConnectedPlayers.length > 1 ? 's' : ''}</span>
@@ -1614,8 +1614,8 @@ export default function HostLobby() {
           {/* MOBILE PLAYERS MODAL */}
           {showMobilePlayersModal && (
             <div className="sm:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-3 animate-fade-in">
-              <div className="w-full bg-[#FAF0CA] border-3 border-black rounded-2xl p-4 flex flex-col gap-3 shadow-none max-h-[80vh]">
-                <div className="flex items-center justify-between border-b-2 border-black pb-2">
+              <div className="w-full info-card rounded-2xl p-4 flex flex-col gap-3 shadow-none max-h-[80vh]">
+                <div className="flex items-center justify-between border-b border-black/10 pb-2">
                   <div className="flex items-center gap-2">
                     <Users className="w-5 h-5 text-black" />
                     <h3 className="font-title text-sm font-black uppercase text-black">
@@ -1631,7 +1631,7 @@ export default function HostLobby() {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-2 overflow-y-auto max-h-56 pr-1">
+                <div className="flex flex-col gap-2 overflow-y-auto max-h-56 pr-1 scrollbar-thin">
                   {playersList.map((player) => (
                     <div
                       key={player.id}
@@ -1664,10 +1664,19 @@ export default function HostLobby() {
                     handleStartGame();
                   }}
                   disabled={activeConnectedPlayers.length === 0 || isStartingGame}
-                  className="w-full py-3 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-2 shadow-none"
+                  className="w-full py-2.5 px-3 bg-host hover:bg-sky-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-none"
                 >
-                  <span>Lancer la partie ({activeConnectedPlayers.length})</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isStartingGame ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Démarrage...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Lancer ({activeConnectedPlayers.length})</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
