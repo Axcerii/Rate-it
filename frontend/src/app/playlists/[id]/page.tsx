@@ -201,7 +201,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between px-1">
             <h2 className="font-title text-xl font-black text-black uppercase flex items-center gap-2">
-              <Music2 className="w-5 h-5 text-[#BF1539]" />
+              <Music2 className="w-5 h-5 text-catalog" />
               <span>Liste des pistes ({videos.length})</span>
             </h2>
           </div>
@@ -210,7 +210,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
             {videos.map((track, idx) => (
               <div
                 key={track.id || idx}
-                className="flex items-center justify-between gap-3 bg-white border-2 border-black rounded-2xl p-3 sm:p-4 hover:border-[#BF1539] transition-colors shadow-none"
+                className="flex items-center justify-between gap-3 bg-white border-2 border-black rounded-2xl p-3 sm:p-4 hover:border-catalog transition-colors shadow-none"
               >
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                   {/* Track number */}

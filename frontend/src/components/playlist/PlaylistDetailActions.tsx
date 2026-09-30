@@ -44,7 +44,7 @@ export default function PlaylistDetailActions({ playlistId, isValidated }: Playl
         type="button"
         onClick={handleLaunch}
         disabled={isStarting}
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#BF1539] text-white border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-[#d41c44] active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-50 shadow-none cursor-pointer"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-catalog text-white border-2 border-black rounded-xl font-black text-xs uppercase hover:brightness-105 active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-50 shadow-none cursor-pointer"
       >
         {isStarting ? (
           <>

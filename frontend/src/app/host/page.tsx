@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import gsap from 'gsap';
 import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
+import HomeButton from '@/components/HomeButton';
 
 export default function HostLobby() {
   const router = useRouter();
@@ -856,13 +857,12 @@ export default function HostLobby() {
               <p className="text-xl font-bold text-black mt-1">Configurez la salle et invitez vos compagnons !</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button
+              <HomeButton
                 onClick={handleBackToHome}
-                className="px-4 py-2.5 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0"
-              >
-                <X className="w-4 h-4" />
-                <span>Fermer la session</span>
-              </button>
+                sizeClassName="h-10 sm:h-14 md:h-16"
+                title="Fermer la session et retourner à l'accueil"
+                ariaLabel="Fermer la session et retourner à l'accueil"
+              />
             </div>
           </div>
 

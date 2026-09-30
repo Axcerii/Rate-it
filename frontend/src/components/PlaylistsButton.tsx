@@ -30,8 +30,8 @@ export default function PlaylistsButton({
       {/* Visually Hidden Text for Screen Readers */}
       <span className="sr-only">{ariaText}</span>
 
-      {/* Main Card Container in Playlist Color (var(--bg-catalog) #BF1539), strictly NO box shadow */}
-      <div className="relative w-full aspect-[4/1.2] sm:aspect-[4/1] rounded-3xl bg-[var(--bg-catalog,#BF1539)] border-4 border-black ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:ring-4 group-focus:ring-4 group-focus-visible:ring-4 group-hover:ring-[var(--bg-catalog,#BF1539)]/60 group-focus:ring-[var(--bg-catalog,#BF1539)]/60 group-focus-visible:ring-[var(--bg-catalog,#BF1539)]/60 group-hover:bg-[#cf1840] group-focus:bg-[#cf1840] group-focus-visible:bg-[#cf1840] group-active:scale-[0.99] group-active:translate-x-0.5 group-active:translate-y-0.5 overflow-visible flex items-center justify-center">
+      {/* Main Card Container in Playlist Color (var(--bg-catalog)), strictly NO box shadow */}
+      <div className="relative w-full aspect-[4/1.2] sm:aspect-[4/1] rounded-3xl bg-catalog border-4 border-black ring-0 ring-transparent transition-all duration-300 ease-out group-hover:scale-[1.02] group-focus:scale-[1.02] group-focus-visible:scale-[1.02] group-hover:ring-4 group-focus:ring-4 group-focus-visible:ring-4 group-hover:ring-catalog/60 group-focus:ring-catalog/60 group-focus-visible:ring-catalog/60 group-hover:brightness-105 group-focus:brightness-105 group-focus-visible:brightness-105 group-active:scale-[0.99] group-active:translate-x-0.5 group-active:translate-y-0.5 overflow-visible flex items-center justify-center">
 
         {/* Subtle inner gradient overlay */}
         <div className="absolute inset-0 rounded-[20px] bg-gradient-to-br from-white/20 via-transparent to-black/15 pointer-events-none z-0 overflow-hidden" />
@@ -44,28 +44,29 @@ export default function PlaylistsButton({
           className="absolute inset-x-0 top-1/2 -translate-y-1/2 w-[92%] h-auto mx-auto object-contain pointer-events-none z-5 opacity-40 transition-transform duration-300 ease-out group-hover:scale-105"
         />
 
-        {/* 2. Video.png - Video cards on the left */}
-        <img
-          src="/PLAYLIST/Video.png"
-          alt=""
-          aria-hidden="true"
-          className="absolute left-[10%] top-[0%] w-[33%] h-auto object-contain pointer-events-none z-51 -rotate-[15deg] transition-transform duration-300 ease-out origin-bottom-left group-hover:-translate-x-1.5 group-focus:-translate-x-1.5 group-hover:-translate-y-2 group-focus:-translate-y-2 group-hover:-rotate-[13deg] group-focus:-rotate-[13deg] group-hover:scale-105 group-focus:scale-105"
-        />
-
         {/* 3. Parchemin.png - Scroll in the center-top */}
         <img
           src="/PLAYLIST/Parchemin.png"
           alt=""
           aria-hidden="true"
-          className="absolute left-[38%] top-[-30%] w-[19%] rotate-[20deg] h-auto object-contain pointer-events-none z-51 transition-transform duration-300 ease-out origin-bottom group-hover:-translate-y-2.5 group-focus:-translate-y-2.5 group-hover:scale-108 group-focus:scale-108 group-hover:rotate-[15deg] group-focus:rotate-[15deg]"
+          className="absolute left-[42%] top-[-25%] w-[22%] h-auto object-contain pointer-events-none z-51 transition-transform duration-300 ease-out origin-bottom group-hover:-translate-y-2.5 group-focus:-translate-y-2.5 group-hover:scale-108 group-focus:scale-108 group-hover:rotate-[5deg] group-focus:rotate-[5deg]"
         />
+
+        {/* 2. Video.png - Video cards on the left */}
+        <img
+          src="/PLAYLIST/Video.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute left-[8%] top-[0%] w-[38%] h-auto object-contain pointer-events-none z-51 -rotate-[0deg] transition-transform duration-300 ease-out origin-bottom-left group-hover:-translate-x-1.5 group-focus:-translate-x-1.5 group-hover:-translate-y-2 group-focus:-translate-y-2 group-hover:-rotate-[6deg] group-focus:-rotate-[6deg] group-hover:scale-102 group-focus:scale-102"
+        />
+
 
         {/* 4. disk.png - Vinyl disk on the right */}
         <img
           src="/PLAYLIST/disk.png"
           alt=""
           aria-hidden="true"
-          className="absolute right-[8%] top-[-18%] w-[28%] h-auto object-contain pointer-events-none z-51 transition-transform duration-500 ease-out origin-center group-hover:rotate-[45deg] group-focus:rotate-[45deg] group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
+          className="absolute right-[10%] top-[-15%] w-[30%] h-auto object-contain pointer-events-none z-51 transition-transform duration-500 ease-out origin-center group-hover:rotate-[45deg] group-focus:rotate-[45deg] group-hover:scale-108 group-focus:scale-108 group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
         />
 
         {/* 5. PlaylistText.png - Front 'Playlists' logo */}

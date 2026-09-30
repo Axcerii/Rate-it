@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
-import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Home, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from 'lucide-react';
+import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from 'lucide-react';
+import HomeButton from '@/components/HomeButton';
 
 interface VideoInput {
   title: string;
@@ -100,6 +101,7 @@ export default function NewPlaylist() {
           if (parsed.playlistName) setPlaylistName(parsed.playlistName);
           if (parsed.description) setDescription(parsed.description);
           if (Array.isArray(parsed.videos)) setVideos(parsed.videos);
+          if (Array.isArray(parsed.selectedCategories)) setSelectedCategories(parsed.selectedCategories);
           if (parsed.playlistName || parsed.description || (Array.isArray(parsed.videos) && parsed.videos.length > 0)) {
             showBanner('Brouillon sauvegardé restauré !', 'info');
           }
@@ -108,6 +110,13 @@ export default function NewPlaylist() {
         console.error('Failed to load saved playlist draft:', e);
       } finally {
         setIsDraftLoaded(true);
+      }
+
+      // Check URL search params for category pre-selection
+      const params = new URLSearchParams(window.location.search);
+      const catParam = params.get('category');
+      if (catParam) {
+        setSelectedCategories((prev) => (prev.includes(catParam) ? prev : [...prev, catParam]));
       }
     }
 
@@ -124,8 +133,8 @@ export default function NewPlaylist() {
     if (!isDraftLoaded || isEditMode) return;
     if (typeof window !== 'undefined') {
       try {
-        const draft = { playlistName, description, videos };
-        if (playlistName.trim() || description.trim() || videos.length > 0) {
+        const draft = { playlistName, description, videos, selectedCategories };
+        if (playlistName.trim() || description.trim() || videos.length > 0 || selectedCategories.length > 0) {
           localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
         } else {
           localStorage.removeItem(DRAFT_KEY);
@@ -134,7 +143,7 @@ export default function NewPlaylist() {
         console.error('Failed to save playlist draft to localStorage:', e);
       }
     }
-  }, [playlistName, description, videos, isDraftLoaded, isEditMode]);
+  }, [playlistName, description, videos, selectedCategories, isDraftLoaded, isEditMode]);
 
   const handleConfirmClearDraft = () => {
     if (typeof window !== 'undefined') {
@@ -496,13 +505,7 @@ export default function NewPlaylist() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2.5 border-2 border-white bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 shrink-0 shadow-none"
-          >
-            <Home className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
-          </button>
+          <HomeButton sizeClassName="h-10 sm:h-14 md:h-16" />
         </div>
       </div>
 

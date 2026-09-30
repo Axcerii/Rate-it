@@ -4,12 +4,12 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 
 export const SECTION_COLORS = {
-  MENU: '#FEEC66',     // Main Menu
-  HOST: '#24B3F1',     // Hosting & Hosting playing
-  PLAYLIST: '#BF1539', // Playlists Catalog (/playlists)
-  CREATE: '#2fc355',   // Create Playlist (/playlists/new)
-  PLAY: '#DD4DCC',     // Joining & Rating
-  ADMIN: '#1b1b1b',    // Admin
+  MENU: 'var(--bg-menu, #FEEC66)',     // Main Menu
+  HOST: 'var(--bg-host, #24B3F1)',     // Hosting & Hosting playing
+  PLAYLIST: 'var(--bg-catalog, #0AC7B5)', // Playlists Catalog (/playlists)
+  CREATE: 'var(--bg-create, #2fc355)',   // Create Playlist (/playlists/new)
+  PLAY: 'var(--bg-play, #DD4DCC)',     // Joining & Rating
+  ADMIN: 'var(--bg-admin, #1b1b1b)',    // Admin
 } as const;
 
 export default function DynamicBackground({ children }: { children: React.ReactNode }) {

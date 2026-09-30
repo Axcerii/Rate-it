@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, Users, Search, X, Filter, SlidersHorizontal, Check } from 'lucide-react';
+import { CheckCircle2, Users, Search, X, Filter, SlidersHorizontal } from 'lucide-react';
 
 export interface PlaylistFiltersProps {
   categories: readonly string[];
@@ -14,6 +14,14 @@ export interface PlaylistFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }
+
+// ---------------------------------------------------------------------------
+// CONFIGURATION DE LA TAILLE DES ÉTIQUETTES (NAME TAG SIZE)
+// Modifiez la valeur ci-dessous pour changer la largeur de l'étiquette.
+// La hauteur s'adapte automatiquement avec le ratio aspect-[480/150].
+// Exemples : 'w-[180px]', 'w-[200px]', 'w-[220px]', 'w-[240px]', 'w-[80%]'
+// ---------------------------------------------------------------------------
+export const CATEGORY_TAG_WIDTH = 'w-[200px]';
 
 export default function PlaylistFilters({
   categories,
@@ -63,8 +71,8 @@ export default function PlaylistFilters({
             type="button"
             onClick={() => setIsMobileDrawerOpen(true)}
             className={`px-3.5 py-2.5 border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-none ${activeCategory !== 'all'
-                ? 'bg-[#BF1539] text-white'
-                : 'bg-white text-black hover:bg-slate-100'
+              ? 'bg-catalog text-white'
+              : 'bg-white text-black hover:bg-slate-100'
               }`}
             title="Ouvrir les filtres par catégorie"
           >
@@ -82,16 +90,16 @@ export default function PlaylistFilters({
             type="button"
             onClick={() => onSelectTab('validated')}
             className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none ${activeTab === 'validated'
-                ? 'bg-[#BF1539] text-white'
-                : 'text-black hover:bg-slate-100'
+              ? 'bg-catalog text-white'
+              : 'text-black hover:bg-slate-100'
               }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Validées</span>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'validated'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-200 text-slate-800'
+                ? 'bg-white/20 text-white'
+                : 'bg-slate-200 text-slate-800'
                 }`}
             >
               {validatedCount}
@@ -102,16 +110,16 @@ export default function PlaylistFilters({
             type="button"
             onClick={() => onSelectTab('community')}
             className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none ${activeTab === 'community'
-                ? 'bg-[#BF1539] text-white'
-                : 'text-black hover:bg-slate-100'
+              ? 'bg-catalog text-white'
+              : 'text-black hover:bg-slate-100'
               }`}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Communauté</span>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'community'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-200 text-slate-800'
+                ? 'bg-white/20 text-white'
+                : 'bg-slate-200 text-slate-800'
                 }`}
             >
               {communityCount}
@@ -121,15 +129,15 @@ export default function PlaylistFilters({
 
         {/* Active Category Chip on Mobile */}
         {activeCategory !== 'all' && (
-          <div className="flex items-center justify-between bg-rose-50 border-2 border-[#BF1539] rounded-xl px-3 py-1.5 shadow-none">
+          <div className="flex items-center justify-between bg-catalog/10 border-2 border-catalog rounded-xl px-3 py-1.5 shadow-none">
             <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[10px] font-black text-[#BF1539] uppercase">Filtre actif :</span>
+              <span className="text-[10px] font-black text-catalog uppercase">Filtre actif :</span>
               <span className="text-xs font-black text-black uppercase truncate">{activeCategory}</span>
             </div>
             <button
               type="button"
               onClick={() => onSelectCategory('all')}
-              className="text-[#BF1539] hover:text-black p-0.5 ml-2"
+              className="text-catalog hover:text-black p-0.5 ml-2"
               title="Supprimer ce filtre"
             >
               <X className="w-3.5 h-3.5" />
@@ -144,7 +152,7 @@ export default function PlaylistFilters({
               {/* Drawer Header */}
               <div className="flex items-center justify-between p-4 border-b-2 border-black bg-white">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-[#BF1539]" />
+                  <Filter className="w-5 h-5 text-catalog" />
                   <h3 className="font-title text-base font-black uppercase text-black">
                     Filtrer par Catégorie
                   </h3>
@@ -159,45 +167,54 @@ export default function PlaylistFilters({
                 </button>
               </div>
 
-              {/* Category Grid Selection */}
-              <div className="p-4 overflow-y-auto flex flex-col gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelectCategory('all');
-                    setIsMobileDrawerOpen(false);
-                  }}
-                  className={`p-3 rounded-2xl border-2 border-black font-black text-xs uppercase flex items-center justify-between transition-all ${activeCategory === 'all'
-                      ? 'bg-black text-white'
-                      : 'bg-white text-black hover:bg-slate-100'
-                    }`}
-                >
-                  <span>Toutes les catégories</span>
-                  {activeCategory === 'all' && <Check className="w-4 h-4" />}
-                </button>
+              {/* Category Selection */}
+              <div className="p-4 overflow-y-auto overflow-x-hidden flex flex-col gap-4 max-h-[60vh]">
+                {categories.map((cat, idx) => {
+                  const isSelected = activeCategory === cat;
+                  const rotations = [
+                    'rotate-[2deg]',
+                    'rotate-[-2deg]',
+                    'rotate-[1.5deg]',
+                    'rotate-[-2.5deg]',
+                    'rotate-[2.5deg]',
+                    'rotate-[-1deg]',
+                    'rotate-[1deg]',
+                    'rotate-[-1.5deg]',
+                  ];
+                  const rot = rotations[idx % rotations.length];
 
-                <div className="grid grid-cols-2 gap-2">
-                  {categories.map((cat) => {
-                    const isSelected = activeCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          onSelectCategory(isSelected ? 'all' : cat);
-                          setIsMobileDrawerOpen(false);
-                        }}
-                        className={`p-3 rounded-2xl border-2 border-black font-black text-xs uppercase flex items-center justify-between transition-all text-left ${isSelected
-                            ? 'bg-[#BF1539] text-white'
-                            : 'bg-white text-black hover:bg-slate-50'
-                          }`}
-                      >
-                        <span className="truncate mr-1">{cat}</span>
-                        {isSelected && <Check className="w-4 h-4 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                  return (
+                    <button
+                      key={cat}
+                      id={`mobile-category-${idx}`}
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory(isSelected ? 'all' : cat);
+                        setIsMobileDrawerOpen(false);
+                      }}
+                      className={`relative flex items-center justify-between transition-all duration-200 cursor-pointer select-none group shrink-0 focus:outline-none overflow-hidden rounded-r-2xl ${isSelected ? 'ml-7' : 'ml-2 hover:translate-x-1'
+                        } ${CATEGORY_TAG_WIDTH} aspect-[480/150] ${rot} hover:rotate-0`}
+                    >
+                      <img
+                        src="/PLAYLIST/etiquette.png"
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-md"
+                      />
+                      <div className="relative z-10 flex items-center justify-between w-full pl-[29%] pr-[6%]">
+                        <span className="font-black text-xs uppercase text-black tracking-tight truncate">
+                          {cat}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <img
+                          src="/PLAYLIST/Tampon.png"
+                          alt="Tampon"
+                          className="absolute -right-3.5 top-1/2 -translate-y-1/2 h-[135%] aspect-square object-contain pointer-events-none z-20 rotate-[-12deg] animate-stamp"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Drawer Footer */}
@@ -217,7 +234,7 @@ export default function PlaylistFilters({
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="flex-1 py-3 bg-[#BF1539] hover:bg-[#cf1840] text-white border-2 border-black font-black text-xs uppercase rounded-xl"
+                  className="flex-1 py-3 bg-catalog hover:brightness-105 text-white border-2 border-black font-black text-xs uppercase rounded-xl"
                 >
                   Voir les résultats
                 </button>
@@ -240,7 +257,7 @@ export default function PlaylistFilters({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Rechercher une playlist..."
-            className="w-full pl-10 pr-9 py-2.5 border-3 border-black bg-white rounded-2xl text-xs font-bold text-black focus:outline-none"
+            className="w-full pl-10 pr-9 py-2.5 border-1 border-black bg-white rounded-lg -rotate-2 text-xs font-bold text-black focus:outline-none"
           />
           {searchQuery && (
             <button
@@ -255,13 +272,13 @@ export default function PlaylistFilters({
         </div>
 
         {/* Tabs Switcher */}
-        <div className="flex flex-col border-3 border-black rounded-2xl bg-white p-1 gap-1">
+        <div className="flex flex-col border rotate-2 border-black rounded-lg bg-[#FAF0CA]">
           <button
             type="button"
             onClick={() => onSelectTab('validated')}
-            className={`w-full py-2.5 px-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-between shadow-none ${activeTab === 'validated'
-                ? 'bg-[#BF1539] text-white'
-                : 'text-black hover:bg-slate-100'
+            className={`w-full py-2.5 px-3 font-black text-xs rounded-t-lg uppercase transition-all flex items-center justify-between shadow-none ${activeTab === 'validated'
+              ? 'bg-catalog text-white'
+              : 'text-black'
               }`}
           >
             <div className="flex items-center gap-2">
@@ -270,8 +287,8 @@ export default function PlaylistFilters({
             </div>
             <span
               className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${activeTab === 'validated'
-                  ? 'bg-white/25 text-white'
-                  : 'bg-slate-200 text-slate-800'
+                ? 'bg-white/25 text-white'
+                : 'bg-slate-200 text-slate-800'
                 }`}
             >
               {validatedCount}
@@ -281,9 +298,9 @@ export default function PlaylistFilters({
           <button
             type="button"
             onClick={() => onSelectTab('community')}
-            className={`w-full py-2.5 px-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-between shadow-none ${activeTab === 'community'
-                ? 'bg-[#BF1539] text-white'
-                : 'text-black hover:bg-slate-100'
+            className={`w-full py-2.5 px-3 rounded-b-lg font-black text-xs uppercase transition-all flex items-center justify-between shadow-none ${activeTab === 'community'
+              ? 'bg-catalog text-white'
+              : 'text-black'
               }`}
           >
             <div className="flex items-center gap-2">
@@ -292,8 +309,8 @@ export default function PlaylistFilters({
             </div>
             <span
               className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${activeTab === 'community'
-                  ? 'bg-white/25 text-white'
-                  : 'bg-slate-200 text-slate-800'
+                ? 'bg-white/25 text-white'
+                : 'bg-slate-200 text-slate-800'
                 }`}
             >
               {communityCount}
@@ -302,17 +319,17 @@ export default function PlaylistFilters({
         </div>
 
         {/* Desktop Categories Panel */}
-        <div className="border-3 border-black bg-white rounded-3xl p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between border-b-2 border-black pb-2.5">
-            <span className="text-xs font-black uppercase text-black flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#BF1539]" />
+        <div className="bg-transparent rounded-3xl flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b-2 border-black/30 pb-2 px-1">
+            <span className="text-xs font-black uppercase text-white flex items-center gap-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+              <Filter className="w-4 h-4 text-white" />
               <span>Catégories</span>
             </span>
             {activeCategory !== 'all' && (
               <button
                 type="button"
                 onClick={() => onSelectCategory('all')}
-                className="text-[10px] font-black uppercase text-[#BF1539] hover:underline"
+                className="text-[10px] font-black uppercase text-white hover:text-white/80 underline drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
               >
                 Réinitialiser
               </button>
@@ -320,34 +337,47 @@ export default function PlaylistFilters({
           </div>
 
           {/* Vertical Categories List */}
-          <div className="flex flex-col gap-1.5 max-h-[480px] overflow-y-auto pr-1 scrollbar-thin">
-            {/* "Toutes les catégories" Button */}
-            <button
-              type="button"
-              onClick={() => onSelectCategory('all')}
-              className={`w-full px-3 py-2 rounded-xl border-2 border-black font-black text-xs uppercase text-left transition-all flex items-center justify-between ${activeCategory === 'all'
-                  ? 'bg-black text-white'
-                  : 'bg-slate-50 text-black hover:bg-slate-100'
-                }`}
-            >
-              <span>Toutes les catégories</span>
-              {activeCategory === 'all' && <Check className="w-3.5 h-3.5" />}
-            </button>
-
-            {categories.map((cat) => {
+          <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto overflow-x-hidden p-2 pr-4 scrollbar-thin">
+            {categories.map((cat, idx) => {
               const isSelected = activeCategory === cat;
+              const rotations = [
+                'rotate-[2deg]',
+                'rotate-[-2deg]',
+                'rotate-[1.5deg]',
+                'rotate-[-2.5deg]',
+                'rotate-[2.5deg]',
+                'rotate-[-1deg]',
+                'rotate-[1deg]',
+                'rotate-[-1.5deg]',
+              ];
+              const rot = rotations[idx % rotations.length];
+
               return (
                 <button
                   key={cat}
+                  id={`desktop-category-${idx}`}
                   type="button"
                   onClick={() => onSelectCategory(isSelected ? 'all' : cat)}
-                  className={`w-full px-3 py-2 rounded-xl border-2 border-black font-black text-xs uppercase text-left transition-all flex items-center justify-between ${isSelected
-                      ? 'bg-[#BF1539] text-white shadow-none'
-                      : 'bg-white text-black hover:bg-slate-50'
-                    }`}
+                  className={`relative flex items-center justify-between transition-all duration-200 cursor-pointer select-none group shrink-0 focus:outline-none overflow-hidden rounded-r-2xl ${isSelected ? 'ml-7' : 'ml-2 hover:translate-x-1'
+                    } ${CATEGORY_TAG_WIDTH} aspect-[480/150] ${rot} hover:rotate-0`}
                 >
-                  <span className="truncate">{cat}</span>
-                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <img
+                    src="/PLAYLIST/etiquette.png"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-md"
+                  />
+                  <div className="relative z-10 flex items-center justify-between w-full pl-[29%] pr-[6%]">
+                    <span className="font-black text-xs uppercase text-black tracking-tight truncate">
+                      {cat}
+                    </span>
+                  </div>
+                  {isSelected && (
+                    <img
+                      src="/PLAYLIST/Tampon.png"
+                      alt="Tampon"
+                      className="absolute -right-3.5 top-full -translate-y-1/2 h-[105%] aspect-square object-contain pointer-events-none z-20 rotate-[-12deg] animate-stamp"
+                    />
+                  )}
                 </button>
               );
             })}

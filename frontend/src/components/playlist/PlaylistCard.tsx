@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  Film,
   ChevronDown,
-  ChevronUp,
+  Film,
   Loader2,
+  Plus,
 } from 'lucide-react';
 import PlaylistTrackCard, { PlaylistTrack } from './PlaylistTrackCard';
 
@@ -35,7 +35,7 @@ export interface PlaylistCardProps {
   isLoadingTracks: boolean;
   onHost: (id: string) => void;
   isStartingHost: boolean;
-  visibleCount: number;
+  visibleCount?: number;
   onShowMoreTracks: (id: string) => void;
 }
 
@@ -45,11 +45,47 @@ export default function PlaylistCard({
   onToggleExpand,
   tracks,
   isLoadingTracks,
-  visibleCount,
+  onHost,
+  isStartingHost = false,
+  visibleCount = 50,
   onShowMoreTracks,
 }: PlaylistCardProps) {
   const displayedTracks = tracks.slice(0, visibleCount);
   const remainingCount = tracks.length - visibleCount;
+
+  // État local pour gérer l'animation de repliement fluide avant démontage
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Recadrage fluide du scroll au niveau de la cassette qui vient de s'ouvrir
+  const articleRef = useRef<HTMLElement>(null);
+  const wasExpandedRef = useRef(isExpanded);
+
+  useEffect(() => {
+    if (!wasExpandedRef.current && isExpanded) {
+      const timer = setTimeout(() => {
+        if (articleRef.current) {
+          const rect = articleRef.current.getBoundingClientRect();
+          const scrollTop = window.scrollY || document.documentElement.scrollTop;
+          // Recadre smoothly avec une marge agréable de 28px au-dessus
+          const targetY = Math.max(0, rect.top + scrollTop - 28);
+          window.scrollTo({
+            top: targetY,
+            behavior: 'smooth',
+          });
+        }
+      }, 70);
+      return () => clearTimeout(timer);
+    }
+    wasExpandedRef.current = isExpanded;
+  }, [isExpanded]);
+
+  const handleCollapse = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onToggleExpand(playlist.id);
+      setIsClosing(false);
+    }, 220);
+  };
 
   // Données de la première piste pour affichage dès le chargement des playlists
   const firstTrack: PlaylistTrack | null = playlist.first_video_youtube_id
@@ -62,12 +98,13 @@ export default function PlaylistCard({
     : null;
 
   return (
-    <article className="w-full flex flex-col transition-all duration-300">
+    <article ref={articleRef} className="w-full flex flex-col shadow-none">
       {/* 1. ÉTAT NON DÉPLOYÉ (AVANT LE DÉROULÉ) :
           Uniquement le blanc de l'étiquette avec un léger contour équilibré (border-2 border-black).
           - Le premier film est visible à gauche dans son cadre Film.png
           - Le titre et la description au centre
-          - Les catégories (style étiquettes jaune cassé) et le bouton Dérouler sur le côté blanc à droite
+          - Les catégories (style étiquettes jaune cassé) et le nombre de vidéos sur le côté blanc à droite
+          - L'indication Dérouler en absolute au sommet pour libérer un maximum d'espace
       */}
       {!isExpanded ? (
         <div
@@ -80,14 +117,20 @@ export default function PlaylistCard({
               onToggleExpand(playlist.id);
             }
           }}
-          className="group relative w-full bg-white hover:bg-slate-50 border-2 border-black rounded-2xl p-3 sm:p-4 select-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3.5"
+          className="group relative w-full bg-white hover:bg-slate-50 border-36 border-[#1b1b1b] rounded-md sm:p-4 select-none cursor-pointer transition-[transform,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3.5"
           title={`Dérouler la cassette ${playlist.name}`}
         >
+          {/* Indication Dérouler en absolute en haut */}
+          <span className="pointer-events-none absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1 px-3 py-0.5 rounded-lg bg-play text-black font-black text-[12px] sm:text-[16px] rotate-2 uppercase opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 shadow-none">
+            <span>Dérouler</span>
+            <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
+          </span>
+
           {/* Côté gauche : Premier film visible dès l'affichage des playlists + Titre/Description */}
           <div className="flex items-center gap-3.5 min-w-0 flex-1">
             {/* Premier Film visible au format Film.png */}
             {firstTrack && (
-              <div className="w-24 sm:w-28 md:w-32 aspect-[500/410] shrink-0 relative select-none -rotate-4">
+              <div className="w-24 sm:w-28 md:w-32 aspect-[500/410] shrink-0 relative select-none -rotate-4 group-hover:rotate-0 transition-transform duration-200">
                 <PlaylistTrackCard track={firstTrack} index={0} />
               </div>
             )}
@@ -113,11 +156,10 @@ export default function PlaylistCard({
             </div>
           </div>
 
-          {/* Côté droit sur le blanc : Catégories style étiquettes jaune cassé & bouton dérouler */}
+          {/* Côté droit sur le blanc : Catégories style étiquettes jaune cassé & nombre de vidéos */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* Catégories */}
             <div className="flex flex-col items-center gap-1">
-
               {Array.isArray(playlist.categories) &&
                 playlist.categories.slice(0, 3).map((cat: string, catIdx: number) => {
                   const rotations = ['rotate-[-2deg]', 'rotate-[2deg]', 'rotate-[-2deg]'];
@@ -131,40 +173,36 @@ export default function PlaylistCard({
                     </span>
                   );
                 })}
-
             </div>
+
             {/* Nombre de vidéos */}
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF0CA] font-black text-[10px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none">
               <Film className="w-3 h-3" />
               <span>{playlist.video_count || 0} vidéos</span>
             </span>
-
-            {/* Bouton dérouler avec chevron */}
-            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-black text-white rounded-xl font-black text-xs uppercase group-hover:bg-slate-800 transition-colors ml-1 shadow-none">
-              <span>Dérouler</span>
-              <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5" />
-            </div>
           </div>
         </div>
       ) : (
         /* 2. ÉTAT DÉPLOYÉ (DÉROULÉ) :
-            Utilise Cassette.png.
+            Utilise CassetteRecadrée.png.
             - Aucun rounded ajouté au conteneur (l'image possède le bon rounded d'origine).
             - Aucun bg-black (évite toute bande noire sur le côté droit).
             - Conteneur des films remonté avec un blur translucide doux.
-            - Animation fluide d'ouverture (slide-in-from-top-4).
+            - Animation propre de déroulement / repliement de la cassette.
         */
-        <div className="w-full flex flex-col animate-in fade-in slide-in-from-top-4 duration-300 ease-out select-none shadow-none">
+        <div
+          className={`w-full flex flex-col select-none shadow-none origin-top ${isClosing ? 'animate-cassette-fold' : 'animate-cassette-unfold'
+            }`}
+        >
           {/* Conteneur de la cassette sans border ni rounded parasites */}
           <div
             className="relative w-full overflow-hidden select-none bg-[url('/PLAYLIST/CassetteRecadrée.png')] bg-cover"
             style={{ aspectRatio: '945 / 692' }}
           >
-
             {/* A. Bande blanche de Cassette.png (Titre, Description & Catégories) */}
             <div
-              onClick={() => onToggleExpand(playlist.id)}
-              className="z-20 my-[7%] px-[8%] flex items-center justify-between  cursor-pointer overflow-hidden"
+              onClick={handleCollapse}
+              className="z-20 my-[7%] px-[8%] flex items-center justify-between cursor-pointer overflow-hidden"
               title="Cliquer pour replier la cassette"
             >
               {/* Titre & Description */}
@@ -187,21 +225,30 @@ export default function PlaylistCard({
                 )}
               </div>
 
-              {/* Catégories sur la bande blanche */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {Array.isArray(playlist.categories) &&
-                  playlist.categories.slice(0, 2).map((cat: string, catIdx: number) => {
-                    const rotations = ['rotate-[-1.5deg]', 'rotate-[1.5deg]'];
-                    const rot = rotations[catIdx % rotations.length];
-                    return (
-                      <span
-                        key={cat}
-                        className={`px-2 py-0.5 rounded-lg border-2 border-black bg-[#FAF0CA] text-black font-black text-[9px] sm:text-[10px] uppercase ${rot} shadow-none truncate max-w-[110px]`}
-                      >
-                        {cat}
-                      </span>
-                    );
-                  })}
+              {/* Catégories et nombre de vidéos sur la bande blanche */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Catégories sur la bande blanche */}
+                <div className="flex items-center gap-1.5 shrink-0 flex-col">
+                  {Array.isArray(playlist.categories) &&
+                    playlist.categories.slice(0, 2).map((cat: string, catIdx: number) => {
+                      const rotations = ['rotate-[-1.5deg]', 'rotate-[1.5deg]'];
+                      const rot = rotations[catIdx % rotations.length];
+                      return (
+                        <span
+                          key={cat}
+                          className={`px-2 py-0.5 rounded-lg bg-menu text-black font-black text-[9px] sm:text-[10px] uppercase ${rot} shadow-none truncate max-w-[110px]`}
+                        >
+                          {cat}
+                        </span>
+                      );
+                    })}
+                </div>
+
+                {/* Nombre de vidéos */}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-[9px] sm:text-[10px] text-black uppercase rotate-[1deg] shadow-none">
+                  <Film className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span>{playlist.video_count || 0} vidéos</span>
+                </span>
               </div>
             </div>
 
@@ -219,7 +266,7 @@ export default function PlaylistCard({
                 </div>
               ) : tracks.length === 0 ? (
                 <div className="flex items-center justify-center flex-1 text-xs sm:text-sm font-black text-white/80">
-                  Aucune vidéo trouvée dans cette cassette.
+                  Aucune vidéo trouvée dans cette playlist.
                 </div>
               ) : (
                 <div className="flex flex-wrap items-start gap-3 p-1.5 overflow-y-auto scrollbar-thin h-full w-full">
@@ -234,40 +281,61 @@ export default function PlaylistCard({
                       />
                     </div>
                   ))}
+
+                  {remainingCount > 0 && (
+                    <div className="w-full pt-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowMoreTracks(playlist.id);
+                        }}
+                        className="w-full py-2.5 sm:py-3 px-4 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs sm:text-sm uppercase flex items-center justify-center gap-2 cursor-pointer shadow-none active:scale-[0.99] transition-all"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        <span>
+                          Afficher plus de morceaux ({remainingCount} restant{remainingCount > 1 ? 's' : ''})
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* C. Zone trapézoïdale grise de Cassette.png avec le bouton Replier */}
+            {/* C. Bas de la cassette : Bouton "HOST" centré sans fond avec agrandissement à l'hover */}
             <div
-              className="absolute z-20 flex items-center justify-between"
+              className="absolute z-20 flex items-center justify-center pointer-events-auto"
               style={{
-                bottom: '3.5%',
-                left: '8%',
-                right: '8%',
+                bottom: '2.5%',
+                left: '0',
+                right: '0',
               }}
             >
-
-              <div className="flex items-center gap-2">
-                {remainingCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => onShowMoreTracks(playlist.id)}
-                    className="px-3 py-1 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-lg font-black text-[10px] uppercase shadow-none cursor-pointer"
-                  >
-                    + {remainingCount} morceaux
-                  </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHost(playlist.id);
+                }}
+                disabled={isStartingHost}
+                className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-115 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
+                title="Lancer une partie avec cette playlist (HOST)"
+                aria-label="Lancer la partie (HOST)"
+              >
+                {isStartingHost ? (
+                  <div className="flex items-center gap-2 bg-black/75 backdrop-blur-sm px-4 py-1.5 rounded-xl text-white font-black text-xs uppercase border border-white/20">
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Lancement...</span>
+                  </div>
+                ) : (
+                  <img
+                    src="/HOST/HostText.png"
+                    alt="HOST"
+                    className="h-10 sm:h-14 md:h-20 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pointer-events-none"
+                  />
                 )}
-
-                <button
-                  type="button"
-                  onClick={() => onToggleExpand(playlist.id)}
-                  className="px-3.5 sm:px-4 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-none active:scale-95 transition-all"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                  <span>Replier</span>
-                </button>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -275,3 +343,4 @@ export default function PlaylistCard({
     </article>
   );
 }
+

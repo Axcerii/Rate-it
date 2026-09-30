@@ -4,24 +4,20 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import {
-  ChevronLeft,
-  Plus,
   ListMusic,
 } from 'lucide-react';
+import HomeButton from '@/components/HomeButton';
 import { PlaylistCard, PlaylistFilters } from '@/components/playlist';
 import { PlaylistSummary, PlaylistVideo, fetchPlaylistDetailsApi } from '@/lib/api';
 
 const CATEGORIES = [
-  'Film/Cinéma',
-  'Série/TV',
   'Anime/Manga',
-  'Musique',
+  'Film/Cinéma',
+  'Jeux Vidéo',
+  'Série/TV',
+  'Dessins Animés/Cartoons',
   'Streaming/VTuber',
   'Youtube',
-  'KPop',
-  'JPop',
-  'Jeux Vidéo',
-  'Dessins Animés/Cartoons',
 ] as const;
 
 interface PlaylistsClientViewProps {
@@ -40,18 +36,10 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Dynamic union of standard categories and any custom categories found in playlists
+  // Use only the defined CATEGORIES list
   const allCategories = useMemo(() => {
-    const set = new Set<string>(CATEGORIES);
-    [...playlists.validated, ...playlists.community].forEach((pl) => {
-      if (Array.isArray(pl.categories)) {
-        pl.categories.forEach((cat: string) => {
-          if (cat && typeof cat === 'string') set.add(cat.trim());
-        });
-      }
-    });
-    return Array.from(set);
-  }, [playlists]);
+    return Array.from(CATEGORIES);
+  }, []);
 
   // Expand / collapse tracks for playlists
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -94,11 +82,11 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
     }
   };
 
-  // Show more tracks progressively
+  // Show more tracks progressively (50 tracks initially, 50 more on click)
   const handleShowMoreTracks = (playlistId: string) => {
     setVisibleTrackCounts((prev) => ({
       ...prev,
-      [playlistId]: (prev[playlistId] || 15) + 30,
+      [playlistId]: (prev[playlistId] || 50) + 50,
     }));
   };
 
@@ -143,35 +131,37 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
     <div className="relative flex flex-col flex-1 items-center bg-transparent px-3 sm:px-6 py-4 sm:py-8 font-sans w-full max-w-full overflow-x-hidden">
       <div className="w-full max-w-7xl z-10 flex flex-col gap-6">
         {/* Top Header Navigation */}
-        <header className="flex flex-wrap items-center justify-between gap-3 pb-2">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-slate-100 active:translate-x-0.5 active:translate-y-0.5 transition-all shadow-none"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span>Accueil</span>
-          </button>
+        <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 pb-2 w-full">
+          {/* Home Link / Logo Button */}
+          <div className="flex justify-start items-center">
+            <HomeButton sizeClassName="h-9 sm:h-14 md:h-18 lg:h-20" />
+          </div>
 
           {/* Central Logo / Title */}
-          <div className="flex items-center gap-2">
+          <div className="flex justify-center items-center">
             <img
               src="/PLAYLIST/PlaylistText.png"
               alt="Playlists"
-              className="h-9 sm:h-20 object-contain"
+              className="h-12 sm:h-24 md:h-32 lg:h-36 object-contain pointer-events-none select-none"
             />
           </div>
 
           {/* Create New Playlist Shortcut */}
-          <button
-            type="button"
-            onClick={() => router.push('/playlists/new')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2fc355] text-black border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-[#34d15d] active:translate-x-0.5 active:translate-y-0.5 transition-all shadow-none"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Créer une playlist</span>
-            <span className="sm:hidden">Créer</span>
-          </button>
+          <div className="flex justify-end items-center">
+            <button
+              type="button"
+              onClick={() => router.push('/playlists/new')}
+              className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 select-none focus:outline-none"
+              title="Créer une playlist"
+              aria-label="Créer une playlist"
+            >
+              <img
+                src="/PLAYLIST/Créer.png"
+                alt="Créer une playlist"
+                className="h-9 sm:h-14 md:h-18 lg:h-20 w-auto object-contain pointer-events-none"
+              />
+            </button>
+          </div>
         </header>
 
         {/* Layout Container: Desktop Sidebar + Main Content Column */}
@@ -193,25 +183,40 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
 
           {/* Main Playlists List Column */}
           <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
-            {/* Header info showing count and active category */}
-            <div className="flex items-center justify-between px-1 text-xs font-black text-slate-800 uppercase">
-              {activeCategory !== 'all' && (
-                <span className="text-[11px] font-bold text-slate-500">
-                  Filtre : <span className="text-[#BF1539] font-black">{activeCategory}</span>
-                </span>
-              )}
-            </div>
 
             {/* Playlists List */}
             {displayedPlaylists.length === 0 ? (
-              <div className="p-8 sm:p-12 border-4 border-black bg-white rounded-3xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
-                <ListMusic className="w-12 h-12 text-slate-400" />
+              <div className="p-8 sm:p-12 border-2 bg-[#FAF0CA] rounded-lg text-center flex flex-col items-center justify-center gap-4 shadow-none">
                 <h3 className="font-title text-xl font-black text-black">Aucune playlist trouvée</h3>
                 <p className="text-xs font-bold text-slate-600 max-w-md">
-                  {searchQuery || activeCategory !== 'all'
-                    ? 'Aucune playlist ne correspond aux filtres sélectionnés. Essayez de réinitialiser la recherche ou de changer de catégorie.'
+                  {activeCategory !== 'all'
+                    ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`
+                    : searchQuery
+                    ? 'Aucune playlist ne correspond aux filtres sélectionnés.'
                     : 'Aucune playlist disponible pour le moment.'}
                 </p>
+
+                {/* Bouton Créer quand aucune playlist n'est trouvée dans une catégorie */}
+                {activeCategory !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(
+                        `/playlists/new?category=${encodeURIComponent(activeCategory)}`
+                      )
+                    }
+                    className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 select-none focus:outline-none my-1"
+                    title={`Créer une playlist dans la catégorie ${activeCategory}`}
+                    aria-label="Créer une playlist"
+                  >
+                    <img
+                      src="/PLAYLIST/Créer.png"
+                      alt="Créer"
+                      className="h-11 sm:h-14 md:h-16 w-auto object-contain pointer-events-none"
+                    />
+                  </button>
+                )}
+
                 {(searchQuery || activeCategory !== 'all') && (
                   <button
                     type="button"
@@ -219,7 +224,7 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
                       setSearchQuery('');
                       setActiveCategory('all');
                     }}
-                    className="mt-2 px-4 py-2 bg-black text-white border-2 border-black rounded-xl font-black text-xs uppercase hover:bg-slate-800 shadow-none"
+                    className="mt-1 px-4 py-2 bg-accent-red text-white border-2 border-black rounded-lg font-black text-xs uppercase transition hover:rotate-2 hover:scale-105 shadow-none"
                   >
                     Réinitialiser les filtres
                   </button>
@@ -237,7 +242,7 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
                     isLoadingTracks={Boolean(loadingTracks[playlist.id])}
                     onHost={handleHostPlaylist}
                     isStartingHost={startingHostId === playlist.id}
-                    visibleCount={visibleTrackCounts[playlist.id] || 15}
+                    visibleCount={visibleTrackCounts[playlist.id] || 50}
                     onShowMoreTracks={handleShowMoreTracks}
                   />
                 ))}
