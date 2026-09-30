@@ -43,6 +43,7 @@ interface SocketContextType {
   getPlaylistDetails: (id: string) => Promise<{ playlist: any; videos: any[] }>;
   searchVideos: (query: string) => Promise<any[]>;
   toggleLobbyVideo: (videoId: string) => Promise<void>;
+  setDisabledVideos: (disabledVideoIds: { [id: string]: boolean }) => Promise<void>;
   validatePlaylist: (id: string, isValidated: boolean, password?: string) => Promise<void>;
   deletePlaylist: (id: string, password?: string) => Promise<void>;
   cleanStalePlaylists: (password?: string) => Promise<number>;
@@ -628,6 +629,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleLobbyVideo = (videoId: string): Promise<any> => {
+    // Optimistic local update for instant UI feedback
+    setSession((prev) => {
+      if (!prev) return prev;
+      const current = { ...(prev.disabledVideoIds || {}) };
+      if (current[videoId]) {
+        delete current[videoId];
+      } else {
+        current[videoId] = true;
+      }
+      return { ...prev, disabledVideoIds: current };
+    });
+
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket not initialized'));
       socket.emit('playlist:toggle_video', { videoId }, (response: any) => {
@@ -635,6 +648,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           resolve(response.disabledVideoIds);
         } else {
           reject(new Error(response.error || 'Failed to toggle video status'));
+        }
+      });
+    });
+  };
+
+  const setDisabledVideos = (disabledVideoIds: { [id: string]: boolean }): Promise<any> => {
+    // Optimistic local update for instant UI feedback
+    setSession((prev) => {
+      if (!prev) return prev;
+      return { ...prev, disabledVideoIds: { ...disabledVideoIds } };
+    });
+
+    return new Promise((resolve, reject) => {
+      if (!socket) return reject(new Error('Socket not initialized'));
+      socket.emit('playlist:set_disabled_videos', { disabledVideoIds }, (response: any) => {
+        if (response.success) {
+          resolve(response.disabledVideoIds);
+        } else {
+          reject(new Error(response.error || 'Failed to set disabled videos'));
         }
       });
     });
@@ -937,6 +969,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getPlaylistDetails,
         searchVideos,
         toggleLobbyVideo,
+        setDisabledVideos,
         validatePlaylist,
         deletePlaylist,
         cleanStalePlaylists,

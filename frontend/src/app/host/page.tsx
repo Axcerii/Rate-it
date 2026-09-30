@@ -42,6 +42,7 @@ import {
   RotateCcw,
   ChevronDown,
   SlidersHorizontal,
+  Share2,
 } from 'lucide-react';
 import gsap from 'gsap';
 import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
@@ -74,6 +75,7 @@ export default function HostLobby() {
     getPlaylists,
     getPlaylistDetails,
     toggleLobbyVideo,
+    setDisabledVideos,
     getMalVideos,
     getAnilistVideos,
     showBanner,
@@ -418,6 +420,16 @@ export default function HostLobby() {
         setIsStartingGame(false);
         return;
       }
+      const currentTracks = tracksCache[selectedPlaylistId] || selectedPlaylistTracks;
+      const disabledMap = session?.disabledVideoIds || {};
+      const activeCount = currentTracks.length > 0
+        ? currentTracks.filter((t) => !disabledMap[String(t.id ?? t.trackId ?? '')]).length
+        : 1;
+      if (currentTracks.length > 0 && activeCount === 0) {
+        showBanner('Toutes les musiques de la playlist sont désactivées. Veuillez en cocher au moins une.', 'warning');
+        setIsStartingGame(false);
+        return;
+      }
       setLoadingMessage('Récupération de la playlist...');
       try {
         await startGame(undefined, selectedPlaylistId, isShuffleEnabled);
@@ -470,24 +482,52 @@ export default function HostLobby() {
   };
 
   const handleSelectPlaylist = async (playlistId: string) => {
+    const isDifferent = selectedPlaylistId !== playlistId;
     setSelectedPlaylistId(playlistId);
-    if (!expandedIds.has(playlistId)) {
-      handleToggleExpand(playlistId);
+    setExpandedIds((prev) => new Set(prev).add(playlistId));
+
+    // Reset disabled video states when switching to a different playlist
+    if (isDifferent && session?.disabledVideoIds && Object.keys(session.disabledVideoIds).length > 0) {
+      setDisabledVideos({}).catch(console.error);
+    }
+
+    if (!tracksCache[playlistId] && !loadingTracks[playlistId]) {
+      setLoadingTracks((prev) => ({ ...prev, [playlistId]: true }));
+      try {
+        const details = await getPlaylistDetails(playlistId);
+        const videos = details.videos || [];
+        setTracksCache((prev) => ({
+          ...prev,
+          [playlistId]: videos,
+        }));
+        setSelectedPlaylistTracks(videos);
+      } catch (err: any) {
+        console.error('Failed to load tracks for playlist:', err);
+        showBanner(err.message || 'Impossible de charger les morceaux de cette playlist', 'error');
+      } finally {
+        setLoadingTracks((prev) => ({ ...prev, [playlistId]: false }));
+      }
+    } else if (tracksCache[playlistId]) {
+      setSelectedPlaylistTracks(tracksCache[playlistId]);
     }
   };
 
   const handleToggleAllTracks = async (playlistId: string, enableAll: boolean) => {
     const tracks = tracksCache[playlistId] || selectedPlaylistTracks;
     if (!tracks || tracks.length === 0) return;
-    const disabledMap = session?.disabledVideoIds || {};
-    for (const track of tracks) {
-      const trackId = String(track.id || track.trackId || '');
-      const isCurrentlyDisabled = Boolean(disabledMap[trackId]);
-      if (enableAll && isCurrentlyDisabled) {
-        await toggleLobbyVideo(trackId).catch(console.error);
-      } else if (!enableAll && !isCurrentlyDisabled) {
-        await toggleLobbyVideo(trackId).catch(console.error);
+    try {
+      if (enableAll) {
+        await setDisabledVideos({});
+      } else {
+        const newMap: { [id: string]: boolean } = {};
+        tracks.forEach((track) => {
+          const trackId = String(track.id ?? track.trackId ?? '');
+          if (trackId) newMap[trackId] = true;
+        });
+        await setDisabledVideos(newMap);
       }
+    } catch (err: any) {
+      console.error('Failed to toggle all tracks:', err);
     }
   };
 
@@ -495,6 +535,15 @@ export default function HostLobby() {
     setSelectedPlaylistId(playlistId);
     if (activeConnectedPlayers.length === 0) {
       showBanner('Veuillez attendre au moins un joueur connecté ou cochez "Host joueur"', 'error');
+      return;
+    }
+    const currentTracks = tracksCache[playlistId] || selectedPlaylistTracks;
+    const disabledMap = session?.disabledVideoIds || {};
+    const activeCount = currentTracks.length > 0
+      ? currentTracks.filter((t) => !disabledMap[String(t.id ?? t.trackId ?? '')]).length
+      : 1;
+    if (currentTracks.length > 0 && activeCount === 0) {
+      showBanner('Toutes les musiques de la playlist sont désactivées. Veuillez en cocher au moins une.', 'warning');
       return;
     }
     try {
@@ -1267,6 +1316,38 @@ export default function HostLobby() {
               
               {/* Sidebar Filters */}
               <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-4 z-20 flex flex-col gap-3">
+                {/* Form to load custom playlist by share code (TOUT EN HAUT DES FILTRES) */}
+                <form
+                  onSubmit={handleSearchPlaylist}
+                  className="bg-white border-2 border-black rounded-2xl p-3 flex flex-col gap-2 shadow-none"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-black uppercase text-black">
+                    <Share2 className="w-3.5 h-3.5 text-black shrink-0" />
+                    <span>Code de partage</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={searchPlaylistId}
+                      onChange={(e) => setSearchPlaylistId(e.target.value.toUpperCase())}
+                      placeholder="Ex: ABC123"
+                      maxLength={12}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold uppercase rounded-xl focus:outline-none shadow-none"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3.5 py-1.5 bg-[#FEEC66] hover:bg-yellow-300 text-black border-2 border-black rounded-xl font-black text-xs uppercase cursor-pointer shadow-none btn-action-hover shrink-0"
+                    >
+                      OK
+                    </button>
+                  </div>
+                  {searchPlaylistError && (
+                    <p className="text-[10px] text-accent-red font-black mt-0.5">
+                      {searchPlaylistError}
+                    </p>
+                  )}
+                </form>
+
                 <PlaylistFilters
                   categories={CATEGORIES}
                   activeCategory={activeCategory}
@@ -1278,36 +1359,6 @@ export default function HostLobby() {
                   searchQuery={playlistSearchQuery}
                   onSearchChange={setPlaylistSearchQuery}
                 />
-
-                {/* Form to load custom playlist by share code */}
-                <form
-                  onSubmit={handleSearchPlaylist}
-                  className="bg-white border-2 border-black rounded-xl p-2.5 flex flex-col gap-1.5 shadow-none"
-                >
-                  <span className="text-[10px] font-black uppercase text-slate-500">
-                    Charger par code de partage
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={searchPlaylistId}
-                      onChange={(e) => setSearchPlaylistId(e.target.value)}
-                      placeholder="Code playlist..."
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border-2 border-black bg-white text-xs font-bold rounded-lg focus:outline-none shadow-none"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 bg-[#FEEC66] hover:bg-yellow-300 text-black border-2 border-black rounded-lg font-black text-xs uppercase cursor-pointer shadow-none"
-                    >
-                      OK
-                    </button>
-                  </div>
-                  {searchPlaylistError && (
-                    <p className="text-[10px] text-accent-red font-black mt-0.5">
-                      {searchPlaylistError}
-                    </p>
-                  )}
-                </form>
               </aside>
 
               {/* Main Playlists List */}
@@ -1502,8 +1553,8 @@ export default function HostLobby() {
             </div>
           )}
 
-          {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-left) */}
-          <div className="hidden sm:flex flex-col fixed bottom-4 left-4 z-40 w-72 sm:w-80 info-card rounded-2xl overflow-hidden shadow-none transition-all">
+          {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-right) */}
+          <div className="hidden sm:flex flex-col fixed bottom-4 right-4 z-40 w-72 sm:w-80 info-card rounded-2xl overflow-hidden shadow-none transition-all">
             <div
               role="button"
               tabIndex={0}
@@ -1600,7 +1651,7 @@ export default function HostLobby() {
           </div>
 
           {/* MOBILE RESPONSIVE FLOATING TAB (< sm) */}
-          <div className="sm:hidden fixed bottom-3 left-3 z-40">
+          <div className="sm:hidden fixed bottom-3 right-3 z-40">
             <button
               type="button"
               onClick={() => setShowMobilePlayersModal(true)}

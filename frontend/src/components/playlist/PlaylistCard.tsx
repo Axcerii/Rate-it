@@ -134,17 +134,19 @@ export default function PlaylistCard({
           role="button"
           tabIndex={0}
           onClick={() => {
-            onToggleExpand(playlist.id);
             if (isHostLobby && onSelectPlaylist) {
               onSelectPlaylist(playlist.id);
+            } else {
+              onToggleExpand(playlist.id);
             }
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              onToggleExpand(playlist.id);
               if (isHostLobby && onSelectPlaylist) {
                 onSelectPlaylist(playlist.id);
+              } else {
+                onToggleExpand(playlist.id);
               }
             }
           }}
@@ -686,9 +688,15 @@ export default function PlaylistCard({
                       if (onStartGame) onStartGame();
                       else onHost(playlist.id);
                     }}
-                    disabled={isStartingHost || !canStartGame}
+                    disabled={isStartingHost || !canStartGame || activeTracksCount === 0}
                     className="group relative flex items-center justify-center bg-transparent border-none cursor-pointer outline-none transition-transform duration-200 hover:scale-108 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed select-none focus:outline-none"
-                    title="Lancer une partie avec cette playlist (HOST)"
+                    title={
+                      activeTracksCount === 0
+                        ? 'Veuillez cocher au moins une musique active'
+                        : !canStartGame
+                        ? 'En attente de joueurs ou activez "Host joueur"'
+                        : 'Lancer une partie avec cette playlist (HOST)'
+                    }
                     aria-label="Lancer la partie (HOST)"
                   >
                     {isStartingHost ? (

@@ -420,7 +420,11 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       session.disabledVideoIds = session.disabledVideoIds || {};
-      session.disabledVideoIds[cleanVideoId] = !session.disabledVideoIds[cleanVideoId];
+      if (session.disabledVideoIds[cleanVideoId]) {
+        delete session.disabledVideoIds[cleanVideoId];
+      } else {
+        session.disabledVideoIds[cleanVideoId] = true;
+      }
 
       await saveSession(session);
       broadcastRoomUpdate(io, session);
@@ -430,6 +434,51 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error toggling track:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // Bulk update of disabled videos in lobby (for "Tout cocher" / "Tout décocher" / playlist switch)
+  socket.on('playlist:set_disabled_videos', async ({ disabledVideoIds }, callback) => {
+    try {
+      const { sessionId, isHost } = socket.data;
+
+      if (!sessionId || !isHost) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Unauthorized' });
+        }
+        return;
+      }
+
+      const session = await getSession(sessionId);
+      if (!session) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Session not found' });
+        }
+        return;
+      }
+
+      const sanitized = {};
+      if (disabledVideoIds && typeof disabledVideoIds === 'object') {
+        for (const [k, v] of Object.entries(disabledVideoIds)) {
+          const cleanKey = sanitizeVideoId(k);
+          if (cleanKey && Boolean(v)) {
+            sanitized[cleanKey] = true;
+          }
+        }
+      }
+
+      session.disabledVideoIds = sanitized;
+      await saveSession(session);
+      broadcastRoomUpdate(io, session);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, disabledVideoIds: session.disabledVideoIds });
+      }
+    } catch (error) {
+      console.error('Error setting disabled videos:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
