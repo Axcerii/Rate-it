@@ -167,7 +167,7 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
         {/* Layout Container: Desktop Sidebar + Main Content Column */}
         <div className="flex flex-col lg:flex-row items-start gap-6 w-full">
           {/* Sidebar Filters (Desktop Sticky Sidebar & Mobile Controls) */}
-          <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6 z-20">
+          <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6 z-40 lg:z-20">
             <PlaylistFilters
               categories={allCategories}
               activeCategory={activeCategory}

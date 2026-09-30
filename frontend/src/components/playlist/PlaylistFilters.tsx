@@ -51,7 +51,7 @@ export default function PlaylistFilters({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Rechercher..."
+              placeholder="Rechercher une playlist..."
               className="w-full pl-9 pr-8 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold text-black focus:outline-none shadow-none"
             />
             {searchQuery && (
@@ -70,7 +70,7 @@ export default function PlaylistFilters({
           <button
             type="button"
             onClick={() => setIsMobileDrawerOpen(true)}
-            className={`px-3.5 py-2.5 border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-none ${activeCategory !== 'all'
+            className={`px-3.5 py-2.5 border-2 border-black rounded-xl font-black text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-none cursor-pointer ${activeCategory !== 'all'
               ? 'bg-catalog text-white'
               : 'bg-white text-black hover:bg-slate-100'
               }`}
@@ -85,13 +85,13 @@ export default function PlaylistFilters({
         </div>
 
         {/* Mobile Tabs Switcher */}
-        <div className="flex border-2 border-black rounded-xl bg-white p-1 gap-1 w-full shadow-none">
+        <div className="flex border-2 border-black rounded-xl bg-[#FAF0CA] p-1 gap-1 w-full shadow-none">
           <button
             type="button"
             onClick={() => onSelectTab('validated')}
-            className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none ${activeTab === 'validated'
+            className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none cursor-pointer ${activeTab === 'validated'
               ? 'bg-catalog text-white'
-              : 'text-black hover:bg-slate-100'
+              : 'text-black hover:bg-black/5'
               }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -99,7 +99,7 @@ export default function PlaylistFilters({
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'validated'
                 ? 'bg-white/20 text-white'
-                : 'bg-slate-200 text-slate-800'
+                : 'bg-white text-slate-800'
                 }`}
             >
               {validatedCount}
@@ -109,9 +109,9 @@ export default function PlaylistFilters({
           <button
             type="button"
             onClick={() => onSelectTab('community')}
-            className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none ${activeTab === 'community'
+            className={`flex-1 py-2 px-2 rounded-lg font-black text-xs uppercase transition-all flex items-center justify-center gap-1.5 shadow-none cursor-pointer ${activeTab === 'community'
               ? 'bg-catalog text-white'
-              : 'text-black hover:bg-slate-100'
+              : 'text-black hover:bg-black/5'
               }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -119,7 +119,7 @@ export default function PlaylistFilters({
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'community'
                 ? 'bg-white/20 text-white'
-                : 'bg-slate-200 text-slate-800'
+                : 'bg-white text-slate-800'
                 }`}
             >
               {communityCount}
@@ -129,15 +129,15 @@ export default function PlaylistFilters({
 
         {/* Active Category Chip on Mobile */}
         {activeCategory !== 'all' && (
-          <div className="flex items-center justify-between bg-catalog/10 border-2 border-catalog rounded-xl px-3 py-1.5 shadow-none">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[10px] font-black text-catalog uppercase">Filtre actif :</span>
+          <div className="flex items-center justify-between bg-white border-2 border-black rounded-xl px-3 py-1.5 shadow-none">
+            <div className="flex items-center gap-2 truncate">
+              <span className="text-[10px] font-black text-catalog uppercase bg-catalog/15 px-2 py-0.5 rounded-md">Filtre</span>
               <span className="text-xs font-black text-black uppercase truncate">{activeCategory}</span>
             </div>
             <button
               type="button"
               onClick={() => onSelectCategory('all')}
-              className="text-catalog hover:text-black p-0.5 ml-2"
+              className="text-slate-500 hover:text-black p-0.5 ml-2 cursor-pointer"
               title="Supprimer ce filtre"
             >
               <X className="w-3.5 h-3.5" />
@@ -147,8 +147,14 @@ export default function PlaylistFilters({
 
         {/* Mobile Modal Drawer for Categories */}
         {isMobileDrawerOpen && (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/65 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
-            <div className="bg-[#FAF7F2] border-t-4 sm:border-4 border-black rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-200">
+          <div
+            className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/65 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          >
+            <div
+              className="bg-[#FAF7F2] border-t-4 sm:border-4 border-black rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-200 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Drawer Header */}
               <div className="flex items-center justify-between p-4 border-b-2 border-black bg-white">
                 <div className="flex items-center gap-2">
@@ -160,15 +166,46 @@ export default function PlaylistFilters({
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-1.5 rounded-xl border-2 border-black bg-white hover:bg-slate-100"
+                  className="p-1.5 rounded-xl border-2 border-black bg-white hover:bg-slate-100 cursor-pointer"
                   aria-label="Fermer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Category Selection */}
-              <div className="p-4 overflow-y-auto overflow-x-hidden flex flex-col gap-4 max-h-[60vh]">
+              {/* Category Selection with centered vintage tickets */}
+              <div className="p-4 overflow-y-auto overflow-x-hidden flex flex-col items-center gap-4 max-h-[60vh] w-full">
+                {/* Option "Toutes les catégories" */}
+                <button
+                  id="mobile-category-all"
+                  type="button"
+                  onClick={() => {
+                    onSelectCategory('all');
+                    setIsMobileDrawerOpen(false);
+                  }}
+                  className={`relative flex items-center justify-between transition-all duration-200 cursor-pointer select-none group shrink-0 focus:outline-none overflow-hidden rounded-r-2xl ${
+                    activeCategory === 'all' ? 'scale-105' : 'hover:scale-[1.02]'
+                  } w-[230px] sm:w-[250px] aspect-[480/150] rotate-[-1deg] hover:rotate-0`}
+                >
+                  <img
+                    src="/PLAYLIST/etiquette.png"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-md"
+                  />
+                  <div className="relative z-10 flex items-center justify-between w-full pl-[29%] pr-[6%]">
+                    <span className="font-black text-xs uppercase text-black tracking-tight truncate">
+                      Toutes les catégories
+                    </span>
+                  </div>
+                  {activeCategory === 'all' && (
+                    <img
+                      src="/PLAYLIST/Tampon.png"
+                      alt="Tampon"
+                      className="absolute -right-3.5 top-1/2 -translate-y-1/2 h-[135%] aspect-square object-contain pointer-events-none z-20 rotate-[-12deg] animate-stamp"
+                    />
+                  )}
+                </button>
+
                 {categories.map((cat, idx) => {
                   const isSelected = activeCategory === cat;
                   const rotations = [
@@ -192,8 +229,9 @@ export default function PlaylistFilters({
                         onSelectCategory(isSelected ? 'all' : cat);
                         setIsMobileDrawerOpen(false);
                       }}
-                      className={`relative flex items-center justify-between transition-all duration-200 cursor-pointer select-none group shrink-0 focus:outline-none overflow-hidden rounded-r-2xl ${isSelected ? 'ml-7' : 'ml-2 hover:translate-x-1'
-                        } ${CATEGORY_TAG_WIDTH} aspect-[480/150] ${rot} hover:rotate-0`}
+                      className={`relative flex items-center justify-between transition-all duration-200 cursor-pointer select-none group shrink-0 focus:outline-none overflow-hidden rounded-r-2xl ${
+                        isSelected ? 'scale-105' : 'hover:scale-[1.02]'
+                      } w-[230px] sm:w-[250px] aspect-[480/150] ${rot} hover:rotate-0`}
                     >
                       <img
                         src="/PLAYLIST/etiquette.png"
@@ -226,7 +264,7 @@ export default function PlaylistFilters({
                       onSelectCategory('all');
                       setIsMobileDrawerOpen(false);
                     }}
-                    className="flex-1 py-3 border-2 border-black bg-slate-100 hover:bg-slate-200 text-black font-black text-xs uppercase rounded-xl"
+                    className="flex-1 py-3 border-2 border-black bg-slate-100 hover:bg-slate-200 text-black font-black text-xs uppercase rounded-xl cursor-pointer"
                   >
                     Réinitialiser
                   </button>
@@ -234,7 +272,7 @@ export default function PlaylistFilters({
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="flex-1 py-3 bg-catalog hover:brightness-105 text-white border-2 border-black font-black text-xs uppercase rounded-xl"
+                  className="flex-1 py-3 bg-catalog hover:brightness-105 text-white border-2 border-black font-black text-xs uppercase rounded-xl cursor-pointer"
                 >
                   Voir les résultats
                 </button>
