@@ -8,7 +8,9 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   async rewrites() {
-    const backendUrl = process.env.INTERNAL_BACKEND_URL || 'http://localhost:4000';
+    const backendUrl =
+      process.env.INTERNAL_BACKEND_URL ||
+      (process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'http://backend:4000');
     return [
       {
         source: '/api/:path*',

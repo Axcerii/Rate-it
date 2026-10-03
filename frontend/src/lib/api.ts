@@ -8,7 +8,10 @@ export function getBaseApiUrl(): string {
     return '';
   }
   // Server-side (SSR / ISR) inside Next.js node runtime
-  return process.env.INTERNAL_BACKEND_URL || 'http://localhost:4000';
+  return (
+    process.env.INTERNAL_BACKEND_URL ||
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'http://backend:4000')
+  );
 }
 
 export interface PlaylistSummary {

@@ -30,31 +30,31 @@ interface PlaylistsClientViewProps {
 
 export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClientViewProps) {
   const router = useRouter();
-  const { createRoom, showBanner, categories, getPlaylistDetails } = useSocket();
+  const { createRoom, showBanner, categories, getPlaylistDetails, getPlaylists } = useSocket();
 
   const [playlists, setPlaylists] = useState(initialPlaylists);
   const [activeTab, setActiveTab] = useState<'validated' | 'community'>('validated');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Client-side fallback fetch if initialPlaylists was empty (e.g., SSR network hiccup or cold boot)
+  // Client-side fallback fetch via Socket.io / HTTP if initialPlaylists was empty
   useEffect(() => {
     if (playlists.validated.length === 0 && playlists.community.length === 0) {
-      fetchPlaylistsApi({ revalidate: false })
+      getPlaylists()
         .then((data) => {
           if (data && (data.validated.length > 0 || data.community.length > 0)) {
-            setPlaylists({
+            setPlaylists((prev) => ({
+              ...prev,
               validated: data.validated,
               community: data.community,
-              categories: data.categories,
-            });
+            }));
           }
         })
         .catch((err) => {
-          console.warn('Client-side fallback fetch error:', err);
+          console.warn('Fallback getPlaylists error:', err);
         });
     }
-  }, []);
+  }, [getPlaylists]);
 
   // When categories update, remove deleted categories from local playlists state
   useEffect(() => {

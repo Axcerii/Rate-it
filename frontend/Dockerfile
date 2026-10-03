@@ -22,8 +22,10 @@ ENV NODE_ENV=production
 # Public build-time environment arguments
 ARG NEXT_PUBLIC_APP_URL=https://rate-it.fr
 ARG NEXT_PUBLIC_WS_URL=https://rate-it.fr
+ARG INTERNAL_BACKEND_URL=http://backend:4000
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV INTERNAL_BACKEND_URL=$INTERNAL_BACKEND_URL
 
 RUN npm run build
 
