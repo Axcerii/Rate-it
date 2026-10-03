@@ -30,7 +30,7 @@ interface PlaylistsClientViewProps {
 
 export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClientViewProps) {
   const router = useRouter();
-  const { createRoom, showBanner, categories } = useSocket();
+  const { createRoom, showBanner, categories, getPlaylistDetails } = useSocket();
 
   const [playlists, setPlaylists] = useState(initialPlaylists);
   const [activeTab, setActiveTab] = useState<'validated' | 'community'>('validated');
@@ -114,17 +114,17 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
       return next;
     });
 
-    // If tracks not cached yet, fetch them via static REST API
+    // If tracks not cached yet, fetch them (HTTP with WebSocket fallback)
     if (!tracksCache[playlistId] && !loadingTracks[playlistId]) {
       setLoadingTracks((prev) => ({ ...prev, [playlistId]: true }));
       try {
-        const details = await fetchPlaylistDetailsApi(playlistId);
+        const details = await getPlaylistDetails(playlistId);
         setTracksCache((prev) => ({
           ...prev,
           [playlistId]: details.videos || [],
         }));
       } catch (err: any) {
-        console.error('Failed to load tracks for playlist via REST:', err);
+        console.error('Failed to load tracks for playlist:', err);
         showBanner(err.message || 'Impossible de charger les morceaux de cette playlist', 'error');
       } finally {
         setLoadingTracks((prev) => ({ ...prev, [playlistId]: false }));

@@ -143,13 +143,15 @@ export async function getPlaylistById(id) {
   const playlistRes = await pool.query(
     `SELECT *, (SELECT COUNT(*)::int FROM playlist_tracks pt WHERE pt.playlist_id = playlists.id) AS video_count 
      FROM playlists 
-     WHERE id = $1`,
+     WHERE id = $1 OR LOWER(id) = LOWER($1)`,
     [cleanId]
   );
 
   if (playlistRes.rows.length === 0) {
     throw new Error('Playlist introuvable');
   }
+
+  const actualId = playlistRes.rows[0].id;
 
   const videosRes = await pool.query(
     `SELECT v.id::text, v.title, v.youtube_id as "youtubeId", v.artist_name as "artistName", 
@@ -160,7 +162,7 @@ export async function getPlaylistById(id) {
      JOIN videos v ON pt.video_id = v.id
      WHERE pt.playlist_id = $1
      ORDER BY pt.order_index ASC`,
-    [cleanId]
+    [actualId]
   );
 
   // Strip secret_code from public response for security

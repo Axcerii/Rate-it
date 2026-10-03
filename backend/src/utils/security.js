@@ -110,7 +110,7 @@ export const PLAYLIST_ID_REGEX = /^[a-zA-Z0-9_-]{2,50}$/;
  */
 export function validatePlaylistId(id) {
   if (!id) return null;
-  const str = String(id).trim().toUpperCase();
+  const str = String(id).trim();
   if (PLAYLIST_ID_REGEX.test(str)) {
     return str;
   }
