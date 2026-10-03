@@ -224,13 +224,23 @@ export function validateTwitchChannel(channel) {
 
 /**
  * Validates MyAnimeList username format (2-20 alphanumeric, dash, and underscore characters).
+ * Supports plain usernames or full MAL URLs (profile/animelist).
  *
  * @param {any} username
  * @returns {string|null} Valid MAL username or null
  */
 export function validateMalUsername(username) {
   if (!username) return null;
-  const str = String(username).trim();
+  let str = String(username).trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  if (str.includes('/')) {
+    const urlMatch = str.match(/myanimelist\.net\/(?:profile|animelist)\/([a-zA-Z0-9_-]{2,20})/i);
+    if (urlMatch) {
+      str = urlMatch[1];
+    } else {
+      const segments = str.split('/').filter(Boolean);
+      str = segments[segments.length - 1] || '';
+    }
+  }
   if (/^[a-zA-Z0-9_-]{2,20}$/.test(str)) {
     return str;
   }
@@ -239,13 +249,23 @@ export function validateMalUsername(username) {
 
 /**
  * Validates an AniList username (2-30 chars, alphanumeric + underscore + hyphen).
+ * Supports plain usernames or full AniList URLs (user/animelist).
  *
  * @param {any} username
  * @returns {string|null} Valid AniList username or null
  */
 export function validateAnilistUsername(username) {
   if (!username) return null;
-  const str = String(username).trim();
+  let str = String(username).trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  if (str.includes('/')) {
+    const urlMatch = str.match(/anilist\.co\/user\/([a-zA-Z0-9_-]{2,30})/i);
+    if (urlMatch) {
+      str = urlMatch[1];
+    } else {
+      const segments = str.split('/').filter(Boolean);
+      str = segments[segments.length - 1] || '';
+    }
+  }
   if (/^[a-zA-Z0-9_-]{2,30}$/.test(str)) {
     return str;
   }

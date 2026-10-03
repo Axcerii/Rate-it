@@ -192,7 +192,11 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
 
             {/* Action Buttons */}
             <div className="shrink-0 flex flex-col items-start md:items-end gap-3">
-              <PlaylistDetailActions playlistId={playlist.id} isValidated={playlist.is_validated} />
+              <PlaylistDetailActions
+                playlistId={playlist.id}
+                isValidated={playlist.is_validated}
+                playlistName={playlist.name}
+              />
             </div>
           </div>
         </div>

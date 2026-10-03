@@ -3,6 +3,7 @@
 import React from 'react';
 import { useSocket, BannerType } from '@/lib/useSocket';
 import { AlertOctagon, AlertTriangle, Info, Radio, CheckCircle2, X } from 'lucide-react';
+import CloseButton from '@/components/CloseButton';
 
 interface ThemeConfig {
   bgClass: string;
@@ -119,13 +120,11 @@ export default function BannerNotification() {
             </div>
           </div>
 
-          <button
+          <CloseButton
             onClick={hideBanner}
-            className="p-1.5 bg-black hover:bg-slate-800 focus:bg-slate-800 focus-visible:bg-slate-800 text-white rounded-lg border-2 border-black shrink-0 transition active:scale-95"
             title="Fermer la notification"
-          >
-            <X className="w-4 h-4" />
-          </button>
+            sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
+          />
         </div>
       </div>
     </>

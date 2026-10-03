@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { CheckCircle2, Users, Search, X, Filter, SlidersHorizontal } from 'lucide-react';
+import CloseButton from '@/components/CloseButton';
 
 export interface PlaylistFiltersProps {
   categories: readonly string[];
@@ -163,14 +164,11 @@ export default function PlaylistFilters({
                     Filtrer par Catégorie
                   </h3>
                 </div>
-                <button
-                  type="button"
+                <CloseButton
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-1.5 rounded-lg border-2 border-black bg-white hover:bg-slate-100 cursor-pointer"
-                  aria-label="Fermer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  ariaLabel="Fermer"
+                  sizeClassName="w-7 h-7"
+                />
               </div>
 
               {/* Category Selection with centered vintage tickets */}

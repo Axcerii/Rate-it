@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from 'lucide-react';
 import HomeButton from '@/components/HomeButton';
+import CloseButton from '@/components/CloseButton';
 
 interface VideoInput {
   title: string;
@@ -41,13 +42,26 @@ export default function NewPlaylist() {
     verifyVideo,
     isConnected,
     showBanner,
+    categories,
   } = useSocket();
+
+  const availableCategories = useMemo(() => {
+    if (categories && categories.length > 0) return categories;
+    return Array.from(CATEGORIES);
+  }, [categories]);
 
   const DRAFT_KEY = 'rate_it_playlist_draft';
 
   const [playlistName, setPlaylistName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  // If a category was deleted globally, remove it from current selection
+  useEffect(() => {
+    if (selectedCategories.length > 0 && availableCategories.length > 0) {
+      setSelectedCategories((prev) => prev.filter((c) => availableCategories.includes(c)));
+    }
+  }, [availableCategories]);
   const [videos, setVideos] = useState<VideoInput[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -494,18 +508,15 @@ export default function NewPlaylist() {
 
   return (
     <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-8 py-6 sm:py-12 flex flex-col items-center w-full max-w-full overflow-x-hidden relative">
-      {/* Header without border */}
-      <div className="w-full max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 sm:mb-8 text-center sm:text-left">
-        <div className="flex flex-col items-center sm:items-start">
+      {/* Header with HomeButton on Top Left */}
+      <div className="w-full max-w-6xl flex items-center justify-between gap-4 mb-6 sm:mb-8">
+        <div className="flex items-center gap-3 sm:gap-5">
+          <HomeButton sizeClassName="h-10 sm:h-14 md:h-16" />
           <img
             src="/CREATE/Cr%C3%A9erText.png"
             alt="Créer une Playlist"
-            className="h-12 sm:h-20 w-auto object-contain max-w-full"
+            className="h-10 sm:h-16 md:h-20 w-auto object-contain max-w-full select-none pointer-events-none"
           />
-        </div>
-
-        <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
-          <HomeButton sizeClassName="h-10 sm:h-14 md:h-16" />
         </div>
       </div>
 
@@ -792,14 +803,11 @@ export default function NewPlaylist() {
                 Infos & Config Playlist
               </h2>
             </div>
-            <button
-              type="button"
+            <CloseButton
               onClick={() => setIsInfoDrawerOpen(false)}
-              className="p-1.5 border-2 border-white bg-white hover:bg-slate-100 focus:bg-slate-100 focus-visible:bg-slate-100 rounded-xl btn-action-hover shadow-none"
               title="Fermer"
-            >
-              <X className="w-5 h-5 text-black" />
-            </button>
+              sizeClassName="w-8 h-8"
+            />
           </div>
 
           {/* Section: Éditer une playlist (as requested: mets le bouton "éditer une playlist" dedans avec un CTA qui est "Entrer un code secret d'édition") */}
@@ -874,7 +882,7 @@ export default function NewPlaylist() {
             <div className="flex flex-col gap-1.5">
               <label className="block text-xs font-black uppercase text-black">Catégories (Optionnel)</label>
               <div className="flex flex-wrap gap-1.5">
-                {CATEGORIES.map((cat) => {
+                {availableCategories.map((cat) => {
                   const isSelected = selectedCategories.includes(cat);
                   return (
                     <button
@@ -1000,18 +1008,25 @@ export default function NewPlaylist() {
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center animate-in fade-in duration-200">
           <div className="info-card w-full max-w-lg rounded-3xl p-6 sm:p-8 flex flex-col gap-5 text-left relative max-h-[90vh] !overflow-y-auto shadow-none my-auto scrollbar-thin">
             {/* Header */}
-            <div className="flex items-center gap-3.5 border-b-2 border-white/70 pb-4">
-              <div className="p-3 bg-white text-black border-2 border-white rounded-2xl shrink-0 shadow-none">
-                <CheckCircle2 className="w-8 h-8 text-[#4BD66F] stroke-[2.5]" />
+            <div className="flex items-center justify-between border-b-2 border-white/70 pb-4">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 bg-white text-black border-2 border-white rounded-2xl shrink-0 shadow-none">
+                  <CheckCircle2 className="w-8 h-8 text-[#4BD66F] stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black font-title uppercase text-black leading-tight">
+                    Playlist Créée avec Succès !
+                  </h3>
+                  <p className="text-xs text-slate-800 font-bold mt-0.5">
+                    Conservez bien vos codes d'accès ci-dessous.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl sm:text-2xl font-black font-title uppercase text-black leading-tight">
-                  Playlist Créée avec Succès !
-                </h3>
-                <p className="text-xs text-slate-800 font-bold mt-0.5">
-                  Conservez bien vos codes d'accès ci-dessous.
-                </p>
-              </div>
+              <CloseButton
+                onClick={() => router.push('/')}
+                title="Fermer"
+                sizeClassName="w-8 h-8"
+              />
             </div>
 
             {/* Block 1: Share Code */}
@@ -1120,13 +1135,11 @@ export default function NewPlaylist() {
                   Éditer avec un Code Secret
                 </h3>
               </div>
-              <button
-                type="button"
+              <CloseButton
                 onClick={() => setIsSecretModalOpen(false)}
-                className="p-1.5 border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
-              >
-                <X className="w-4 h-4 text-black" />
-              </button>
+                title="Fermer"
+                sizeClassName="w-8 h-8"
+              />
             </div>
 
             <p className="text-xs font-bold text-slate-800 leading-relaxed">

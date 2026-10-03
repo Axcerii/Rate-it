@@ -21,16 +21,34 @@ import {
   Copy,
   Eye,
   EyeOff,
+  Tv,
   Users,
   X,
 } from 'lucide-react';
 import { LeaderboardCard, useLeaderboardAnimation } from '@/components/leaderboard';
+import RatingNumberButton from '@/components/RatingNumberButton';
 
 export default function PlayView() {
   const router = useRouter();
   const { session, isConnected, playerId, leaveRoom, submitVote, toggleSkip, showBanner } = useSocket();
   const [copiedLink, setCopiedLink] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [showMobileVideo, setShowMobileVideo] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Reset mobile video visibility on each new track (hidden & deactivated by default on mobile)
+  useEffect(() => {
+    setShowMobileVideo(false);
+  }, [session?.currentVideoIndex]);
 
   // Leaderboard reveal animation (same as /host)
   const {
@@ -134,9 +152,9 @@ export default function PlayView() {
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
               <img
-                src="/JOIN/JoinText.png"
-                alt="Rejoindre"
-                className="h-14 sm:h-20 md:h-24 w-auto object-contain max-w-full my-1"
+                src="/JOIN/PlayText.png"
+                alt="PLAY"
+                className="h-14 sm:h-20 md:h-24 w-auto object-contain max-w-full my-1 drop-shadow-md select-none pointer-events-none"
               />
               <div className="flex flex-col items-center md:items-start gap-2 mt-1 w-full">
                 <button
@@ -211,11 +229,31 @@ export default function PlayView() {
       : Object.keys(session.skips || {}).filter(id => session.players[id]?.isConnected && session.skips?.[id]).length;
 
     const ratingOptions = [
-      { value: 1, label: 'Skip, vite !', icon: <FastForward className="w-4 h-4 md:w-5 md:h-5 text-red-500" /> },
-      { value: 2, label: 'Oubliable', icon: <Ghost className="w-4 h-4 md:w-5 md:h-5 text-orange-500" /> },
-      { value: 3, label: 'Honnête', icon: <ThumbsUp className="w-4 h-4 md:w-5 md:h-5 text-yellow-500" /> },
-      { value: 4, label: 'Hop, dans ma playlist', icon: <ListPlus className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" /> },
-      { value: 5, label: 'Aucun défaut', icon: <Crown className="w-4 h-4 md:w-5 md:h-5 text-amber-500" /> }
+      {
+        value: 1,
+        label: 'Skip, vite !',
+        icon: <FastForward className="w-4 h-4 md:w-5 md:h-5 text-[var(--accent-red)] fill-[var(--accent-red)]" />
+      },
+      {
+        value: 2,
+        label: 'Oubliable',
+        icon: <Ghost className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-play)] fill-[var(--bg-play)]/25" />
+      },
+      {
+        value: 3,
+        label: 'Honnête',
+        icon: <ThumbsUp className="w-4 h-4 md:w-5 md:h-5 text-black fill-[var(--bg-cream)] stroke-[1.5]" />
+      },
+      {
+        value: 4,
+        label: 'Hop, dans ma playlist',
+        icon: <ListPlus className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-host)] stroke-[2.5]" />
+      },
+      {
+        value: 5,
+        label: 'Aucun défaut',
+        icon: <Crown className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-create)] fill-[var(--bg-create)]" />
+      }
     ];
 
     return (
@@ -246,18 +284,20 @@ export default function PlayView() {
               {/* Left Side: Video Player (Desktop & Large screens - 7/12 on md, 8/12 on lg) */}
               <div className="hidden md:flex md:col-span-7 lg:col-span-8 flex-col gap-4 text-left">
                 <div className="w-full aspect-video rounded-none border-4 border-black bg-black overflow-hidden relative">
-                  <iframe
-                    key={currentVideo.youtubeId}
-                    src={`https://www.youtube-nocookie.com/embed/${currentVideo.youtubeId}?autoplay=1&modestbranding=1&rel=0`}
-                    title={currentVideo.title}
-                    className="w-full h-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+                  {isDesktop && (
+                    <iframe
+                      key={currentVideo.youtubeId}
+                      src={`https://www.youtube-nocookie.com/embed/${currentVideo.youtubeId}?autoplay=1&modestbranding=1&rel=0`}
+                      title={currentVideo.title}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  )}
                 </div>
                 <div className="bg-white p-5 rounded-2xl border-2 border-black">
-                  <span className="text-xs font-black text-slate-500 uppercase tracking-widest bg-slate-100 py-1 px-3 rounded-lg border border-slate-200 inline-block mb-2">
-                    Thème {session.currentVideoIndex + 1} sur {session.videos?.length}
+                  <span className="text-xs font-bold font-sans text-slate-600 block mb-1">
+                    Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
                   </span>
                   <h3 className="text-2xl lg:text-3xl font-black font-title text-black leading-snug">
                     {currentVideo.title}
@@ -270,10 +310,10 @@ export default function PlayView() {
 
               {/* Right Side: Voting Controls & Actions (5/12 on md, 4/12 on lg) */}
               <div className="col-span-1 md:col-span-5 lg:col-span-4 flex flex-col gap-5">
-                {/* On Mobile only: show video info header */}
-                <div className="md:hidden flex flex-col gap-3">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 py-0.5 rounded border border-slate-200 inline-block mx-auto px-2">
-                    Thème {session.currentVideoIndex + 1} sur {session.videos?.length}
+                {/* On Mobile only: show video info header & video toggle */}
+                <div className="md:hidden flex flex-col gap-3 text-center">
+                  <span className="text-xs font-bold font-sans text-slate-600">
+                    Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
                   </span>
 
                   <div className="flex flex-col gap-1.5">
@@ -283,6 +323,43 @@ export default function PlayView() {
                     <p className="text-xs font-bold text-fuchsia-950 mt-1">
                       Par {currentVideo.artistName || 'Artiste inconnu'} {currentVideo.description ? `— ${currentVideo.description}` : ''}
                     </p>
+                  </div>
+
+                  {/* Mobile Video Toggle & Player (hidden and deactivated by default) */}
+                  <div className="pt-0.5">
+                    {!showMobileVideo ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowMobileVideo(true)}
+                        className="w-full py-2.5 px-4 border-2 border-black bg-white hover:bg-slate-50 focus:bg-slate-50 font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2 text-black shadow-sm"
+                        title="Afficher la vidéo"
+                      >
+                        <Tv className="w-4 h-4 text-[#DD4DCC] shrink-0" />
+                        <span>Afficher la vidéo</span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="w-full aspect-video rounded-xl border-4 border-black bg-black overflow-hidden relative shadow-md">
+                          <iframe
+                            key={`mobile-${currentVideo.youtubeId}`}
+                            src={`https://www.youtube-nocookie.com/embed/${currentVideo.youtubeId}?autoplay=1&modestbranding=1&rel=0`}
+                            title={currentVideo.title}
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowMobileVideo(false)}
+                          className="self-center py-1.5 px-3 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 font-black text-[11px] uppercase rounded-lg btn-action-hover inline-flex items-center gap-1.5 text-black"
+                          title="Masquer la vidéo"
+                        >
+                          <EyeOff className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                          <span>Masquer la vidéo</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -316,33 +393,14 @@ export default function PlayView() {
                     <div className="flex justify-between items-center px-1 gap-2 md:gap-3">
                       {ratingOptions.map((item) => {
                         const isSelected = currentVote === item.value;
-                        const isAnySelected = currentVote !== undefined;
-
-                        let btnStyle = "border-2 border-black bg-white text-black btn-action-hover hover:scale-105 active:scale-95";
-                        if (isSelected) {
-                          if (item.value === 1) btnStyle = "border-4 border-black bg-red-600 text-white scale-105 shadow-md";
-                          else if (item.value === 2) btnStyle = "border-4 border-black bg-orange-500 text-white scale-105 shadow-md";
-                          else if (item.value === 3) btnStyle = "border-4 border-black bg-yellow-400 text-black scale-105 shadow-md";
-                          else if (item.value === 4) btnStyle = "border-4 border-black bg-emerald-500 text-white scale-105 shadow-md";
-                          else if (item.value === 5) btnStyle = "border-4 border-black bg-[#DD4DCC] text-white scale-105 shadow-md";
-                        } else if (isAnySelected) {
-                          btnStyle = "border-2 border-slate-300 bg-slate-100 text-slate-400 opacity-40 hover:opacity-75 transition-opacity";
-                        } else {
-                          if (item.value === 1) btnStyle = "border-2 border-black bg-white hover:bg-red-500 hover:text-white focus:bg-red-500 focus:text-white text-black btn-action-hover hover:scale-105 active:scale-95";
-                          else if (item.value === 2) btnStyle = "border-2 border-black bg-white hover:bg-orange-500 hover:text-white focus:bg-orange-500 focus:text-white text-black btn-action-hover hover:scale-105 active:scale-95";
-                          else if (item.value === 3) btnStyle = "border-2 border-black bg-white hover:bg-yellow-400 hover:text-black focus:bg-yellow-400 text-black btn-action-hover hover:scale-105 active:scale-95";
-                          else if (item.value === 4) btnStyle = "border-2 border-black bg-white hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white text-black btn-action-hover hover:scale-105 active:scale-95";
-                          else if (item.value === 5) btnStyle = "border-2 border-black bg-white hover:bg-[#DD4DCC] hover:text-white focus:bg-[#DD4DCC] focus:text-white text-black btn-action-hover hover:scale-105 active:scale-95";
-                        }
-
                         return (
-                          <button
+                          <RatingNumberButton
                             key={item.value}
+                            value={item.value}
+                            isSelected={isSelected}
                             onClick={() => handleVote(item.value)}
-                            className={`h-11 w-11 sm:h-14 sm:w-14 lg:h-16 lg:w-16 rounded-full text-base sm:text-xl lg:text-2xl font-black transition-all flex items-center justify-center cursor-pointer shrink-0 ${btnStyle}`}
-                          >
-                            {item.value}
-                          </button>
+                            sizeClassName="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16"
+                          />
                         );
                       })}
                     </div>
@@ -406,7 +464,7 @@ export default function PlayView() {
               <div className="flex flex-col items-center gap-1 border-b-2 border-black pb-3">
                 <span className="text-xs font-black text-fuchsia-950 uppercase flex items-center justify-center gap-1.5 tracking-wider">
                   <BarChart2 className="w-5 h-5 text-[#DD4DCC]" />
-                  <span>Résultats du thème</span>
+                  <span>Résultats de la vidéo</span>
                 </span>
                 <h3 className="text-base sm:text-lg font-black text-black leading-tight mt-1 truncate max-w-full">
                   {currentVideo.title}
@@ -491,11 +549,11 @@ export default function PlayView() {
 
                     if (playerVote !== undefined && playerVote !== null) {
                       const labels: Record<number, { text: string; bg: string }> = {
-                        1: { text: '1', bg: 'bg-red-600 text-white' },
-                        2: { text: '2', bg: 'bg-orange-500 text-white' },
-                        3: { text: '3', bg: 'bg-yellow-400 text-black' },
-                        4: { text: '4', bg: 'bg-emerald-500 text-white' },
-                        5: { text: '5', bg: 'bg-host text-black' },
+                        1: { text: '1', bg: 'bg-[var(--accent-red)] text-white' },
+                        2: { text: '2', bg: 'bg-[var(--bg-play)] text-white' },
+                        3: { text: '3', bg: 'bg-[var(--bg-cream)] text-black border border-black' },
+                        4: { text: '4', bg: 'bg-[var(--bg-host)] text-black' },
+                        5: { text: '5', bg: 'bg-[var(--bg-create)] text-black' },
                       };
                       const l = labels[playerVote] || { text: `${playerVote}`, bg: 'bg-black text-white' };
                       voteBadge = (

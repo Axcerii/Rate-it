@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import {
@@ -24,22 +24,53 @@ interface PlaylistsClientViewProps {
   initialPlaylists: {
     validated: PlaylistSummary[];
     community: PlaylistSummary[];
+    categories?: string[];
   };
 }
 
 export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClientViewProps) {
   const router = useRouter();
-  const { createRoom, showBanner } = useSocket();
+  const { createRoom, showBanner, categories } = useSocket();
 
-  const [playlists] = useState(initialPlaylists);
+  const [playlists, setPlaylists] = useState(initialPlaylists);
   const [activeTab, setActiveTab] = useState<'validated' | 'community'>('validated');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Use only the defined CATEGORIES list
+  // When categories update, remove deleted categories from local playlists state
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setPlaylists((prev) => ({
+        ...prev,
+        validated: prev.validated.map((p) => ({
+          ...p,
+          categories: Array.isArray(p.categories) ? p.categories.filter((c) => categories.includes(c)) : [],
+        })),
+        community: prev.community.map((p) => ({
+          ...p,
+          categories: Array.isArray(p.categories) ? p.categories.filter((c) => categories.includes(c)) : [],
+        })),
+      }));
+    }
+  }, [categories]);
+
+  // Use dynamic categories from socket / initial props with fallback
   const allCategories = useMemo(() => {
+    if (categories && categories.length > 0) {
+      return categories;
+    }
+    if (initialPlaylists.categories && initialPlaylists.categories.length > 0) {
+      return initialPlaylists.categories;
+    }
     return Array.from(CATEGORIES);
-  }, []);
+  }, [categories, initialPlaylists.categories]);
+
+  // If currently filtered category was deleted, reset filter to 'all'
+  useEffect(() => {
+    if (activeCategory !== 'all' && !allCategories.includes(activeCategory)) {
+      setActiveCategory('all');
+    }
+  }, [allCategories, activeCategory]);
 
   // Expand / collapse tracks for playlists
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -95,7 +126,10 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
     setStartingHostId(playlistId);
     try {
       await createRoom();
-      router.push(`/host?playlistId=${playlistId}`);
+      const allPlaylists = [...playlists.validated, ...playlists.community];
+      const found = allPlaylists.find((p) => p.id === playlistId);
+      const nameParam = found?.name ? `&playlistName=${encodeURIComponent(found.name)}` : '';
+      router.push(`/host?playlistId=${playlistId}${nameParam}`);
     } catch (err: any) {
       console.error('Failed to launch room for playlist:', err);
       showBanner(err.message || 'Erreur lors du lancement de la salle', 'error');

@@ -8,9 +8,10 @@ import { Play, Share2, FileEdit, Check, Loader2 } from 'lucide-react';
 interface PlaylistDetailActionsProps {
   playlistId: string;
   isValidated: boolean;
+  playlistName?: string;
 }
 
-export default function PlaylistDetailActions({ playlistId, isValidated }: PlaylistDetailActionsProps) {
+export default function PlaylistDetailActions({ playlistId, isValidated, playlistName }: PlaylistDetailActionsProps) {
   const router = useRouter();
   const { createRoom, showBanner } = useSocket();
   const [isStarting, setIsStarting] = useState(false);
@@ -20,7 +21,8 @@ export default function PlaylistDetailActions({ playlistId, isValidated }: Playl
     setIsStarting(true);
     try {
       await createRoom();
-      router.push(`/host?playlistId=${playlistId}`);
+      const nameParam = playlistName ? `&playlistName=${encodeURIComponent(playlistName)}` : '';
+      router.push(`/host?playlistId=${playlistId}${nameParam}`);
     } catch (err: any) {
       console.error('Failed to launch room:', err);
       showBanner(err.message || 'Erreur lors du lancement de la salle', 'error');

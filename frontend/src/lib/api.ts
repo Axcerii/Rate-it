@@ -33,6 +33,7 @@ export interface PlaylistsResponse {
   success: boolean;
   validated: PlaylistSummary[];
   community: PlaylistSummary[];
+  categories?: string[];
   error?: string;
 }
 
@@ -63,7 +64,7 @@ export interface PlaylistDetailsResponse {
 export async function fetchPlaylistsApi(options?: {
   password?: string;
   revalidate?: number | false;
-}): Promise<{ validated: PlaylistSummary[]; community: PlaylistSummary[] }> {
+}): Promise<{ validated: PlaylistSummary[]; community: PlaylistSummary[]; categories: string[] }> {
   const baseUrl = getBaseApiUrl();
   const query = options?.password ? `?password=${encodeURIComponent(options.password)}` : '';
   const url = `${baseUrl}/api/playlists${query}`;
@@ -98,7 +99,33 @@ export async function fetchPlaylistsApi(options?: {
   return {
     validated: data.validated || [],
     community: data.community || [],
+    categories: data.categories || [],
   };
+}
+
+/**
+ * Fetch active playlist categories
+ */
+export async function fetchCategoriesApi(): Promise<string[]> {
+  const baseUrl = getBaseApiUrl();
+  const url = `${baseUrl}/api/playlists/categories`;
+  try {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.categories || [];
+  } catch (err) {
+    console.warn('Erreur lors du chargement des catégories via API:', err);
+    return [
+      'Anime/Manga',
+      'Film/Cinéma',
+      'Jeux Vidéo',
+      'Série/TV',
+      'Dessins Animés/Cartoons',
+      'Streaming/VTuber',
+      'Youtube',
+    ];
+  }
 }
 
 /**

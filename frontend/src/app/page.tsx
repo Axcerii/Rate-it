@@ -51,6 +51,9 @@ export default function Home() {
   const handleCreate = async () => {
     setIsCreating(true);
     try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('rate_it_host_mode_chosen');
+      }
       await createRoom();
       router.push('/host');
     } catch (err: any) {

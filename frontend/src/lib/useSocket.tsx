@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { GameSession } from '../../../shared/types';
-import { fetchPlaylistsApi, fetchPlaylistDetailsApi, createPlaylistApi } from './api';
+import { fetchPlaylistsApi, fetchPlaylistDetailsApi, createPlaylistApi, fetchCategoriesApi } from './api';
 
 export type BannerType = 'error' | 'announcement' | 'info' | 'success' | 'warning';
 
@@ -51,6 +51,10 @@ interface SocketContextType {
   getAnilistVideos: (username: string) => Promise<any[]>;
   getVideoStats: (youtubeId: string) => Promise<any>;
   getGlobalStats: (password?: string) => Promise<{ overall: any; topTracks: any[]; worstTracks: any[] }>;
+  categories: string[];
+  refreshCategories: () => Promise<string[]>;
+  adminDeleteCategory: (category: string, password?: string) => Promise<string[]>;
+  adminAddCategory: (category: string, password?: string) => Promise<string[]>;
   adminUpdatePlaylist: (id: string, data: { name?: string; description?: string; isValidated?: boolean; isCustom?: boolean; categories?: string[] }, password?: string) => Promise<any>;
   adminUpdatePlaylistCategories: (id: string, categories: string[], password?: string) => Promise<any>;
   adminSetFirstVideo: (playlistId: string, trackId: string | number, password?: string) => Promise<any>;
@@ -99,6 +103,31 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [session, setSession] = useState<GameSession | null>(null);
   const [playerId, setPlayerId] = useState<string>('');
   const [isHost, setIsHost] = useState(false);
+
+  // Dynamic Playlist Categories
+  const DEFAULT_CATEGORIES = [
+    'Anime/Manga',
+    'Film/Cinéma',
+    'Jeux Vidéo',
+    'Série/TV',
+    'Dessins Animés/Cartoons',
+    'Streaming/VTuber',
+    'Youtube',
+    'Musique',
+    'KPop',
+    'JPop',
+  ];
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+
+  useEffect(() => {
+    fetchCategoriesApi()
+      .then((cats) => {
+        if (cats && Array.isArray(cats) && cats.length > 0) {
+          setCategories(cats);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Banner state
   const [banner, setBanner] = useState<BannerNotice | null>(null);
@@ -248,6 +277,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         });
       }
+
+      // Fetch active categories on connect
+      socketInstance.emit('playlist:get_categories', (response: any) => {
+        if (response && response.success && Array.isArray(response.categories)) {
+          setCategories(response.categories);
+        }
+      });
     };
 
     const onDisconnect = (reason: string) => {
@@ -281,12 +317,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSession(null);
     };
 
+    const onCategoriesUpdated = (data: { categories: string[] }) => {
+      if (data && Array.isArray(data.categories)) {
+        setCategories(data.categories);
+      }
+    };
+
     socketInstance.on('connect', onConnect);
     socketInstance.on('disconnect', onDisconnect);
     socketInstance.on('connect_error', onConnectError);
     socketInstance.on('room:update', onRoomUpdate);
     socketInstance.on('banner:broadcast', onBannerBroadcast);
     socketInstance.on('room:deleted', onRoomDeleted);
+    socketInstance.on('categories:updated', onCategoriesUpdated);
 
     return () => {
       socketInstance.off('connect', onConnect);
@@ -295,6 +338,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socketInstance.off('room:update', onRoomUpdate);
       socketInstance.off('banner:broadcast', onBannerBroadcast);
       socketInstance.off('room:deleted', onRoomDeleted);
+      socketInstance.off('categories:updated', onCategoriesUpdated);
       socketInstance.disconnect();
     };
   }, []);
@@ -938,6 +982,53 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const refreshCategories = (): Promise<string[]> => {
+    return new Promise((resolve) => {
+      const sock = socketRef.current || socket;
+      if (!sock) {
+        return resolve(categories);
+      }
+      sock.emit('playlist:get_categories', (response: any) => {
+        if (response && response.success && Array.isArray(response.categories)) {
+          setCategories(response.categories);
+          resolve(response.categories);
+        } else {
+          resolve(categories);
+        }
+      });
+    });
+  };
+
+  const adminDeleteCategory = (category: string, password?: string): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const sock = socketRef.current || socket;
+      if (!sock) return reject(new Error('Socket non connecté'));
+      sock.emit('playlist:admin_delete_category', { category, password }, (response: any) => {
+        if (response && response.success && Array.isArray(response.categories)) {
+          setCategories(response.categories);
+          resolve(response.categories);
+        } else {
+          reject(new Error(response?.error || 'Échec de la suppression de la catégorie'));
+        }
+      });
+    });
+  };
+
+  const adminAddCategory = (category: string, password?: string): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const sock = socketRef.current || socket;
+      if (!sock) return reject(new Error('Socket non connecté'));
+      sock.emit('playlist:admin_add_category', { category, password }, (response: any) => {
+        if (response && response.success && Array.isArray(response.categories)) {
+          setCategories(response.categories);
+          resolve(response.categories);
+        } else {
+          reject(new Error(response?.error || "Échec de l'ajout de la catégorie"));
+        }
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -977,6 +1068,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getAnilistVideos,
         getVideoStats,
         getGlobalStats,
+        categories,
+        refreshCategories,
+        adminDeleteCategory,
+        adminAddCategory,
         adminUpdatePlaylist,
         adminUpdatePlaylistCategories,
         adminSetFirstVideo,

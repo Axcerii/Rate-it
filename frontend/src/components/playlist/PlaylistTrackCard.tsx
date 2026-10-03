@@ -19,6 +19,9 @@ export interface PlaylistTrackCardProps {
   selectable?: boolean;
   isChecked?: boolean;
   onToggle?: () => void;
+  badgeText?: string;
+  checkboxSide?: 'left' | 'right';
+  disablePlay?: boolean;
 }
 
 export default function PlaylistTrackCard({
@@ -27,14 +30,16 @@ export default function PlaylistTrackCard({
   selectable = false,
   isChecked = true,
   onToggle,
+  badgeText,
+  checkboxSide = 'right',
+  disablePlay = false,
 }: PlaylistTrackCardProps) {
   const content = (
     <>
       {/* 1. Miniature vidéo dans l'encadré central transparent de Film.png */}
       <div
-        className={`absolute left-[14%] right-[14%] top-[21%] bottom-[20.5%] overflow-hidden bg-black flex items-center justify-center ${
-          selectable && !isChecked ? 'opacity-35 grayscale' : ''
-        }`}
+        className={`absolute left-[14%] right-[14%] top-[21%] bottom-[20.5%] overflow-hidden bg-black flex items-center justify-center ${selectable && !isChecked ? 'opacity-35 grayscale' : ''
+          }`}
       >
         <img
           src={`https://img.youtube.com/vi/${track.youtubeId}/hqdefault.jpg`}
@@ -50,9 +55,12 @@ export default function PlaylistTrackCard({
           }}
         />
 
-        {/* Numéro de la piste en badge vintage */}
-        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-[9px] font-black leading-none z-10 border border-white/20 select-none">
-          #{index + 1}
+        {/* Numéro ou badge de la piste en vintage */}
+        <span
+          className={`absolute top-1 ${checkboxSide === 'left' ? 'right-1' : 'left-1'
+            } px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-[9px] font-black leading-none z-10 border border-white/20 select-none`}
+        >
+          {badgeText || `#${index + 1}`}
         </span>
 
         {/* Badge "Exclu" si désactivé en mode sélection */}
@@ -62,7 +70,7 @@ export default function PlaylistTrackCard({
           </span>
         )}
 
-        {/* Checkbox de sélection tactile (coin haut droit) */}
+        {/* Checkbox de sélection tactile */}
         {selectable && (
           <button
             type="button"
@@ -70,11 +78,11 @@ export default function PlaylistTrackCard({
               e.stopPropagation();
               onToggle?.();
             }}
-            className={`absolute top-1 right-1 z-30 w-5 h-5 rounded border border-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 shadow-none ${
-              isChecked
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-white'
+            className={`absolute top-1 ${checkboxSide === 'left' ? 'left-1' : 'right-1'
+              } z-30 w-5 h-5 rounded border border-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 shadow-none ${isChecked
+                ? 'bg-accent-red hover:bg-accent-red text-white'
                 : 'bg-red-600 hover:bg-red-500 text-white'
-            }`}
+              }`}
             title={isChecked ? 'Désactiver cette musique' : 'Activer cette musique'}
             aria-label={isChecked ? 'Désactiver' : 'Activer'}
           >
@@ -87,25 +95,27 @@ export default function PlaylistTrackCard({
         )}
 
         {/* Bouton Play au survol de la miniature (pour preview sur YouTube) */}
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 pointer-events-none">
-          {selectable ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(`https://www.youtube.com/watch?v=${track.youtubeId}`, '_blank', 'noopener,noreferrer');
-              }}
-              className="pointer-events-auto w-8 h-8 rounded-full bg-white/95 border-2 border-black flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer shadow-none"
-              title="Aperçu YouTube"
-            >
-              <Play className="w-4 h-4 fill-black text-black ml-0.5" />
-            </button>
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-white/95 border-2 border-black flex items-center justify-center transition-transform group-hover:scale-110">
-              <Play className="w-4 h-4 fill-black text-black ml-0.5" />
-            </div>
-          )}
-        </div>
+        {!disablePlay && (
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 pointer-events-none">
+            {selectable ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`https://www.youtube.com/watch?v=${track.youtubeId}`, '_blank', 'noopener,noreferrer');
+                }}
+                className="pointer-events-auto w-8 h-8 rounded-full bg-white/95 border-2 border-black flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer shadow-none"
+                title="Aperçu YouTube"
+              >
+                <Play className="w-4 h-4 fill-black text-black ml-0.5" />
+              </button>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-white/95 border-2 border-black flex items-center justify-center transition-transform group-hover:scale-110">
+                <Play className="w-4 h-4 fill-black text-black ml-0.5" />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Image du cadre de Film (Film.png avec perforations 35mm et bandes noires) */}
@@ -119,9 +129,8 @@ export default function PlaylistTrackCard({
       {/* 3. Titre en blanc sur la bande noire du dessus */}
       <div className="absolute top-0 left-[14%] right-[14%] h-[21%] z-20 flex items-center justify-center px-1.5 text-center pointer-events-none">
         <h4
-          className={`text-white font-black text-[11px] sm:text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors tracking-tight ${
-            selectable && !isChecked ? 'line-through text-slate-400' : ''
-          }`}
+          className={`text-white font-black text-[11px] sm:text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors tracking-tight ${selectable && !isChecked ? 'line-through text-slate-400' : ''
+            }`}
           title={track.title}
         >
           {track.title}
@@ -131,9 +140,8 @@ export default function PlaylistTrackCard({
       {/* 4. Artiste en blanc sur la bande noire du dessous */}
       <div className="absolute bottom-0 left-[14%] right-[14%] h-[20.5%] z-20 flex items-center justify-center px-1.5 text-center pointer-events-none">
         <p
-          className={`text-white/90 font-bold text-[10px] sm:text-[11px] leading-tight truncate w-full ${
-            selectable && !isChecked ? 'text-slate-400' : ''
-          }`}
+          className={`text-white/90 font-bold text-[10px] sm:text-[11px] leading-tight truncate w-full ${selectable && !isChecked ? 'text-slate-400' : ''
+            }`}
           title={track.artistName || 'Artiste inconnu'}
         >
           {track.artistName || 'Artiste inconnu'}
@@ -155,9 +163,19 @@ export default function PlaylistTrackCard({
           }
         }}
         title={`${track.title} - ${track.artistName || 'Artiste inconnu'} (${isChecked ? 'Activé - Cliquer pour exclure' : 'Exclu - Cliquer pour activer'})`}
-        className={`group relative w-full aspect-[500/410] select-none text-left transition-transform duration-150 hover:-translate-y-1 active:translate-y-0 block bg-transparent cursor-pointer shadow-none ${
-          !isChecked ? 'opacity-80' : ''
-        }`}
+        className={`group relative w-full aspect-[500/410] select-none text-left transition-transform duration-150 hover:-translate-y-1 active:translate-y-0 block bg-transparent cursor-pointer shadow-none ${!isChecked ? 'opacity-80' : ''
+          }`}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  if (disablePlay) {
+    return (
+      <div
+        title={`${track.title} - ${track.artistName || 'Artiste inconnu'}${track.malTitle ? ` (${track.malTitle})` : ''}`}
+        className="group relative w-full aspect-[500/410] select-none text-left transition-transform duration-200 block bg-transparent shadow-none"
       >
         {content}
       </div>
@@ -169,6 +187,7 @@ export default function PlaylistTrackCard({
       href={`https://www.youtube.com/watch?v=${track.youtubeId}`}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
       title={`${track.title} - ${track.artistName || 'Artiste inconnu'}${track.malTitle ? ` (${track.malTitle})` : ''} — Ouvrir sur YouTube`}
       className="group relative w-full aspect-[500/410] select-none text-left transition-transform duration-200 hover:-translate-y-1 active:translate-y-0 block bg-transparent shadow-none"
     >

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
+import CloseButton from '@/components/CloseButton';
 import {
   AlertTriangle,
   Trash2,
@@ -68,6 +69,9 @@ export default function AdminConsole() {
     verifyAdminPassword,
     getGlobalStats,
     isConnected,
+    categories: socketCategories,
+    adminDeleteCategory,
+    adminAddCategory,
   } = useSocket();
 
   const [adminPassword, setAdminPassword] = useState('');
@@ -79,6 +83,17 @@ export default function AdminConsole() {
   const [communityLists, setCommunityLists] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'validated' | 'all' | 'videos' | 'analytics'>('pending');
   const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
+
+  // Category management & deletion state
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
+  const [deleteCategoryError, setDeleteCategoryError] = useState<string | null>(null);
+
+  // New category creation state
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [addCategoryError, setAddCategoryError] = useState<string | null>(null);
 
   // Playlist Metadata Edit Modal state
   const [modalPlaylist, setModalPlaylist] = useState<any | null>(null);
@@ -93,18 +108,24 @@ export default function AdminConsole() {
   const [editPlaylistError, setEditPlaylistError] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
 
-  // Set of all known categories (default + anything found in playlists)
+  // Set of all active categories from backend database / socket
   const allKnownCategories = useMemo(() => {
-    const set = new Set<string>(DEFAULT_CATEGORIES);
-    [...validatedLists, ...communityLists].forEach((pl) => {
-      if (Array.isArray(pl.categories)) {
-        pl.categories.forEach((cat: string) => {
-          if (cat && typeof cat === 'string') set.add(cat.trim());
-        });
-      }
-    });
-    return Array.from(set);
-  }, [validatedLists, communityLists]);
+    if (socketCategories && socketCategories.length > 0) {
+      return socketCategories;
+    }
+    return Array.from(DEFAULT_CATEGORIES);
+  }, [socketCategories]);
+
+  // If filtered category was deleted globally, reset to 'all'
+  useEffect(() => {
+    if (
+      adminCategoryFilter !== 'all' &&
+      adminCategoryFilter !== 'uncategorized' &&
+      !allKnownCategories.includes(adminCategoryFilter)
+    ) {
+      setAdminCategoryFilter('all');
+    }
+  }, [allKnownCategories, adminCategoryFilter]);
 
   const handleSetFirstVideo = async (trackId: string | number) => {
     if (!editingPlaylistId) return;
@@ -357,14 +378,54 @@ export default function AdminConsole() {
     setEditPlaylistError(null);
   };
 
-  const handleAddModalCategory = (e?: React.FormEvent) => {
+  const handleAddModalCategory = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = modalNewCategory.trim();
     if (!trimmed) return;
+    try {
+      await adminAddCategory(trimmed, adminPassword);
+    } catch (_) {}
     if (!editPlaylistCategories.includes(trimmed)) {
       setEditPlaylistCategories((prev) => [...prev, trimmed]);
     }
     setModalNewCategory('');
+  };
+
+  const handleConfirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setIsDeletingCategory(true);
+    setDeleteCategoryError(null);
+    try {
+      await adminDeleteCategory(categoryToDelete, adminPassword);
+      setActionSuccess(`Catégorie "${categoryToDelete}" supprimée avec succès !`);
+      if (adminCategoryFilter === categoryToDelete) {
+        setAdminCategoryFilter('all');
+      }
+      setCategoryToDelete(null);
+      await fetchLists();
+    } catch (err: any) {
+      setDeleteCategoryError(err.message || 'Échec de la suppression de la catégorie.');
+    } finally {
+      setIsDeletingCategory(false);
+    }
+  };
+
+  const handleCreateCategory = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    setIsAddingCategory(true);
+    setAddCategoryError(null);
+    try {
+      await adminAddCategory(trimmed, adminPassword);
+      setActionSuccess(`Catégorie "${trimmed}" ajoutée avec succès !`);
+      setNewCategoryName('');
+      setIsAddCategoryOpen(false);
+    } catch (err: any) {
+      setAddCategoryError(err.message || "Échec de l'ajout de la catégorie.");
+    } finally {
+      setIsAddingCategory(false);
+    }
   };
 
   const handleSaveModalPlaylist = async (e: React.FormEvent) => {
@@ -768,26 +829,26 @@ export default function AdminConsole() {
   return (
     <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-12 py-6 sm:py-12 flex flex-col items-center w-full max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="w-full max-w-6xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-black pb-6 mb-8 gap-4">
+      <div className="w-full max-w-6xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-white/20 pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-[#1b1b1b] flex items-center gap-3">
-            <ShieldCheck className="w-9 h-9 text-[#1b1b1b]" />
+          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-white flex items-center gap-3">
+            <ShieldCheck className="w-9 h-9 text-white" />
             <span>ADMIN CONSOLE</span>
           </h1>
-          <p className="text-sm font-bold text-slate-700 mt-1">
+          <p className="text-sm font-bold text-white/90 mt-1">
             Gestion des playlists, modération, maintenance des vidéos et statistiques globales
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 font-black text-xs uppercase rounded-xl btn-action-hover"
+            className="px-4 py-2 border-2 border-white bg-transparent hover:bg-white/10 text-white font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
           >
             Accueil
           </button>
           <button
             onClick={handleLogout}
-            className="px-4 py-2 border-2 border-black bg-[#1b1b1b] hover:bg-black text-white font-black text-xs uppercase rounded-xl btn-action-hover"
+            className="px-4 py-2 border-2 border-white bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
           >
             Déconnexion
           </button>
@@ -806,7 +867,7 @@ export default function AdminConsole() {
             </p>
             <button
               onClick={handleCleanup}
-              className="w-full py-3 bg-[#990000] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#990000] text-white border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center justify-center gap-2 shadow-none"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Nettoyer les Playlists Inactives</span>
@@ -827,7 +888,7 @@ export default function AdminConsole() {
                 </h2>
                 <button
                   onClick={() => setEditingPlaylistId(null)}
-                  className="text-xs font-black text-slate-500 hover:text-black focus:text-black uppercase bg-white border-2 border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000] btn-action-hover"
+                  className="text-xs font-black text-white hover:text-white uppercase bg-black hover:bg-neutral-800 border-2 border-black px-2.5 py-1 rounded-lg shadow-none btn-action-hover"
                 >
                   Fermer
                 </button>
@@ -1219,7 +1280,7 @@ export default function AdminConsole() {
             <button
               onClick={() => setActiveTab('analytics')}
               className={`px-3 sm:px-4 py-2 border-2 border-black font-black text-xs uppercase rounded-xl transition ${
-                activeTab === 'analytics' ? 'bg-amber-400 text-black shadow-md' : 'bg-white hover:bg-slate-100'
+                activeTab === 'analytics' ? 'bg-amber-400 text-black shadow-none' : 'bg-white hover:bg-slate-100 shadow-none'
               }`}
             >
               Stats Votes 📊
@@ -1260,7 +1321,7 @@ export default function AdminConsole() {
                       setVideoSearchQuery(e.target.value);
                     }}
                     placeholder="Rechercher par titre, artiste, anime MAL, ID YouTube (ex: Naruto op 2)..."
-                    className="w-full pl-9 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold focus:outline-none shadow-[2px_2px_0px_#000]"
+                    className="w-full pl-9 pr-9 py-2.5 border-2 border-black bg-white rounded-xl text-xs font-bold focus:outline-none shadow-none"
                   />
                   {videoSearchQuery && (
                     <button
@@ -1336,7 +1397,7 @@ export default function AdminConsole() {
                               className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 text-white transition-opacity"
                               title="Ouvrir sur YouTube"
                             >
-                              <ExternalLink className="w-4 h-4 drop-shadow" />
+                              <ExternalLink className="w-4 h-4" />
                             </a>
                           </div>
 
@@ -1477,7 +1538,7 @@ export default function AdminConsole() {
               ) : globalStats ? (
                 <div className="flex flex-col gap-6 overflow-y-auto max-h-[520px] pr-1 text-left">
                   {/* Overall Summary Card */}
-                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000] flex flex-col gap-4">
+                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-none flex flex-col gap-4">
                     <div className="flex justify-between items-center border-b-2 border-black pb-2">
                       <h3 className="font-black text-xs sm:text-sm text-black uppercase">
                         Résumé Global des Votes
@@ -1521,7 +1582,7 @@ export default function AdminConsole() {
                   </div>
 
                   {/* Top 10 Rated Tracks */}
-                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000]">
+                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-none">
                     <h3 className="font-black text-xs sm:text-sm text-black uppercase border-b-2 border-black pb-2 mb-3 text-emerald-700">
                       Top 10 — Titres les Mieux Notés
                     </h3>
@@ -1546,7 +1607,7 @@ export default function AdminConsole() {
                   </div>
 
                   {/* Lowest 10 Rated Tracks */}
-                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[3px_3px_0px_#000]">
+                  <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-none">
                     <h3 className="font-black text-xs sm:text-sm text-black uppercase border-b-2 border-black pb-2 mb-3 text-[#990000]">
                       Top 10 — Titres les Moins Bien Notés
                     </h3>
@@ -1625,23 +1686,51 @@ export default function AdminConsole() {
                       </button>
                       {allKnownCategories.map((cat) => {
                         const count = rawList.filter((p) => Array.isArray(p.categories) && p.categories.includes(cat)).length;
-                        if (count === 0 && !DEFAULT_CATEGORIES.includes(cat as any)) return null;
                         const isSelected = adminCategoryFilter === cat;
                         return (
-                          <button
+                          <div
                             key={cat}
-                            type="button"
-                            onClick={() => setAdminCategoryFilter(isSelected ? 'all' : cat)}
-                            className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all whitespace-nowrap ${
+                            className={`inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all whitespace-nowrap group shadow-none ${
                               isSelected
-                                ? 'bg-[#24B3F1] text-black border-black font-black shadow-[1px_1px_0px_#000]'
+                                ? 'bg-[#24B3F1] text-black border-black font-black'
                                 : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                             }`}
                           >
-                            {cat} ({count})
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setAdminCategoryFilter(isSelected ? 'all' : cat)}
+                              className="focus:outline-none"
+                            >
+                              {cat} ({count})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCategoryToDelete(cat);
+                                setDeleteCategoryError(null);
+                              }}
+                              title={`Supprimer la catégorie "${cat}"`}
+                              className="p-0.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 focus:outline-none transition-colors"
+                            >
+                              <X className="w-3 h-3 stroke-[2.5]" />
+                            </button>
+                          </div>
                         );
                       })}
+
+                      {/* Add new category button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddCategoryOpen(true);
+                          setAddCategoryError(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg border border-dashed border-slate-400 bg-slate-50 hover:bg-white text-slate-700 text-[10px] font-black uppercase transition-all whitespace-nowrap inline-flex items-center gap-1 shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Nouvelle</span>
+                      </button>
                     </div>
 
                     {list.length === 0 ? (
@@ -1654,7 +1743,7 @@ export default function AdminConsole() {
                         {list.map((playlist) => (
                           <div
                             key={playlist.id}
-                            className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-[3px_3px_0px_0px_#000]"
+                            className="flex flex-col gap-3 p-4 border-2 border-black bg-white rounded-2xl shadow-none"
                           >
                             <div className="flex justify-between items-start border-b border-slate-200 pb-2">
                               <div>
@@ -1668,7 +1757,7 @@ export default function AdminConsole() {
                                   {playlist.description || 'Sans description'}
                                 </p>
                               </div>
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${playlist.is_validated ? 'bg-emerald-100 text-emerald-700 border-emerald-500' : 'bg-amber-100 text-amber-700 border-amber-500'}`}>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded border shadow-none ${playlist.is_validated ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-amber-600 text-white border-amber-700'}`}>
                                 {playlist.is_validated ? 'Validée' : 'En attente'}
                               </span>
                             </div>
@@ -1756,7 +1845,7 @@ export default function AdminConsole() {
                           <button
                             type="button"
                             onClick={() => handleOpenPlaylistModal(playlist)}
-                            className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shadow-[2px_2px_0px_#000]"
+                            className="px-3 py-1.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 shadow-none"
                             title="Modifier le titre, la description ou les statuts de la playlist"
                           >
                             <Sliders className="w-3.5 h-3.5" />
@@ -1765,14 +1854,14 @@ export default function AdminConsole() {
                           <button
                             type="button"
                             onClick={() => handleSelectEditPlaylist(playlist.id, playlist.name)}
-                            className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-[2px_2px_0px_#000]"
+                            className="px-3 py-1.5 border-2 border-black bg-yellow-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-none"
                           >
                             Éditer Pistes
                           </button>
                           <button
                             type="button"
                             onClick={() => handleToggleValidation(playlist.id, playlist.is_validated)}
-                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-[2px_2px_0px_#000] ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
+                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover shadow-none ${playlist.is_validated ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'}`}
                           >
                             {playlist.is_validated ? 'Invalider' : 'Valider'}
                           </button>
@@ -1780,7 +1869,7 @@ export default function AdminConsole() {
                             type="button"
                             onClick={() => handleDelete(playlist.id)}
                             disabled={playlist.id === 'anime-classics'}
-                            className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-30 shadow-[2px_2px_0px_#000]"
+                            className="px-3 py-1.5 border-2 border-black bg-[#990000] text-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-30 shadow-none"
                           >
                             Supprimer
                           </button>
@@ -1811,13 +1900,11 @@ export default function AdminConsole() {
                   Maintenance Vidéo (ID: {modalVideo.id})
                 </h3>
               </div>
-              <button
-                type="button"
+              <CloseButton
                 onClick={() => setModalVideo(null)}
-                className="p-1.5 text-black border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
-              >
-                <X className="w-4 h-4" />
-              </button>
+                title="Fermer"
+                sizeClassName="w-8 h-8"
+              />
             </div>
 
             {editModalError && (
@@ -2026,13 +2113,11 @@ export default function AdminConsole() {
                   Modifier la Playlist ({modalPlaylist.id})
                 </h3>
               </div>
-              <button
-                type="button"
+              <CloseButton
                 onClick={() => setModalPlaylist(null)}
-                className="p-1.5 text-black border-2 border-white rounded-xl bg-white hover:bg-slate-100 btn-action-hover shadow-none"
-              >
-                <X className="w-4 h-4" />
-              </button>
+                title="Fermer"
+                sizeClassName="w-8 h-8"
+              />
             </div>
 
             {editPlaylistError && (
@@ -2216,6 +2301,136 @@ export default function AdminConsole() {
                   className="flex-1 py-2.5 bg-[#1b1b1b] hover:bg-black text-white border-2 border-white font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shadow-none"
                 >
                   {isSavingPlaylist ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Category Deletion Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[#FAF0CA] border-2 border-black rounded-3xl p-6 max-w-md w-full shadow-none flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-100 border border-black flex items-center justify-center text-[#990000]">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <h3 className="font-black text-sm uppercase text-black font-title">
+                  Supprimer la catégorie
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="p-1 rounded-lg border border-black bg-white hover:bg-slate-100 text-black cursor-pointer shadow-none"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-800 font-bold space-y-2.5">
+              <p>
+                Êtes-vous sûr de vouloir supprimer définitivement la catégorie{' '}
+                <span className="font-black text-black bg-[#24B3F1] px-2 py-0.5 rounded border border-black inline-block">
+                  {categoryToDelete}
+                </span>{' '}
+                ?
+              </p>
+              <div className="p-3 bg-red-100/80 border-2 border-red-300 rounded-xl text-[11px] text-red-800 font-black leading-relaxed">
+                ⚠️ Cette action est irréversible. La catégorie sera retirée de la base de données, de toutes les playlists du catalogue, et de l'ensemble des filtres du site (Accueil, Host, Playlists, Création et Console Admin).
+              </div>
+            </div>
+
+            {deleteCategoryError && (
+              <div className="p-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-bold">
+                {deleteCategoryError}
+              </div>
+            )}
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                disabled={isDeletingCategory}
+                className="flex-1 py-2.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl cursor-pointer shadow-none"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCategory}
+                disabled={isDeletingCategory}
+                className="flex-1 py-2.5 bg-[#990000] hover:bg-red-700 text-white border-2 border-black font-black text-xs uppercase rounded-xl inline-flex items-center justify-center gap-1.5 shadow-none disabled:opacity-50 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingCategory ? 'Suppression...' : 'Supprimer définitivement'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Category Modal */}
+      {isAddCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[#FAF0CA] border-2 border-black rounded-3xl p-6 max-w-md w-full shadow-none flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#24B3F1]/20 border border-black flex items-center justify-center text-[#24B3F1]">
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                </div>
+                <h3 className="font-black text-sm uppercase text-black font-title">
+                  Ajouter une catégorie
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCategoryOpen(false)}
+                className="p-1 rounded-lg border border-black bg-white hover:bg-slate-100 text-black cursor-pointer shadow-none"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="flex flex-col gap-3">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-700 mb-1.5">
+                  Nom de la catégorie *
+                </label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Ex: Comics / BD, Podcast, etc."
+                  className="w-full px-3 py-2 border-2 border-black rounded-xl text-xs font-bold text-black focus:outline-none bg-white shadow-none"
+                  autoFocus
+                />
+              </div>
+
+              {addCategoryError && (
+                <div className="p-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-bold">
+                  {addCategoryError}
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCategoryOpen(false)}
+                  disabled={isAddingCategory}
+                  className="flex-1 py-2.5 border-2 border-black bg-white hover:bg-slate-100 text-black font-black text-xs uppercase rounded-xl cursor-pointer shadow-none"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingCategory || !newCategoryName.trim()}
+                  className="flex-1 py-2.5 bg-[#24B3F1] hover:bg-[#009EE3] text-black border-2 border-black font-black text-xs uppercase rounded-xl inline-flex items-center justify-center gap-1.5 shadow-none disabled:opacity-50 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isAddingCategory ? 'Ajout...' : 'Créer la catégorie'}</span>
                 </button>
               </div>
             </form>

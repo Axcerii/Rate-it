@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import { QRCodeSVG } from 'qrcode.react';
@@ -39,15 +39,72 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  RotateCcw,
   ChevronDown,
   SlidersHorizontal,
   Share2,
+  Tv,
+  Minus,
+  Folder,
+  FolderOpen,
+  Music,
 } from 'lucide-react';
 import gsap from 'gsap';
 import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
 import HomeButton from '@/components/HomeButton';
-import { PlaylistCard, PlaylistFilters } from '@/components/playlist';
+import CloseButton from '@/components/CloseButton';
+import { PlaylistCard, PlaylistFilters, PlaylistTrackCard } from '@/components/playlist';
+import RatingNumberButton from '@/components/RatingNumberButton';
+
+export function getTrackOpeningBadge(track: any, fallbackIndex: number): string {
+  if (track.description && typeof track.description === 'string') {
+    const match = track.description.match(/(?:Opening|OP)\s*(\d+)/i);
+    if (match) return `OP ${match[1]}`;
+    const edMatch = track.description.match(/(?:Ending|ED)\s*(\d+)/i);
+    if (edMatch) return `ED ${edMatch[1]}`;
+    if (/Opening|OP/i.test(track.description)) return `OP ${fallbackIndex + 1}`;
+  }
+  return `OP ${fallbackIndex + 1}`;
+}
+
+export function extractAnimeUsername(input: string, platform: 'mal' | 'anilist'): string {
+  if (!input) return '';
+  let str = input.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  if (str.includes('/')) {
+    if (platform === 'anilist') {
+      const match = str.match(/anilist\.co\/user\/([a-zA-Z0-9_-]+)/i);
+      if (match) return match[1];
+    } else {
+      const match = str.match(/myanimelist\.net\/(?:profile|animelist)\/([a-zA-Z0-9_-]+)/i);
+      if (match) return match[1];
+    }
+    const segments = str.split('/').filter(Boolean);
+    const last = segments[segments.length - 1];
+    if (last && /^[a-zA-Z0-9_-]{2,30}$/.test(last)) {
+      return last;
+    }
+  }
+  return str;
+}
+
+export function getTrackAnimeTitle(track: any): string {
+  if (track.matchedAnimeTitle && typeof track.matchedAnimeTitle === 'string' && track.matchedAnimeTitle.trim()) {
+    return track.matchedAnimeTitle.trim();
+  }
+  if (track.malTitle && typeof track.malTitle === 'string' && track.malTitle.trim()) {
+    return track.malTitle.trim();
+  }
+  if (track.anilistTitle && typeof track.anilistTitle === 'string' && track.anilistTitle.trim()) {
+    return track.anilistTitle.trim();
+  }
+  if (track.description && typeof track.description === 'string') {
+    const cleaned = track.description
+      .replace(/^(Opening|Ending|OP|ED|Insert\s*Song|OST)\s*\d*\s*[-–:]\s*/i, '')
+      .replace(/\s*[-–:]\s*(Opening|Ending|OP|ED|Insert\s*Song|OST)\s*\d*$/i, '')
+      .trim();
+    if (cleaned.length >= 2) return cleaned;
+  }
+  return track.title || 'Autre Animé';
+}
 
 const CATEGORIES = [
   'Anime/Manga',
@@ -57,6 +114,36 @@ const CATEGORIES = [
   'Dessins Animés/Cartoons',
   'Streaming/VTuber',
   'Youtube',
+] as const;
+
+export const ANIME_FOLDER_THEMES = [
+  {
+    key: 'create',
+    name: 'Créer',
+    // Rayures diagonales vertes (thème Créer : #2fc355 avec teinte ton sur ton plus claire #61e283)
+    bgPattern: 'repeating-linear-gradient(-45deg, #2fc355 0px, #2fc355 12px, #61e283 12px, #61e283 24px)',
+    headerBg: 'bg-[#2fc355] hover:bg-[#28b34e]',
+    headerText: 'text-black',
+    folderIconClass: 'text-black/80',
+  },
+  {
+    key: 'host',
+    name: 'Host',
+    // Rayures diagonales bleues (thème Host : #24B3F1 avec teinte ton sur ton plus claire #6ecefa)
+    bgPattern: 'repeating-linear-gradient(-45deg, #24B3F1 0px, #24B3F1 12px, #6ecefa 12px, #6ecefa 24px)',
+    headerBg: 'bg-[#24B3F1] hover:bg-[#0BA6EB]',
+    headerText: 'text-black',
+    folderIconClass: 'text-black/80',
+  },
+  {
+    key: 'play',
+    name: 'Play',
+    // Rayures diagonales roses / fuchsia (thème Play : #DD4DCC avec teinte ton sur ton plus claire #ea8fe0)
+    bgPattern: 'repeating-linear-gradient(-45deg, #DD4DCC 0px, #DD4DCC 12px, #ea8fe0 12px, #ea8fe0 24px)',
+    headerBg: 'bg-[#DD4DCC] hover:bg-[#C933B7]',
+    headerText: 'text-white',
+    folderIconClass: 'text-white',
+  },
 ] as const;
 
 export default function HostLobby() {
@@ -82,7 +169,13 @@ export default function HostLobby() {
     toggleHostPlayer,
     submitVote,
     toggleSkip,
+    categories,
   } = useSocket();
+
+  const dynamicCategories = useMemo(() => {
+    if (categories && categories.length > 0) return categories;
+    return Array.from(CATEGORIES);
+  }, [categories]);
 
   const [joinUrl, setJoinUrl] = useState('');
   const [showQRCode, setShowQRCode] = useState(false);
@@ -108,6 +201,14 @@ export default function HostLobby() {
 
   // Custom playlist states
   const [playlists, setPlaylists] = useState<{ validated: any[]; community: any[] }>({ validated: [], community: [] });
+  const [hasChosenMode, setHasChosenMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('playlistId')) return true;
+      return sessionStorage.getItem('rate_it_host_mode_chosen') === 'true';
+    }
+    return false;
+  });
   const [quizMode, setQuizMode] = useState<'playlist' | 'mal'>('playlist');
   const [playlistTab, setPlaylistTab] = useState<'validated' | 'community'>('validated');
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -116,6 +217,31 @@ export default function HostLobby() {
   const [searchPlaylistId, setSearchPlaylistId] = useState('');
   const [searchPlaylistError, setSearchPlaylistError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // If active category was deleted globally, reset to 'all'
+  useEffect(() => {
+    if (activeCategory !== 'all' && !dynamicCategories.includes(activeCategory)) {
+      setActiveCategory('all');
+    }
+  }, [dynamicCategories, activeCategory]);
+
+  // Strip deleted categories from locally loaded playlists
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setPlaylists((prev) => ({
+        ...prev,
+        validated: (prev.validated || []).map((p: any) => ({
+          ...p,
+          categories: Array.isArray(p.categories) ? p.categories.filter((c: any) => categories.includes(c)) : [],
+        })),
+        community: (prev.community || []).map((p: any) => ({
+          ...p,
+          categories: Array.isArray(p.categories) ? p.categories.filter((c: any) => categories.includes(c)) : [],
+        })),
+      }));
+    }
+  }, [categories]);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [tracksCache, setTracksCache] = useState<{ [id: string]: any[] }>({});
   const [loadingTracks, setLoadingTracks] = useState<{ [id: string]: boolean }>({});
@@ -124,6 +250,175 @@ export default function HostLobby() {
   const [isPlayersTabCollapsed, setIsPlayersTabCollapsed] = useState(false);
   const [showMobilePlayersModal, setShowMobilePlayersModal] = useState(false);
   const initialUrlLoadedRef = useRef(false);
+  const playersPanelRef = useRef<HTMLDivElement>(null);
+  const cassetteCancelRef = useRef<(() => void) | null>(null);
+  const activeCassetteElRef = useRef<HTMLElement | null>(null);
+
+  // Turntable Vinyl Disk Animation Refs & Controls
+  const desktopDiskRef = useRef<HTMLImageElement | null>(null);
+  const mobileDiskRef = useRef<HTMLImageElement | null>(null);
+  const desktopDiskContainerRef = useRef<HTMLDivElement>(null);
+  const mobileDiskContainerRef = useRef<HTMLDivElement>(null);
+  const diskTweenRef = useRef<gsap.core.Tween | null>(null);
+  const diskResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHandlingCardSelectionRef = useRef(false);
+  const prevSelectedPlaylistIdRef = useRef<string | null>(null);
+
+  const getDiskElements = () => {
+    const els: HTMLElement[] = [];
+    if (desktopDiskRef.current) els.push(desktopDiskRef.current);
+    if (mobileDiskRef.current) els.push(mobileDiskRef.current);
+    return els;
+  };
+
+  const getDiskContainers = () => {
+    const els: HTMLElement[] = [];
+    if (desktopDiskContainerRef.current) els.push(desktopDiskContainerRef.current);
+    if (mobileDiskContainerRef.current) els.push(mobileDiskContainerRef.current);
+    return els;
+  };
+
+  const stopDiskSpin = (immediate = false) => {
+    if (diskResumeTimerRef.current) {
+      clearTimeout(diskResumeTimerRef.current);
+      diskResumeTimerRef.current = null;
+    }
+
+    if (!diskTweenRef.current) return;
+
+    if (immediate) {
+      gsap.killTweensOf(diskTweenRef.current);
+      diskTweenRef.current.pause();
+      diskTweenRef.current.timeScale(0);
+    } else {
+      gsap.killTweensOf(diskTweenRef.current);
+      gsap.to(diskTweenRef.current, {
+        timeScale: 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        onComplete: () => {
+          diskTweenRef.current?.pause();
+        },
+      });
+    }
+  };
+
+  const startDiskSpin = (delayMs = 0) => {
+    if (diskResumeTimerRef.current) {
+      clearTimeout(diskResumeTimerRef.current);
+      diskResumeTimerRef.current = null;
+    }
+
+    const execute = () => {
+      const diskEls = getDiskElements();
+      if (diskEls.length === 0) return;
+
+      if (!diskTweenRef.current) {
+        diskTweenRef.current = gsap.to(diskEls, {
+          rotation: '+=360',
+          duration: 3,
+          ease: 'none',
+          repeat: -1,
+          transformOrigin: '50% 50%',
+        });
+        diskTweenRef.current.play();
+      } else {
+        gsap.killTweensOf(diskTweenRef.current);
+        diskTweenRef.current.play();
+        gsap.to(diskTweenRef.current, {
+          timeScale: 1,
+          duration: 0.8,
+          ease: 'power2.in',
+        });
+      }
+    };
+
+    if (delayMs > 0) {
+      diskResumeTimerRef.current = setTimeout(execute, delayMs);
+    } else {
+      execute();
+    }
+  };
+
+  const revealDiskAndSpin = () => {
+    const containers = getDiskContainers();
+    if (containers.length === 0) return;
+
+    gsap.killTweensOf(containers);
+    gsap.fromTo(
+      containers,
+      { scale: 0, opacity: 0 },
+      {
+        scale: 1,
+        opacity: 1,
+        duration: 0.45,
+        ease: 'back.out(1.8)',
+        onComplete: () => {
+          startDiskSpin(0);
+        },
+      }
+    );
+  };
+
+  const hideDisk = () => {
+    stopDiskSpin(true);
+    const containers = getDiskContainers();
+    if (containers.length === 0) return;
+
+    gsap.killTweensOf(containers);
+    gsap.to(containers, {
+      scale: 0,
+      opacity: 0,
+      duration: 0.35,
+      ease: 'power2.in',
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cassetteCancelRef.current) cassetteCancelRef.current();
+      if (activeCassetteElRef.current) {
+        activeCassetteElRef.current.remove();
+        activeCassetteElRef.current = null;
+      }
+      if (diskResumeTimerRef.current) {
+        clearTimeout(diskResumeTimerRef.current);
+        diskResumeTimerRef.current = null;
+      }
+      if (diskTweenRef.current) {
+        diskTweenRef.current.kill();
+        diskTweenRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedPlaylistId) {
+      if (isHandlingCardSelectionRef.current) {
+        // Will be animated and spun by the cassette animation callback
+        isHandlingCardSelectionRef.current = false;
+      } else {
+        // Direct / URL initialization: show and spin immediately
+        const containers = getDiskContainers();
+        if (containers.length > 0) {
+          gsap.set(containers, { scale: 1, opacity: 1 });
+          startDiskSpin(0);
+        }
+      }
+    } else {
+      hideDisk();
+    }
+    prevSelectedPlaylistIdRef.current = selectedPlaylistId;
+  }, [selectedPlaylistId]);
+
+  const currentSelectedPlaylist = useMemo(() => {
+    if (!selectedPlaylistId) return null;
+    return (
+      playlists.validated.find((p) => p.id === selectedPlaylistId) ||
+      playlists.community.find((p) => p.id === selectedPlaylistId) ||
+      null
+    );
+  }, [playlists, selectedPlaylistId]);
 
   const [animePlatform, setAnimePlatform] = useState<'mal' | 'anilist'>('mal');
   const [anilistUsername, setAnilistUsername] = useState('');
@@ -132,6 +427,65 @@ export default function HostLobby() {
   const [isLoadingMalTracks, setIsLoadingMalTracks] = useState(false);
   const [malLoadError, setMalLoadError] = useState<string | null>(null);
   const [malConnectedUser, setMalConnectedUser] = useState<string | null>(null);
+  const [animeSearchQuery, setAnimeSearchQuery] = useState('');
+  const [collapsedAnimeGroups, setCollapsedAnimeGroups] = useState<Set<string>>(new Set());
+
+  const animeGroups = useMemo(() => {
+    if (!malTracks || malTracks.length === 0) return [];
+
+    const groupsMap = new Map<string, { displayTitle: string; tracks: any[] }>();
+
+    for (const track of malTracks) {
+      const rawTitle = getTrackAnimeTitle(track);
+      const key = rawTitle.toLowerCase().trim();
+
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, { displayTitle: rawTitle, tracks: [] });
+      }
+      groupsMap.get(key)!.tracks.push(track);
+    }
+
+    return Array.from(groupsMap.values())
+      .map((g) => ({
+        animeTitle: g.displayTitle,
+        tracks: g.tracks,
+      }))
+      .sort((a, b) => a.animeTitle.localeCompare(b.animeTitle, 'fr', { sensitivity: 'base' }));
+  }, [malTracks]);
+
+  const filteredAnimeGroups = useMemo(() => {
+    if (!animeSearchQuery.trim()) return animeGroups;
+    const q = animeSearchQuery.toLowerCase().trim();
+    return animeGroups
+      .map((group) => {
+        const matchAnime = group.animeTitle.toLowerCase().includes(q);
+        const matchingTracks = group.tracks.filter(
+          (t) =>
+            (t.title && t.title.toLowerCase().includes(q)) ||
+            (t.artistName && t.artistName.toLowerCase().includes(q)) ||
+            (t.description && t.description.toLowerCase().includes(q))
+        );
+        if (matchAnime) {
+          return group;
+        }
+        if (matchingTracks.length > 0) {
+          return { ...group, tracks: matchingTracks };
+        }
+        return null;
+      })
+      .filter(Boolean) as { animeTitle: string; tracks: any[] }[];
+  }, [animeGroups, animeSearchQuery]);
+
+  const activeMalTracksCount = useMemo(() => {
+    const disabledMap = session?.disabledVideoIds || {};
+    return malTracks.filter((t) => !disabledMap[String(t.id)]).length;
+  }, [malTracks, session?.disabledVideoIds]);
+
+  const activeAnimeCount = useMemo(() => {
+    const disabledMap = session?.disabledVideoIds || {};
+    return animeGroups.filter((g) => g.tracks.some((t) => !disabledMap[String(t.id)])).length;
+  }, [animeGroups, session?.disabledVideoIds]);
+
 
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
@@ -284,18 +638,68 @@ export default function HostLobby() {
     if (typeof window !== 'undefined' && session?.status === 'LOBBY' && !initialUrlLoadedRef.current) {
       const params = new URLSearchParams(window.location.search);
       const preselectedId = params.get('playlistId');
+      const preselectedName = params.get('playlistName');
       if (preselectedId) {
         initialUrlLoadedRef.current = true;
-        setSelectedPlaylistId(preselectedId);
-        setQuizMode('playlist');
-        setExpandedIds(new Set([preselectedId]));
-        // Clean URL so the query param doesn't lock playlist selection
+        setHasChosenMode(true);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
+        }
+        // Clean URL so the query param doesn't lock playlist selection or re-trigger on refresh
         const url = new URL(window.location.href);
         url.searchParams.delete('playlistId');
+        url.searchParams.delete('playlistName');
         window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+
+        setQuizMode('playlist');
+        setLoadingTracks((prev) => ({ ...prev, [preselectedId]: true }));
+
+        getPlaylistDetails(preselectedId)
+          .then((res) => {
+            const playlistName = res?.playlist?.name || preselectedName || preselectedId;
+            const vids = res?.videos || [];
+
+            // S'assurer que la playlist est présente dans la liste locale des playlists
+            setPlaylists((prev) => {
+              const exists =
+                prev.validated.some((p) => p.id === res?.playlist?.id) ||
+                prev.community.some((p) => p.id === res?.playlist?.id);
+              if (!exists && res?.playlist) {
+                return {
+                  ...prev,
+                  community: [
+                    {
+                      ...res.playlist,
+                      video_count: vids.length || res.playlist.video_count || 0,
+                    },
+                    ...prev.community,
+                  ],
+                };
+              }
+              return prev;
+            });
+
+            setTracksCache((prev) => ({
+              ...prev,
+              [preselectedId]: vids,
+            }));
+            setSelectedPlaylistTracks(vids);
+            setSelectedPlaylistId(preselectedId);
+            setExpandedIds(new Set([preselectedId]));
+            showBanner(`Playlist "${playlistName}" chargée correctement.`, 'success');
+          })
+          .catch((err: any) => {
+            console.error('Failed to pre-select playlist from URL:', err);
+            showBanner(err.message || 'Impossible de trouver la playlist sélectionnée.', 'error');
+            setSelectedPlaylistId(null);
+            setExpandedIds(new Set());
+          })
+          .finally(() => {
+            setLoadingTracks((prev) => ({ ...prev, [preselectedId]: false }));
+          });
       }
     }
-  }, [session?.status]);
+  }, [session?.status, getPlaylistDetails, showBanner]);
 
   // YouTube API Player setup
   useEffect(() => {
@@ -376,14 +780,25 @@ export default function HostLobby() {
     setIsStartingGame(true);
     if (quizMode === 'mal') {
       const currentPlatform = animeConnectedPlatform || animePlatform;
-      const username = currentPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
+      const rawInput = currentPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
+      const username = extractAnimeUsername(rawInput, currentPlatform);
       if (!username) {
         showBanner(
           currentPlatform === 'anilist'
-            ? 'Indiquez votre nom d\'utilisateur AniList pour commencer.'
-            : 'Indiquez votre nom d\'utilisateur MyAnimeList pour commencer.',
+            ? 'Indiquez votre nom d\'utilisateur ou lien AniList pour commencer.'
+            : 'Indiquez votre nom d\'utilisateur ou lien MyAnimeList pour commencer.',
           'warning'
         );
+        setIsStartingGame(false);
+        return;
+      }
+
+      const disabledMap = session?.disabledVideoIds || {};
+      const activeCount = malTracks.length > 0
+        ? malTracks.filter((t) => !disabledMap[String(t.id ?? '')]).length
+        : 1;
+      if (malTracks.length > 0 && activeCount === 0) {
+        showBanner('Tous les openings sont désactivés. Veuillez en cocher au moins un pour lancer la partie.', 'warning');
         setIsStartingGame(false);
         return;
       }
@@ -444,13 +859,11 @@ export default function HostLobby() {
 
   const handleToggleExpand = async (playlistId: string) => {
     setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(playlistId)) {
-        next.delete(playlistId);
+      if (prev.has(playlistId)) {
+        return new Set();
       } else {
-        next.add(playlistId);
+        return new Set([playlistId]);
       }
-      return next;
     });
 
     if (!tracksCache[playlistId] && !loadingTracks[playlistId]) {
@@ -481,10 +894,210 @@ export default function HostLobby() {
     }));
   };
 
+  const playCassetteInsertionAnimation = (playlistId: string, onCompleteCallback?: () => void) => {
+    if (typeof window === 'undefined') return;
+
+    // Annuler toute attente ou animation en cours
+    if (cassetteCancelRef.current) {
+      cassetteCancelRef.current();
+      cassetteCancelRef.current = null;
+    }
+    if (activeCassetteElRef.current) {
+      activeCassetteElRef.current.remove();
+      activeCassetteElRef.current = null;
+    }
+
+    let isCancelled = false;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let maxTimeout: ReturnType<typeof setTimeout> | null = null;
+    let onScrollEnd: (() => void) | null = null;
+
+    const cleanup = () => {
+      isCancelled = true;
+      if (pollInterval) clearInterval(pollInterval);
+      if (maxTimeout) clearTimeout(maxTimeout);
+      if (onScrollEnd && 'onscrollend' in window) {
+        window.removeEventListener('scrollend', onScrollEnd);
+      }
+    };
+
+    cassetteCancelRef.current = cleanup;
+
+    const executeAnimation = () => {
+      if (isCancelled) return;
+      cleanup();
+      cassetteCancelRef.current = null;
+
+      const cardEl = document.getElementById(`playlist-card-${playlistId}`);
+      const targetEl =
+        window.innerWidth >= 640
+          ? (playersPanelRef.current || document.getElementById('host-players-panel'))
+          : document.getElementById('host-mobile-players-btn');
+
+      if (!cardEl || !targetEl) {
+        onCompleteCallback?.();
+        return;
+      }
+
+      // Récupérer le visuel visible de la cassette (une fois le déploiement et le scroll terminés)
+      const visualEl =
+        (Array.from(cardEl.querySelectorAll('[data-cassette-visual]')).find(
+          (el) => (el as HTMLElement).offsetParent !== null
+        ) as HTMLElement) ||
+        (cardEl.querySelector('[data-cassette-visual]') as HTMLElement) ||
+        cardEl;
+
+      const visualRect = visualEl.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+
+      const cassetteEl = document.createElement('div');
+      cassetteEl.className = 'fixed pointer-events-none select-none';
+      cassetteEl.style.zIndex = '5'; // En dessous des films, descriptions et cartes (z-10), mais au-dessus du fond animé (z-0)
+      cassetteEl.style.position = 'fixed';
+
+      // Dimensions initiales exactement basées sur la cassette réelle stabilisée
+      const startWidth = visualRect.width > 0 ? visualRect.width : Math.min(cardEl.getBoundingClientRect().width * 0.72, 380);
+      const startHeight = visualRect.height > 0 ? visualRect.height : startWidth * (692 / 945);
+      cassetteEl.style.width = `${startWidth}px`;
+      cassetteEl.style.height = `${startHeight}px`;
+      cassetteEl.style.backgroundImage = "url('/PLAYLIST/CassetteRecadrée.png')";
+      cassetteEl.style.backgroundSize = 'contain';
+      cassetteEl.style.backgroundRepeat = 'no-repeat';
+      cassetteEl.style.backgroundPosition = 'center';
+      cassetteEl.style.filter = 'drop-shadow(0 14px 28px rgba(0, 0, 0, 0.55))';
+
+      document.body.appendChild(cassetteEl);
+      activeCassetteElRef.current = cassetteEl;
+
+      const startX = visualRect.left + (visualRect.width - startWidth) / 2;
+      const startY = visualRect.top + (visualRect.height - startHeight) / 2;
+
+      const isDesktop = window.innerWidth >= 640;
+      const endWidth = isDesktop ? Math.max(targetRect.width * 0.88, 200) : Math.max(targetRect.width * 0.9, 140);
+      const endHeight = endWidth * (692 / 945);
+      const endX = targetRect.left + (targetRect.width - endWidth) / 2;
+      const enterY = isDesktop ? targetRect.top - endHeight * 0.2 : targetRect.top - endHeight * 0.15;
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          cassetteEl.remove();
+          if (activeCassetteElRef.current === cassetteEl) {
+            activeCassetteElRef.current = null;
+          }
+          gsap.fromTo(
+            targetEl,
+            { scale: 0.96, y: -4 },
+            { scale: 1, y: 0, duration: 0.3, ease: 'back.out(2.5)' }
+          );
+          if (onCompleteCallback) {
+            onCompleteCallback();
+          }
+        },
+      });
+
+      // 1. Pop out de la cassette depuis son emplacement bien calé après scroll (en dessous des films et descriptions)
+      tl.fromTo(
+        cassetteEl,
+        {
+          left: startX,
+          top: startY,
+          scale: 0.94,
+          opacity: 0,
+          rotation: 0,
+        },
+        {
+          scale: 1.05,
+          opacity: 1,
+          y: -24,
+          rotation: -2,
+          duration: 0.35,
+          ease: 'back.out(1.8)',
+        }
+      )
+        // 2. Trajet vers la liste des joueurs en rétrécissant à sa taille
+        .to(
+          cassetteEl,
+          {
+            left: endX,
+            top: enterY,
+            width: endWidth,
+            height: endHeight,
+            rotation: 2,
+            duration: 0.55,
+            ease: 'power2.inOut',
+          },
+          '+=0.04'
+        )
+        // 3. Glisse derrière la liste des joueurs et disparaît
+        .to(cassetteEl, {
+          y: '+=90',
+          scale: 0.82,
+          opacity: 0,
+          duration: 0.32,
+          ease: 'power3.in',
+        });
+    };
+
+    // Attendre la stabilisation du scroll déclenché lors de l'ouverture
+    const startTime = Date.now();
+    let lastY = window.scrollY;
+    let stableCount = 0;
+
+    // Écouter scrollend si disponible dans le navigateur
+    if ('onscrollend' in window) {
+      onScrollEnd = () => {
+        if (Date.now() - startTime >= 110) {
+          executeAnimation();
+        }
+      };
+      window.addEventListener('scrollend', onScrollEnd, { once: true });
+    }
+
+    // Détection de stabilisation du scroll (démarrée à 110ms pour laisser le scrollTo démarrer)
+    pollInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 110) return;
+
+      const currentY = window.scrollY;
+      if (Math.abs(currentY - lastY) < 1.5) {
+        stableCount++;
+        if (stableCount >= 2) {
+          executeAnimation();
+        }
+      } else {
+        stableCount = 0;
+        lastY = currentY;
+      }
+    }, 45);
+
+    // Timeout de sécurité max
+    maxTimeout = setTimeout(() => {
+      executeAnimation();
+    }, 650);
+  };
+
   const handleSelectPlaylist = async (playlistId: string) => {
+    isHandlingCardSelectionRef.current = true;
+    const hadPrevious = !!selectedPlaylistId;
     const isDifferent = selectedPlaylistId !== playlistId;
+
+    if (hadPrevious && isDifferent) {
+      // Le disque s'arrête immédiatement lors d'une nouvelle sélection
+      stopDiskSpin();
+    }
+
     setSelectedPlaylistId(playlistId);
-    setExpandedIds((prev) => new Set(prev).add(playlistId));
+    setExpandedIds(new Set([playlistId]));
+
+    playCassetteInsertionAnimation(playlistId, () => {
+      if (!hadPrevious) {
+        // Première sélection: apparition animée du disque et lancement de la rotation
+        revealDiskAndSpin();
+      } else if (isDifferent) {
+        // Nouvelle sélection: le disque reprend rapidement (~600ms) après l'animation
+        startDiskSpin(600);
+      }
+    });
 
     // Reset disabled video states when switching to a different playlist
     if (isDifferent && session?.disabledVideoIds && Object.keys(session.disabledVideoIds).length > 0) {
@@ -606,13 +1219,28 @@ export default function HostLobby() {
           ]
         }));
       }
+      const hadPrevious = !!selectedPlaylistId;
+      const isDifferent = selectedPlaylistId !== res.playlist.id;
+
+      if (hadPrevious && isDifferent) {
+        stopDiskSpin();
+      }
+
+      isHandlingCardSelectionRef.current = true;
       setSelectedPlaylistId(res.playlist.id);
       setSelectedPlaylistTracks(res.videos || []);
       setTracksCache(prev => ({
         ...prev,
         [res.playlist.id]: res.videos || [],
       }));
-      setExpandedIds(prev => new Set(prev).add(res.playlist.id));
+      setExpandedIds(new Set([res.playlist.id]));
+      playCassetteInsertionAnimation(res.playlist.id, () => {
+        if (!hadPrevious) {
+          revealDiskAndSpin();
+        } else if (isDifferent) {
+          startDiskSpin(600);
+        }
+      });
       setSearchPlaylistId('');
       showBanner(`Playlist "${res.playlist.name}" chargée avec succès !`, 'success');
     } catch (err: any) {
@@ -642,12 +1270,34 @@ export default function HostLobby() {
       .sort((a, b) => (b.played_count || 0) - (a.played_count || 0));
   }, [playlists, playlistTab, activeCategory, playlistSearchQuery]);
 
+  const handleAnimeInputChange = (val: string, platform: 'mal' | 'anilist') => {
+    if (platform === 'mal' && /anilist\.co/i.test(val)) {
+      setAnimePlatform('anilist');
+      setAnilistUsername(extractAnimeUsername(val, 'anilist'));
+      return;
+    }
+    if (platform === 'anilist' && /myanimelist\.net/i.test(val)) {
+      setAnimePlatform('mal');
+      setMalUsername(extractAnimeUsername(val, 'mal'));
+      return;
+    }
+    if (platform === 'anilist') {
+      setAnilistUsername(val);
+    } else {
+      setMalUsername(val);
+    }
+  };
+
   const handleLoadAnimeTracks = async (e: React.FormEvent, platform?: 'mal' | 'anilist') => {
     e.preventDefault();
     setMalLoadError(null);
     const targetPlatform = platform || animePlatform;
-    const username = targetPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
-    if (!username) return;
+    const rawInput = targetPlatform === 'anilist' ? anilistUsername.trim() : malUsername.trim();
+    const username = extractAnimeUsername(rawInput, targetPlatform);
+    if (!username) {
+      setMalLoadError('Veuillez entrer un pseudo ou un lien valide.');
+      return;
+    }
 
     setIsLoadingMalTracks(true);
     try {
@@ -657,8 +1307,13 @@ export default function HostLobby() {
       setMalTracks(videos);
       setMalConnectedUser(username);
       setAnimeConnectedPlatform(targetPlatform);
+      if (targetPlatform === 'anilist') {
+        setAnilistUsername(username);
+      } else {
+        setMalUsername(username);
+      }
     } catch (err: any) {
-      setMalLoadError(err.message || 'Impossible de récupérer les animés. Vérifiez que le pseudo existe bien.');
+      setMalLoadError(err.message || 'Impossible de récupérer les animés. Vérifiez que le profil ou lien est bien public.');
       setMalConnectedUser(null);
       setMalTracks([]);
     } finally {
@@ -671,6 +1326,64 @@ export default function HostLobby() {
       await toggleLobbyVideo(videoId);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleToggleAnimeGroup = async (tracks: any[], enable: boolean) => {
+    const currentDisabled = { ...(session?.disabledVideoIds || {}) };
+    tracks.forEach((track) => {
+      const id = String(track.id);
+      if (enable) {
+        delete currentDisabled[id];
+      } else {
+        currentDisabled[id] = true;
+      }
+    });
+    try {
+      await setDisabledVideos(currentDisabled);
+    } catch (err) {
+      console.error('Failed to toggle anime group:', err);
+    }
+  };
+
+  const handleToggleAllMalTracks = async (enable: boolean) => {
+    if (malTracks.length === 0) return;
+    try {
+      if (enable) {
+        await setDisabledVideos({});
+      } else {
+        const newMap: { [id: string]: boolean } = {};
+        malTracks.forEach((t) => {
+          newMap[String(t.id)] = true;
+        });
+        await setDisabledVideos(newMap);
+      }
+    } catch (err) {
+      console.error('Failed to toggle all MAL tracks:', err);
+    }
+  };
+
+  const handleToggleSingleAnimeCollapse = (animeTitle: string) => {
+    setCollapsedAnimeGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(animeTitle)) {
+        next.delete(animeTitle);
+      } else {
+        next.add(animeTitle);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleCollapseAll = () => {
+    if (collapsedAnimeGroups.size > 0) {
+      setCollapsedAnimeGroups(new Set());
+    } else {
+      const allKeys = [
+        ...animeGroups.map((g) => g.animeTitle),
+        '__single_openings__',
+      ];
+      setCollapsedAnimeGroups(new Set(allKeys));
     }
   };
 
@@ -710,6 +1423,9 @@ export default function HostLobby() {
   const handleBackToHome = async () => {
     const confirmDelete = window.confirm('Êtes-vous sûr de vouloir supprimer cette session ?');
     if (confirmDelete) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('rate_it_host_mode_chosen');
+      }
       try {
         await deleteRoom();
       } catch (err) {
@@ -1056,266 +1772,350 @@ export default function HostLobby() {
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
-      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 lg:px-8 py-4 sm:py-6 font-sans w-full max-w-full overflow-x-hidden min-h-screen">
+      <div className="relative flex flex-col flex-1 bg-transparent px-3 sm:px-6 lg:px-8 py-4 sm:py-6 font-sans w-full max-w-full overflow-x-clip min-h-screen">
         <div className="z-10 w-full max-w-7xl mx-auto flex flex-col flex-1 gap-5 sm:gap-6">
-          
-          {/* Header Row: Title/Logo + Mode switcher + Exit Button */}
-          <header className="flex flex-col md:flex-row items-center justify-between gap-4 pb-2 w-full text-center md:text-left">
-            <div className="flex items-center gap-3">
-              <img
-                src="/HOST/HostText.png"
-                alt="Host Lobby"
-                className="h-10 sm:h-14 md:h-16 w-auto object-contain max-w-full select-none pointer-events-none"
-              />
-              <p className="hidden sm:block text-xs sm:text-sm font-bold text-slate-700">
-                Configurez la session et invitez vos compagnons !
-              </p>
-            </div>
 
-            {/* Quiz Mode Selector (Playlists vs AnimeLists) */}
-            <div className="flex border-2 border-black rounded-xl overflow-hidden font-black text-xs uppercase shadow-none shrink-0 bg-white">
-              <button
-                type="button"
-                onClick={() => setQuizMode('playlist')}
-                className={`py-2 px-3 sm:px-4 text-center cursor-pointer transition-colors ${
-                  quizMode === 'playlist'
-                    ? 'bg-playlist text-black font-black'
-                    : 'bg-white text-black hover:bg-slate-100'
-                }`}
-              >
-                Playlists
-              </button>
-              <button
-                type="button"
-                onClick={() => setQuizMode('mal')}
-                className={`py-2 px-3 sm:px-4 text-center border-l-2 border-black cursor-pointer transition-colors ${
-                  quizMode === 'mal'
-                    ? 'bg-playlist text-black font-black'
-                    : 'bg-white text-black hover:bg-slate-100'
-                }`}
-              >
-                AnimeLists (MAL / AniList)
-              </button>
-            </div>
+          {/* Header Row: Home Button (Top Left) + Title/Logo + Mode switcher (affiché une fois le mode choisi) */}
+          {hasChosenMode && (
+            <header className="flex flex-col md:flex-row items-center justify-between gap-4 pb-2 w-full text-center md:text-left">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <HomeButton
+                  onClick={handleBackToHome}
+                  sizeClassName="h-9 sm:h-12 md:h-14"
+                  title="Quitter et fermer la salle"
+                  ariaLabel="Quitter et fermer la salle"
+                />
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/HOST/HostText.png"
+                    alt="Host Lobby"
+                    className="h-10 sm:h-14 md:h-16 w-auto object-contain max-w-full select-none pointer-events-none"
+                  />
+                  <p className="hidden sm:block text-xs sm:text-sm font-bold text-slate-700">
+                    Configurez la session et invitez vos compagnons !
+                  </p>
+                </div>
+              </div>
 
-            {/* Exit Room / Home Button */}
-            <div className="flex items-center gap-2 shrink-0">
-              <HomeButton
-                onClick={handleBackToHome}
-                sizeClassName="h-9 sm:h-12 md:h-14"
-                title="Quitter et fermer la salle"
-                ariaLabel="Quitter et fermer la salle"
-              />
-            </div>
-          </header>
-
-          {/* TOP OPTIONS ROW (LIGNE D'OPTIONS EN HAUT) */}
-          {/* Code de la salle + QR code, HOST est un joueur + Les vidéos sont dans un ordre aléatoire, Connexion à Twitch */}
-          <div className="w-full info-card !overflow-visible rounded-2xl p-2.5 sm:p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 shadow-none">
-            
-            {/* 1. Salle & Invitation (Code + Copier + QR Code) */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl px-2.5 py-1.5 shadow-none">
-                <span className="text-[11px] font-black uppercase text-slate-600">Salle :</span>
-                <span className="font-mono font-black text-sm sm:text-base text-black select-all">
-                  {showRoomCode ? session.sessionId : '••••••'}
-                </span>
+              {/* Quiz Mode Selector (Playlists vs AnimeLists) */}
+              <div className="flex border-2 border-black rounded-xl overflow-hidden font-black text-xs uppercase shadow-none shrink-0 bg-white">
                 <button
                   type="button"
-                  onClick={() => setShowRoomCode(!showRoomCode)}
-                  className="p-0.5 text-slate-600 hover:text-black cursor-pointer"
-                  title={showRoomCode ? 'Masquer le code' : 'Afficher le code'}
+                  onClick={() => setQuizMode('playlist')}
+                  className={`py-2 px-3 sm:px-4 text-center cursor-pointer transition-colors ${quizMode === 'playlist'
+                    ? 'bg-playlist text-black font-black'
+                    : 'bg-white text-black hover:bg-slate-100'
+                    }`}
                 >
-                  {showRoomCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  Playlists
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuizMode('mal')}
+                  className={`py-2 px-3 sm:px-4 text-center border-l-2 border-black cursor-pointer transition-colors ${quizMode === 'mal'
+                    ? 'bg-playlist text-black font-black'
+                    : 'bg-white text-black hover:bg-slate-100'
+                    }`}
+                >
+                  AnimeLists (MAL / AniList)
                 </button>
               </div>
+            </header>
+          )}
 
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="px-3 py-1.5 border-2 border-black bg-host hover:bg-sky-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 cursor-pointer shadow-none"
-              >
-                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedLink ? 'Lien copié !' : 'Copier le lien'}</span>
-              </button>
+          {/* TOP OPTIONS ROW (LIGNE D'OPTIONS EN HAUT) - Affichée uniquement après le choix du mode */}
+          {hasChosenMode && (
+            <>
+              <div className="w-full info-card relative lg:!sticky lg:top-3 z-40 !overflow-visible rounded-2xl p-2.5 sm:p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 shadow-md">
 
-              <button
-                type="button"
-                onClick={() => setShowQRCode(!showQRCode)}
-                className={`px-3 py-1.5 border-2 border-black rounded-xl font-black text-xs uppercase inline-flex items-center gap-1.5 cursor-pointer shadow-none transition-colors btn-action-hover ${
-                  showQRCode ? 'bg-black text-[#FEEC66]' : 'bg-white hover:bg-slate-100 text-black'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>QR Code</span>
-              </button>
-            </div>
-
-            {/* 2. Options de jeu (HOST est un joueur + Vidéos aléatoires) */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 py-2 xl:py-0 border-t xl:border-t-0 xl:border-l xl:border-r border-black/15 xl:px-4">
-              {/* Host est un joueur */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
-                  <input
-                    type="checkbox"
-                    id="hostIsPlayerLobbyToggle"
-                    checked={session.isHostPlayer !== false}
-                    onChange={async (e) => {
-                      const checked = e.target.checked;
-                      try {
-                        const finalName = hostCustomName.trim() || 'HOST';
-                        await toggleHostPlayer(checked, finalName);
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }}
-                    className="h-4 w-4 accent-host cursor-pointer"
-                  />
-                  <span>Host joueur</span>
-                </label>
-
-                {/* Tooltip "?" */}
-                <div className="group relative inline-flex items-center justify-center">
-                  <span
-                    tabIndex={0}
-                    className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help"
-                  >
-                    ?
-                  </span>
-                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col w-56 p-2.5 bg-black text-white text-[11px] font-bold rounded-xl text-center leading-snug z-50 shadow-none">
-                    Permet au Host de voter. À décocher si vous jouez avec vos amis sur votre téléphone en physique.
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
+                {/* 1. Salle & Invitation (Code + Copier + QR Code) */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl px-2.5 py-1.5 shadow-none">
+                    <span className="text-[11px] font-black uppercase text-slate-600">Salle :</span>
+                    <span className="font-mono font-black text-sm sm:text-base text-black select-all">
+                      {showRoomCode ? session.sessionId : '••••••'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowRoomCode(!showRoomCode)}
+                      className="p-0.5 text-slate-600 hover:text-black cursor-pointer"
+                      title={showRoomCode ? 'Masquer le code' : 'Afficher le code'}
+                    >
+                      {showRoomCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                </div>
 
-                {/* Pseudo Host input when player */}
-                {session.isHostPlayer !== false && (
-                  <input
-                    type="text"
-                    placeholder="Pseudo Host"
-                    value={hostCustomName}
-                    onChange={(e) => setHostCustomName(e.target.value)}
-                    onBlur={async () => {
-                      const trimmed = hostCustomName.trim();
-                      const finalName = trimmed || 'HOST';
-                      if (trimmed) {
-                        localStorage.setItem('rate_it_host_name', trimmed);
-                      } else {
-                        localStorage.removeItem('rate_it_host_name');
-                      }
-                      try {
-                        await toggleHostPlayer(true, finalName);
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
-                    className="px-2 py-1 text-xs font-bold bg-white border-2 border-black rounded-lg text-black placeholder:text-slate-400 w-24 sm:w-28 outline-none shadow-none"
-                    title="Pseudonyme du Host"
-                  />
-                )}
-              </div>
-
-              {/* Vidéos en ordre aléatoire */}
-              <label htmlFor="shuffleToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
-                <input
-                  type="checkbox"
-                  id="shuffleToggle"
-                  checked={isShuffleEnabled}
-                  onChange={(e) => setIsShuffleEnabled(e.target.checked)}
-                  className="h-4 w-4 accent-host cursor-pointer"
-                />
-                <span className="flex items-center gap-1">
-                  <Shuffle className="w-3.5 h-3.5 text-slate-700" />
-                  <span>Ordre aléatoire</span>
-                </span>
-              </label>
-            </div>
-
-            {/* 3. Twitch */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
-                <span className="w-2 h-2 rounded-full bg-[#9146FF]" />
-                <span>Twitch</span>
-              </span>
-
-              {session.twitchChannel ? (
-                <div className="flex items-center gap-2 bg-purple-50 border-2 border-[#9146FF] px-2.5 py-1 rounded-xl">
-                  <span className="text-xs text-purple-900 font-black truncate max-w-[130px]">
-                    #{session.twitchChannel}
-                  </span>
-                  <button
-                    onClick={handleDisconnectTwitch}
-                    className="text-[10px] text-accent-red hover:underline font-black cursor-pointer"
-                  >
-                    Déconnexion
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={twitchChannel}
-                    onChange={(e) => setTwitchChannel(e.target.value)}
-                    placeholder="chaîne_twitch..."
-                    className="px-2.5 py-1.5 border-2 border-black bg-white rounded-xl text-xs font-bold text-black focus:outline-none w-28 sm:w-36 shadow-none"
-                  />
                   <button
                     type="button"
-                    onClick={handleConnectTwitch}
-                    disabled={isTwitchConnecting || !twitchChannel.trim()}
-                    className="px-3 py-1.5 bg-[#9146FF] hover:bg-purple-600 disabled:opacity-50 text-white font-black text-xs uppercase border-2 border-black rounded-xl cursor-pointer shadow-none transition-colors btn-action-hover"
+                    onClick={handleCopyLink}
+                    className="px-3 py-1.5 border-2 border-black bg-host hover:bg-sky-400 text-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 cursor-pointer shadow-none"
                   >
-                    {isTwitchConnecting ? '...' : 'Lier'}
+                    {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedLink ? 'Lien copié !' : 'Copier le lien'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowQRCode(!showQRCode)}
+                    className={`px-3 py-1.5 border-2 border-black rounded-xl font-black text-xs uppercase inline-flex items-center gap-1.5 cursor-pointer shadow-none transition-colors btn-action-hover ${showQRCode ? 'bg-black text-[#FEEC66]' : 'bg-white hover:bg-slate-100 text-black'
+                      }`}
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>QR Code</span>
                   </button>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* QR Code Modal Overlay if toggled */}
-          {showQRCode && joinUrl && (
-            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="info-card rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
-                <button
-                  type="button"
-                  onClick={() => setShowQRCode(false)}
-                  className="absolute top-3 right-3 p-1 rounded-lg border-2 border-black hover:bg-slate-100 cursor-pointer bg-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <h3 className="font-title text-base font-black uppercase text-black text-center">
-                  Rejoindre la salle
-                </h3>
-                <div className="p-3 bg-white border-2 border-black rounded-xl shadow-none">
-                  <QRCodeSVG value={joinUrl} size={180} level="H" includeMargin={false} />
+                {/* 2. Options de jeu (HOST est un joueur + Vidéos aléatoires) */}
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 py-2 xl:py-0 border-t xl:border-t-0 border-black/15">
+                  {/* Host est un joueur */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="hostIsPlayerLobbyToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                      <input
+                        type="checkbox"
+                        id="hostIsPlayerLobbyToggle"
+                        checked={session.isHostPlayer !== false}
+                        onChange={async (e) => {
+                          const checked = e.target.checked;
+                          try {
+                            const finalName = hostCustomName.trim() || 'HOST';
+                            await toggleHostPlayer(checked, finalName);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="h-4 w-4 accent-host cursor-pointer"
+                      />
+                      <span>Host joueur</span>
+                    </label>
+
+                    {/* Tooltip "?" */}
+                    <div className="group relative inline-flex items-center justify-center">
+                      <span
+                        tabIndex={0}
+                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help"
+                      >
+                        ?
+                      </span>
+                      <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:flex flex-col w-56 p-2.5 bg-black text-white text-[11px] font-bold rounded-xl text-center leading-snug z-50 shadow-none">
+                        Permet au Host de voter. À décocher si vous jouez avec vos amis sur votre téléphone IRL.
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-black" />
+                      </div>
+                    </div>
+
+                    {/* Pseudo Host input (toujours visible, désactivé si Host joueur est décoché) */}
+                    <input
+                      type="text"
+                      placeholder="Pseudo Host"
+                      disabled={session.isHostPlayer === false}
+                      value={hostCustomName}
+                      onChange={(e) => setHostCustomName(e.target.value)}
+                      onBlur={async () => {
+                        const trimmed = hostCustomName.trim();
+                        const finalName = trimmed || 'HOST';
+                        if (trimmed) {
+                          localStorage.setItem('rate_it_host_name', trimmed);
+                        } else {
+                          localStorage.removeItem('rate_it_host_name');
+                        }
+                        try {
+                          await toggleHostPlayer(true, finalName);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      }}
+                      className="px-2 py-1 text-xs font-bold bg-white border-2 border-black rounded-lg text-black placeholder:text-slate-400 w-24 sm:w-28 outline-none shadow-none disabled:opacity-40 disabled:bg-slate-100 disabled:border-slate-300 disabled:cursor-not-allowed transition-opacity"
+                      title={session.isHostPlayer === false ? "Activez 'Host joueur' pour modifier le pseudo" : "Pseudonyme du Host"}
+                    />
+                  </div>
+
+                  {/* Vidéos en ordre aléatoire */}
+                  <label htmlFor="shuffleToggle" className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-black text-black select-none">
+                    <input
+                      type="checkbox"
+                      id="shuffleToggle"
+                      checked={isShuffleEnabled}
+                      onChange={(e) => setIsShuffleEnabled(e.target.checked)}
+                      className="h-4 w-4 accent-host cursor-pointer"
+                    />
+                    <span className="flex items-center gap-1">
+                      <Shuffle className="w-3.5 h-3.5 text-slate-700" />
+                      <span>Ordre aléatoire</span>
+                    </span>
+                  </label>
                 </div>
-                <p className="text-xs font-bold text-slate-700 text-center leading-relaxed">
-                  Scannez le QR Code avec votre téléphone :
-                  <br />
-                  <span className="font-mono text-black font-bold break-all bg-white px-2 py-0.5 rounded border border-black inline-block mt-1">{joinUrl}</span>
-                </p>
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="w-full py-2.5 px-4 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 shadow-none cursor-pointer"
-                >
-                  {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedLink ? 'Lien copié !' : 'Copier le lien d\'invitation'}</span>
-                </button>
+
+                {/* 3. Twitch */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black uppercase text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-[#9146FF]" />
+                    <span>Twitch</span>
+                  </span>
+
+                  {session.twitchChannel ? (
+                    <div className="flex items-center gap-2 bg-purple-50 border-2 border-[#9146FF] px-2.5 py-1 rounded-xl">
+                      <span className="text-xs text-purple-900 font-black truncate max-w-[130px]">
+                        #{session.twitchChannel}
+                      </span>
+                      <button
+                        onClick={handleDisconnectTwitch}
+                        className="text-[10px] text-accent-red hover:underline font-black cursor-pointer"
+                      >
+                        Déconnexion
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={twitchChannel}
+                        onChange={(e) => setTwitchChannel(e.target.value)}
+                        placeholder="chaîne_twitch..."
+                        className="px-2.5 py-1.5 border-2 border-black bg-white rounded-xl text-xs font-bold text-black focus:outline-none w-28 sm:w-36 shadow-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleConnectTwitch}
+                        disabled={isTwitchConnecting || !twitchChannel.trim()}
+                        className="px-3 py-1.5 bg-[#9146FF] hover:bg-purple-600 disabled:opacity-50 text-white font-black text-xs uppercase border-2 border-black rounded-xl cursor-pointer shadow-none transition-colors btn-action-hover"
+                      >
+                        {isTwitchConnecting ? '...' : 'Lier'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+
+              {/* QR Code Modal Overlay if toggled */}
+              {showQRCode && joinUrl && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="info-card rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
+                    <h3 className="font-title text-base font-black uppercase text-black text-center w-full px-10">
+                      Rejoindre la salle
+                    </h3>
+                    <div className="p-3 bg-white border-2 border-black rounded-xl shadow-none">
+                      <QRCodeSVG value={joinUrl} size={180} level="H" includeMargin={false} />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700 text-center leading-relaxed">
+                      Scannez le QR Code avec votre téléphone :
+                      <br />
+                      <span className="font-mono text-black font-bold break-all bg-white px-2 py-0.5 rounded border border-black inline-block mt-1">{joinUrl}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="w-full py-2.5 px-4 bg-host border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 shadow-none cursor-pointer"
+                    >
+                      {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedLink ? 'Lien copié !' : 'Copier le lien d\'invitation'}</span>
+                    </button>
+                    <CloseButton
+                      onClick={() => setShowQRCode(false)}
+                      className="!absolute top-2 right-2 !z-50"
+                      sizeClassName="w-8 h-8"
+                      title="Fermer"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* MAIN CONTENT AREA */}
-          {quizMode === 'playlist' ? (
+          {!hasChosenMode ? (
+            /* ÉCRAN DE SÉLECTION DU MODE (écran séparé / formulaire initial plein format) */
+            <div className="flex-1 w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto flex flex-col items-center justify-center py-8 sm:py-12 lg:py-16 gap-8 sm:gap-10 lg:gap-12 animate-in fade-in duration-300">
+              <div className="text-center flex flex-col items-center">
+                <h2 className="font-title text-2xl font-black text-black leading-tight tracking-wide max-w-2xl lg:max-w-4xl text-center">
+                  Comment souhaitez-vous sélectionner les musiques pour cette session ?
+                </h2>
+              </div>
+
+              {/* Les 2 boutons agrandis sur grands écrans et descriptions égalisées */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 lg:gap-10 xl:gap-12 w-full px-2 sm:px-4 lg:px-6 items-stretch">
+                {/* 1. Bouton : Utiliser une playlist préfaite */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuizMode('playlist');
+                    setHasChosenMode(true);
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
+                    }
+                  }}
+                  className="group relative flex flex-col h-full w-full text-left cursor-pointer select-none focus:outline-none shadow-none"
+                >
+                  <div className="relative w-full flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.03] group-focus:scale-[1.03] group-active:scale-[0.98]">
+                    <img
+                      src="/LOGOS/Bouton_Playlist.png"
+                      alt="Playlists"
+                      className="w-full h-auto max-h-[220px] sm:max-h-[280px] lg:max-h-[340px] xl:max-h-[400px] object-contain drop-shadow-md group-hover:drop-shadow-xl transition-all duration-200"
+                      draggable={false}
+                    />
+                  </div>
+
+                  <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
+                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl font-black uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
+                      <span>Utiliser une playlist préfaite</span>
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
+                    </div>
+                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg font-bold text-slate-700 mt-2 lg:mt-3 leading-relaxed min-h-[2.75rem] sm:min-h-[3rem] lg:min-h-[3.25rem] flex items-center text-left">
+                      Explorez le catalogue officiel, les playlists communautaires ou chargez un code.
+                    </p>
+                  </div>
+                </button>
+
+                {/* 2. Bouton : Importer une liste depuis MyAnimeList / Anilist */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuizMode('mal');
+                    setHasChosenMode(true);
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
+                    }
+                  }}
+                  className="group relative flex flex-col h-full w-full text-left cursor-pointer select-none focus:outline-none shadow-none"
+                >
+                  <div className="relative w-full flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.03] group-focus:scale-[1.03] group-active:scale-[0.98]">
+                    <img
+                      src="/LOGOS/Bouton_MAL_AL.png"
+                      alt="MyAnimeList / AniList"
+                      className="w-full h-auto max-h-[220px] sm:max-h-[280px] lg:max-h-[340px] xl:max-h-[400px] object-contain drop-shadow-md group-hover:drop-shadow-xl transition-all duration-200"
+                      draggable={false}
+                    />
+                  </div>
+
+                  <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
+                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl font-black uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
+                      <span>Importer une liste depuis MAL / AL</span>
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
+                    </div>
+                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg font-bold text-slate-700 mt-2 lg:mt-3 leading-relaxed min-h-[2.75rem] sm:min-h-[3rem] lg:min-h-[3.25rem] flex items-center text-left">
+                      Générez automatiquement une playlist avec les openings de vos animes complétés.
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Petit bouton Accueil pour quitter si on souhaite annuler */}
+              <div className="flex justify-center pt-2">
+                <HomeButton
+                  onClick={handleBackToHome}
+                  sizeClassName="h-10 sm:h-12 md:h-14"
+                  title="Retourner à l'accueil"
+                  ariaLabel="Retourner à l'accueil"
+                />
+              </div>
+            </div>
+          ) : quizMode === 'playlist' ? (
             /* PLAYLISTS VIEW WITH FILTERS & CARDS (REUSING PLAYLISTCARD & PLAYLISTFILTERS) */
             <div className="flex flex-col lg:flex-row items-start gap-6 w-full flex-1">
-              
+
               {/* Sidebar Filters */}
-              <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-4 z-20 flex flex-col gap-3">
+              <aside className="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
                 {/* Form to load custom playlist by share code (TOUT EN HAUT DES FILTRES) */}
                 <form
                   onSubmit={handleSearchPlaylist}
@@ -1349,7 +2149,7 @@ export default function HostLobby() {
                 </form>
 
                 <PlaylistFilters
-                  categories={CATEGORIES}
+                  categories={dynamicCategories}
                   activeCategory={activeCategory}
                   onSelectCategory={setActiveCategory}
                   activeTab={playlistTab}
@@ -1372,8 +2172,8 @@ export default function HostLobby() {
                       {activeCategory !== 'all'
                         ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`
                         : playlistSearchQuery
-                        ? `Aucun résultat pour "${playlistSearchQuery}".`
-                        : 'Aucune playlist disponible pour le moment.'}
+                          ? `Aucun résultat pour "${playlistSearchQuery}".`
+                          : 'Aucune playlist disponible pour le moment.'}
                     </p>
                     {(playlistSearchQuery || activeCategory !== 'all') && (
                       <button
@@ -1434,11 +2234,10 @@ export default function HostLobby() {
                         setAnimePlatform('mal');
                         setMalLoadError(null);
                       }}
-                      className={`px-3 py-1.5 uppercase transition ${
-                        animePlatform === 'mal'
-                          ? 'bg-[#2E51A2] text-white'
-                          : 'bg-white text-black hover:bg-slate-100'
-                      }`}
+                      className={`px-3 py-1.5 uppercase transition ${animePlatform === 'mal'
+                        ? 'bg-[#2E51A2] text-white'
+                        : 'bg-white text-black hover:bg-slate-100'
+                        }`}
                     >
                       MyAnimeList
                     </button>
@@ -1448,11 +2247,10 @@ export default function HostLobby() {
                         setAnimePlatform('anilist');
                         setMalLoadError(null);
                       }}
-                      className={`px-3 py-1.5 uppercase transition border-l-2 border-black ${
-                        animePlatform === 'anilist'
-                          ? 'bg-[#02A9FF] text-white'
-                          : 'bg-white text-black hover:bg-slate-100'
-                      }`}
+                      className={`px-3 py-1.5 uppercase transition border-l-2 border-black ${animePlatform === 'anilist'
+                        ? 'bg-[#02A9FF] text-white'
+                        : 'bg-white text-black hover:bg-slate-100'
+                        }`}
                     >
                       AniList
                     </button>
@@ -1461,8 +2259,8 @@ export default function HostLobby() {
 
                 <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
                   {animePlatform === 'anilist'
-                    ? 'Entrez votre pseudo AniList pour prendre automatiquement les openings des animes que vous avez complétés.'
-                    : 'Entrez votre pseudo MyAnimeList pour prendre automatiquement les openings des animes que vous avez complétés.'}
+                    ? 'Collez le lien de votre profil ou entrez votre pseudo AniList pour importer automatiquement les openings de vos animes complétés.'
+                    : 'Collez le lien de votre profil ou entrez votre pseudo MyAnimeList pour importer automatiquement les openings de vos animes complétés.'}
                 </p>
 
                 <form onSubmit={handleLoadAnimeTracks} className="flex flex-col sm:flex-row gap-2 mt-1">
@@ -1470,16 +2268,16 @@ export default function HostLobby() {
                     <input
                       type="text"
                       value={anilistUsername}
-                      onChange={(e) => setAnilistUsername(e.target.value)}
-                      placeholder="Pseudo AniList..."
+                      onChange={(e) => handleAnimeInputChange(e.target.value, 'anilist')}
+                      placeholder="Lien ou pseudo AniList (ex: anilist.co/user/monPseudo)..."
                       className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl shadow-none"
                     />
                   ) : (
                     <input
                       type="text"
                       value={malUsername}
-                      onChange={(e) => setMalUsername(e.target.value)}
-                      placeholder="Pseudo MyAnimeList..."
+                      onChange={(e) => handleAnimeInputChange(e.target.value, 'mal')}
+                      placeholder="Lien ou pseudo MyAnimeList (ex: myanimelist.net/profile/monPseudo)..."
                       className="flex-1 min-w-0 px-3.5 py-2.5 border-2 border-black bg-white focus:outline-none focus:bg-white text-xs sm:text-sm font-bold rounded-xl shadow-none"
                     />
                   )}
@@ -1501,41 +2299,199 @@ export default function HostLobby() {
               </div>
 
               {malConnectedUser ? (
-                <div className="flex-1 flex flex-col gap-4">
-                  <div className="bg-emerald-50 p-3.5 border-2 border-emerald-500 rounded-xl text-left shrink-0 shadow-none">
-                    <p className="text-xs sm:text-sm text-emerald-950 font-black">
-                      Voici la liste des openings trouvés pour le compte {animeConnectedPlatform === 'anilist' ? 'AniList' : 'MyAnimeList'}: <span className="underline">{malConnectedUser}</span> ({malTracks.length} openings trouvés)
-                    </p>
+                <div className="flex-1 flex flex-col gap-3 min-w-0">
+                  {/* Top Stats Banner */}
+                  <div className="bg-emerald-50 p-3 sm:p-4 border-2 border-emerald-500 rounded-xl text-left shrink-0 shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <p className="text-xs sm:text-sm text-emerald-950 font-black truncate">
+                        Profil {animeConnectedPlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} :{' '}
+                        <span className="underline decoration-2">{malConnectedUser}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0 text-xs font-black">
+                      <span className="bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-lg border border-emerald-400">
+                        {animeGroups.length} animé{animeGroups.length > 1 ? 's' : ''} ({activeAnimeCount} actif{activeAnimeCount > 1 ? 's' : ''})
+                      </span>
+                      <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-lg">
+                        {activeMalTracksCount} / {malTracks.length} OP actif{activeMalTracksCount > 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Tracks list checklist with toggles */}
-                  <div className="flex-1 border-2 border-black bg-white p-3 sm:p-4 rounded-2xl max-h-[340px] overflow-y-auto mb-4 shadow-none">
-                    <p className="text-xs sm:text-sm font-black text-slate-600 uppercase border-b border-slate-200 pb-2 mb-3">
-                      Openings trouvés (Décocher pour exclure)
-                    </p>
-                    {malTracks.length === 0 ? (
-                      <p className="text-xs sm:text-sm text-slate-400 py-6 text-center font-bold">Aucun opening trouvé.</p>
+                  {/* Toolbar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50 border-2 border-black p-2.5 sm:p-3 rounded-xl shrink-0">
+                    {/* Search inside anime / tracks */}
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={animeSearchQuery}
+                        onChange={(e) => setAnimeSearchQuery(e.target.value)}
+                        placeholder="Filtrer par animé, artiste ou chanson..."
+                        className="w-full pl-9 pr-7 py-1.5 text-xs font-bold bg-white border border-black/20 rounded-lg focus:outline-none focus:border-black"
+                      />
+                      {animeSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setAnimeSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black font-black text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Bulk Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAllMalTracks(true)}
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-black rounded-lg text-[11px] font-black uppercase text-black cursor-pointer transition shadow-none"
+                        title="Activer tous les openings de tous les animés"
+                      >
+                        Tout cocher
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAllMalTracks(false)}
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-black rounded-lg text-[11px] font-black uppercase text-slate-700 cursor-pointer transition shadow-none"
+                        title="Désactiver tous les openings de tous les animés"
+                      >
+                        Tout décocher
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Grouped Anime List - Flexible Folders Grid */}
+                  <div className="flex-1 border-2 border-black bg-slate-100/70 p-2.5 sm:p-3.5 rounded-2xl max-h-[580px] overflow-y-auto mb-2 shadow-none scrollbar-thin">
+                    {filteredAnimeGroups.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400">
+                        <Tv className="w-8 h-8 mx-auto mb-2 opacity-40 text-black" />
+                        <p className="text-xs sm:text-sm font-black text-slate-500">
+                          {animeSearchQuery ? 'Aucun animé ou chanson ne correspond à votre filtre.' : 'Aucun opening trouvé.'}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="flex flex-col gap-2.5">
-                        {malTracks.map((track) => {
-                          const isDisabled = session.disabledVideoIds?.[track.id] || false;
+                      <div className="flex flex-wrap items-start gap-3 sm:gap-3.5">
+                        {filteredAnimeGroups.map((group, groupIdx) => {
+                          const theme = ANIME_FOLDER_THEMES[groupIdx % ANIME_FOLDER_THEMES.length];
+                          const totalGroupTracks = group.tracks.length;
+                          const disabledMap = session?.disabledVideoIds || {};
+                          const disabledInGroup = group.tracks.filter((t) => disabledMap[String(t.id)]).length;
+                          const activeInGroup = totalGroupTracks - disabledInGroup;
+                          const isAllActive = disabledInGroup === 0;
+                          const isAllDisabled = activeInGroup === 0;
+                          const isPartial = activeInGroup > 0 && disabledInGroup > 0;
+
+                          // Sizing based on track count to pack cleanly into the grid
+                          let folderWidthClass = 'w-fit max-w-full';
+                          if (totalGroupTracks === 1) {
+                            folderWidthClass = 'w-[165px] sm:w-[180px] shrink-0';
+                          } else if (totalGroupTracks === 2) {
+                            folderWidthClass = 'w-[325px] sm:w-[355px] shrink-0';
+                          } else if (totalGroupTracks === 3) {
+                            folderWidthClass = 'w-[485px] sm:w-[530px] max-w-full shrink-0';
+                          } else if (totalGroupTracks === 4) {
+                            folderWidthClass = 'w-[325px] sm:w-[355px] shrink-0';
+                          } else {
+                            folderWidthClass = 'w-full max-w-full';
+                          }
+
                           return (
-                            <div key={track.id} className="flex items-center justify-between text-xs sm:text-sm font-bold py-1.5 border-b border-slate-100 last:border-b-0 gap-3">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className="text-black text-xs sm:text-sm leading-snug">
-                                  <span className="font-black">{track.title}</span>
-                                  <span className="text-slate-600 font-bold"> par {track.artistName || 'Artiste Non-Renseigné'}</span>
-                                  {track.description && <span className="text-slate-500 font-normal"> — {track.description}</span>}
+                            <div
+                              key={group.animeTitle}
+                              style={
+                                isAllDisabled
+                                  ? {
+                                    background:
+                                      'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 12px, #f1f5f9 12px, #f1f5f9 24px)',
+                                  }
+                                  : {
+                                    background: theme.bgPattern,
+                                  }
+                              }
+                              className={`border-2 border-black rounded-xl p-2 sm:p-2.5 flex flex-col gap-1.5 transition-all shadow-none ${folderWidthClass} ${isAllDisabled
+                                ? 'border-slate-500 opacity-60'
+                                : 'hover:border-black'
+                                }`}
+                            >
+                              {/* Dossier Indicatif Header */}
+                              <div
+                                className={`flex items-center justify-between gap-1.5 px-2 py-1.5 -mx-2 -mt-2 sm:-mx-2.5 sm:-mt-2.5 mb-1 rounded-t-lg select-none cursor-pointer transition-colors border-b-2 border-black ${isAllDisabled
+                                  ? 'bg-slate-300 hover:bg-slate-400/80 text-slate-600'
+                                  : `${theme.headerBg} ${theme.headerText}`
+                                  }`}
+                                onClick={() => handleToggleAnimeGroup(group.tracks, !isAllActive)}
+                                title={isAllActive ? "Cliquer pour désactiver tout cet animé" : "Cliquer pour activer tout cet animé"}
+                              >
+                                {/* Left: Checkbox (toggles all in this anime) + Folder Icon + Anime Title */}
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleAnimeGroup(group.tracks, !isAllActive);
+                                    }}
+                                    title={isAllActive ? "Désactiver tout cet animé" : "Activer tout cet animé"}
+                                    className={`w-4.5 h-4.5 rounded border border-black flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-none ${isAllActive
+                                      ? 'bg-accent-red text-white'
+                                      : isPartial
+                                        ? 'bg-[#FEEC66] text-black'
+                                        : 'bg-white text-transparent hover:border-accent-red'
+                                      }`}
+                                  >
+                                    {isAllActive && <Check className="w-3 h-3 stroke-[3]" />}
+                                    {isPartial && <Minus className="w-3 h-3 stroke-[3]" />}
+                                  </button>
+
+                                  <Folder className={`w-3.5 h-3.5 shrink-0 ${isAllDisabled ? 'text-slate-500' : theme.folderIconClass}`} />
+
+                                  <span
+                                    className={`font-black text-[11px] sm:text-xs uppercase tracking-tight truncate leading-tight ${isAllDisabled ? 'line-through text-slate-500' : theme.headerText
+                                      }`}
+                                    title={group.animeTitle}
+                                  >
+                                    {group.animeTitle}
+                                  </span>
+                                </div>
+
+                                {/* Right: Count Badge */}
+                                <span
+                                  className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded border shrink-0 ${isAllActive
+                                    ? 'bg-black text-white border-black'
+                                    : isAllDisabled
+                                      ? 'bg-slate-200 text-slate-500 border-slate-300'
+                                      : 'bg-white text-black border-black'
+                                    }`}
+                                >
+                                  {totalGroupTracks === 1 ? '1 OP' : `${activeInGroup}/${totalGroupTracks} OP`}
                                 </span>
                               </div>
-                              <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                                <input
-                                  type="checkbox"
-                                  checked={!isDisabled}
-                                  onChange={() => handleToggleTrack(track.id)}
-                                  className="h-4 w-4 accent-accent-red cursor-pointer"
-                                />
-                              </label>
+
+                              {/* Film Cards inside this Folder */}
+                              <div className="flex flex-wrap gap-2 items-start">
+                                {group.tracks.map((track, trackIdx) => {
+                                  const trackKey = String(track.id);
+                                  const isTrackChecked = !disabledMap[trackKey];
+                                  const badge = getTrackOpeningBadge(track, trackIdx);
+
+                                  return (
+                                    <div key={track.id} className="w-[145px] sm:w-[160px] aspect-[500/410] shrink-0">
+                                      <PlaylistTrackCard
+                                        track={track}
+                                        index={trackIdx}
+                                        selectable={true}
+                                        isChecked={isTrackChecked}
+                                        onToggle={() => handleToggleTrack(trackKey)}
+                                        badgeText={badge}
+                                        checkboxSide="left"
+                                        disablePlay={true}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })}
@@ -1546,191 +2502,354 @@ export default function HostLobby() {
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8 text-center">
                   <p className="text-xs font-black text-slate-600 uppercase max-w-xs leading-relaxed">
-                    Rentrez votre pseudo {animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings à exclure.
+                    Collez votre lien ou entrez votre pseudo {animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'} et cliquez sur <span className="text-accent-red font-black">Charger</span> ci-dessus pour configurer la liste des openings et animes à exclure.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-right) */}
-          <div className="hidden sm:flex flex-col fixed bottom-4 right-4 z-40 w-72 sm:w-80 info-card rounded-2xl overflow-hidden shadow-none transition-all">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setIsPlayersTabCollapsed(!isPlayersTabCollapsed)}
-              className="px-3.5 py-2.5 hover:bg-black/5 flex items-center justify-between cursor-pointer border-b border-black/10 select-none"
-            >
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-black" />
-                <span className="font-title text-xs font-black uppercase text-black">
-                  Joueurs connectés
-                </span>
-                <span className="bg-black text-[#FEEC66] px-2 py-0.5 rounded-lg text-xs font-mono font-black">
-                  {activeConnectedPlayers.length}
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
-                  isPlayersTabCollapsed ? 'rotate-180' : ''
-                }`}
-              />
-            </div>
-
-            {!isPlayersTabCollapsed && (
-              <div className="p-3 flex flex-col gap-2.5">
-                <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
-                  {playersList.length === 0 ? (
-                    <div className="py-4 text-center flex flex-col items-center gap-1.5">
-                      <UserX className="w-6 h-6 text-slate-500 animate-pulse" />
-                      <p className="text-[11px] font-bold text-slate-700 leading-tight">
-                        En attente de joueurs...
-                      </p>
-                      {session.isHostPlayer === false && (
-                        <p className="text-[10px] text-slate-500 font-bold">
-                          Cochez &quot;Host joueur&quot; en haut si vous jouez seul.
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    playersList.map((player) => {
-                      const isHost = player.isHost || player.id === session.hostPlayerId;
-                      return (
-                        <div
-                          key={player.id}
-                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border-2 border-black ${
-                            player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                                player.isConnected
-                                  ? 'bg-emerald-500 border border-black'
-                                  : 'bg-slate-400'
-                              }`}
-                            />
-                            <span className="font-black text-xs text-black truncate">
-                              {player.name}
-                            </span>
-                          </div>
-                          {isHost && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-black uppercase shrink-0">
-                              <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />
-                              <span>Host</span>
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="pt-2 border-t border-black/15">
-                  <button
-                    type="button"
-                    onClick={handleStartGame}
-                    disabled={activeConnectedPlayers.length === 0 || isStartingGame}
-                    className="w-full py-2.5 px-3 bg-host hover:bg-sky-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-none cursor-pointer"
-                  >
-                    {isStartingGame ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Démarrage...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Lancer ({activeConnectedPlayers.length})</span>
-                        <ArrowRight className="w-4 h-4 shrink-0" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* MOBILE RESPONSIVE FLOATING TAB (< sm) */}
-          <div className="sm:hidden fixed bottom-3 right-3 z-40">
-            <button
-              type="button"
-              onClick={() => setShowMobilePlayersModal(true)}
-              className="px-3.5 py-2 rounded-xl info-card font-black text-xs uppercase text-black flex items-center gap-2 shadow-none cursor-pointer btn-action-hover"
-            >
-              <Users className="w-4 h-4" />
-              <span>{activeConnectedPlayers.length} joueur{activeConnectedPlayers.length > 1 ? 's' : ''}</span>
-            </button>
-          </div>
-
-          {/* MOBILE PLAYERS MODAL */}
-          {showMobilePlayersModal && (
-            <div className="sm:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-3 animate-fade-in">
-              <div className="w-full info-card rounded-2xl p-4 flex flex-col gap-3 shadow-none max-h-[80vh]">
-                <div className="flex items-center justify-between border-b border-black/10 pb-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-black" />
-                    <h3 className="font-title text-sm font-black uppercase text-black">
-                      Joueurs connectés ({activeConnectedPlayers.length})
-                    </h3>
+          {/* FIXED CONNECTED PLAYERS TAB & MOBILE MODAL (Uniquement affiché après le choix du mode) */}
+          {hasChosenMode && (
+            <>
+              {/* FIXED CONNECTED PLAYERS TAB (Desktop bottom-right) */}
+              <div
+                className="hidden sm:block !fixed bottom-4 right-5 sm:right-6 !z-50 pointer-events-none"
+                style={{
+                  position: 'fixed',
+                  bottom: '1rem',
+                  right: '1.5rem',
+                  zIndex: 50,
+                }}
+              >
+                {/* Vinyl Record Disk (Desktop) */}
+                <div
+                  ref={desktopDiskContainerRef}
+                  className="absolute -top-16 -right-3 sm:-top-16 sm:-right-4 z-0 pointer-events-none"
+                  style={{
+                    transform: selectedPlaylistId ? 'scale(1)' : 'scale(0)',
+                    opacity: selectedPlaylistId ? 1 : 0,
+                  }}
+                  title="Disque vinyle"
+                >
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 drop-shadow-[0_8px_16px_rgba(0,0,0,0.35)]">
+                    <img
+                      ref={desktopDiskRef}
+                      src="/HOST/DiskOr.png"
+                      alt="Disque vinyle"
+                      className="w-full h-full object-contain select-none pointer-events-none"
+                      draggable={false}
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMobilePlayersModal(false)}
-                    className="p-1 rounded-lg border-2 border-black bg-white hover:bg-slate-100"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
                 </div>
 
-                <div className="flex flex-col gap-2 overflow-y-auto max-h-56 pr-1 scrollbar-thin">
-                  {playersList.map((player) => (
-                    <div
-                      key={player.id}
-                      className={`flex items-center justify-between p-2 rounded-xl border-2 border-black ${
-                        player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                            player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-400'
-                          }`}
-                        />
-                        <span className="font-black text-xs text-black truncate">{player.name}</span>
+                <div
+                  ref={playersPanelRef}
+                  id="host-players-panel"
+                  className="flex flex-col w-72 sm:w-80 info-card rounded-2xl overflow-hidden shadow-2xl transition-all relative z-10 pointer-events-auto bg-white"
+                >
+                  {/* Top Bar with HOST mascot/image, Players count and toggle */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setIsPlayersTabCollapsed(!isPlayersTabCollapsed)}
+                    className="px-3.5 py-2 hover:bg-black/5 flex items-center justify-between cursor-pointer border-b border-black/10 select-none bg-white"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-black" />
+                        <span className="font-title text-xs font-black uppercase text-black">
+                          Joueurs
+                        </span>
+                        <span className="bg-black text-[#FEEC66] px-1.5 py-0.5 rounded-lg text-xs font-mono font-black">
+                          {activeConnectedPlayers.length}
+                        </span>
                       </div>
-                      {(player.isHost || player.id === session.hostPlayerId) && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-black uppercase">
-                          <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />
-                          <span>Host</span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${isPlayersTabCollapsed ? 'rotate-180' : ''
+                        }`}
+                    />
+                  </div>
+
+                  {/* Currently Selected Playlist / Mode Title */}
+                  <div className={`px-3.5 py-2 bg-[#FAF9F5] flex flex-col gap-0.5 ${!isPlayersTabCollapsed ? 'border-b border-black/10' : ''}`}>
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <span>Playlist sélectionnée</span>
+                      </span>
+                      {quizMode === 'playlist' && currentSelectedPlaylist && (
+                        <span className="text-[10px] font-bold text-slate-500 font-mono">
+                          {currentSelectedPlaylist.video_count || (tracksCache[currentSelectedPlaylist.id] || []).length} titres
                         </span>
                       )}
                     </div>
-                  ))}
+                    <p
+                      className={`text-xs font-black truncate ${quizMode === 'mal'
+                        ? 'text-black'
+                        : currentSelectedPlaylist
+                          ? 'text-black'
+                          : 'text-slate-400 italic'
+                        }`}
+                      title={
+                        quizMode === 'mal'
+                          ? `Mode AnimeLists (${animeConnectedPlatform || animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'})`
+                          : currentSelectedPlaylist
+                            ? currentSelectedPlaylist.name
+                            : 'Aucune playlist sélectionnée'
+                      }
+                    >
+                      {quizMode === 'mal'
+                        ? `Mode AnimeLists (${animeConnectedPlatform || animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'})`
+                        : currentSelectedPlaylist
+                          ? currentSelectedPlaylist.name
+                          : 'Aucune playlist sélectionnée'}
+                    </p>
+                  </div>
+
+                  {!isPlayersTabCollapsed && (
+                    <div className="p-3 flex flex-col gap-2.5">
+                      <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+                        {playersList.length === 0 ? (
+                          <div className="py-4 text-center flex flex-col items-center gap-1.5">
+                            <UserX className="w-6 h-6 text-slate-500 animate-pulse" />
+                            <p className="text-[11px] font-bold text-slate-700 leading-tight">
+                              En attente de joueurs...
+                            </p>
+                            {session.isHostPlayer === false && (
+                              <p className="text-[10px] text-slate-500 font-bold">
+                                Cochez &quot;Host joueur&quot; en haut si vous jouez seul.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          playersList.map((player) => {
+                            const isHost = player.isHost || player.id === session.hostPlayerId;
+                            return (
+                              <div
+                                key={player.id}
+                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border-2 border-black ${player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                                  <span
+                                    className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected
+                                      ? 'bg-emerald-500 border border-black'
+                                      : 'bg-slate-400'
+                                      }`}
+                                  />
+                                  <span className="font-black text-xs text-black truncate">
+                                    {player.name}
+                                  </span>
+                                </div>
+                                {isHost && (
+                                  <img
+                                    src="/HOST/Couronne.png"
+                                    alt="Host"
+                                    className="w-5 h-5 object-contain shrink-0"
+                                    title="Host"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-black/15 flex flex-col gap-1.5 items-center">
+                        <button
+                          type="button"
+                          onClick={handleStartGame}
+                          disabled={
+                            activeConnectedPlayers.length === 0 ||
+                            isStartingGame ||
+                            !hasChosenMode ||
+                            (quizMode === 'playlist' && !selectedPlaylistId)
+                          }
+                          className="w-full py-1 flex items-center justify-center bg-transparent border-none outline-none select-none transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer focus:outline-none"
+                          title={
+                            !hasChosenMode
+                              ? 'Veuillez choisir un mode de jeu'
+                              : quizMode === 'playlist' && !selectedPlaylistId
+                                ? 'Veuillez sélectionner une playlist'
+                                : activeConnectedPlayers.length === 0
+                                  ? 'En attente de joueurs ou activez "Host joueur"'
+                                  : `Lancer la partie (${activeConnectedPlayers.length} joueur${activeConnectedPlayers.length > 1 ? 's' : ''})`
+                          }
+                          aria-label={`Lancer la partie (${activeConnectedPlayers.length} joueur${activeConnectedPlayers.length > 1 ? 's' : ''})`}
+                        >
+                          {isStartingGame ? (
+                            <div className="flex items-center justify-center gap-2 py-1">
+                              <Loader2 className="w-5 h-5 animate-spin text-black" />
+                              <span className="font-title text-xs font-black uppercase text-black">Démarrage...</span>
+                            </div>
+                          ) : (
+                            <img
+                              src="/JOIN/PlayText.png"
+                              alt="PLAY"
+                              className="h-10 sm:h-11 w-auto max-w-[85%] object-contain drop-shadow-md pointer-events-none select-none"
+                              draggable={false}
+                            />
+                          )}
+                        </button>
+                        {quizMode === 'playlist' && !selectedPlaylistId && (
+                          <p className="text-[10px] font-bold text-slate-500 text-center leading-tight">
+                            Cliquez sur une playlist pour la choisir
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* MOBILE RESPONSIVE FLOATING TAB (< sm) */}
+              <div
+                className="sm:hidden !fixed bottom-3 right-4 !z-50 pointer-events-none"
+                style={{
+                  position: 'fixed',
+                  bottom: '0.75rem',
+                  right: '1rem',
+                  zIndex: 50,
+                }}
+              >
+                {/* Vinyl Record Disk (Mobile) */}
+                <div
+                  ref={mobileDiskContainerRef}
+                  className="absolute -top-8 -right-2 z-0 pointer-events-none"
+                  style={{
+                    transform: selectedPlaylistId ? 'scale(1)' : 'scale(0)',
+                    opacity: selectedPlaylistId ? 1 : 0,
+                  }}
+                  title="Disque vinyle"
+                >
+                  <div className="relative w-14 h-14 drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]">
+                    <img
+                      ref={mobileDiskRef}
+                      src="/HOST/DiskOr.png"
+                      alt="Disque vinyle"
+                      className="w-full h-full object-contain select-none pointer-events-none"
+                      draggable={false}
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowMobilePlayersModal(false);
-                    handleStartGame();
-                  }}
-                  disabled={activeConnectedPlayers.length === 0 || isStartingGame}
-                  className="w-full py-2.5 px-3 bg-host hover:bg-sky-400 border-2 border-black text-black font-black text-xs uppercase rounded-xl btn-action-hover disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-none"
+                  id="host-mobile-players-btn"
+                  onClick={() => setShowMobilePlayersModal(true)}
+                  className="relative z-10 px-3 py-2 rounded-xl info-card font-black text-xs uppercase text-black flex items-center gap-2 shadow-none cursor-pointer btn-action-hover border-2 border-black pointer-events-auto bg-white"
                 >
-                  {isStartingGame ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Démarrage...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Lancer ({activeConnectedPlayers.length})</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{activeConnectedPlayers.length}</span>
+                  </div>
                 </button>
               </div>
-            </div>
+
+              {/* MOBILE PLAYERS MODAL */}
+              {showMobilePlayersModal && (
+                <div className="sm:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-3 animate-fade-in">
+                  <div className="w-full info-card rounded-2xl p-4 flex flex-col gap-3 shadow-none max-h-[85vh]">
+                    <div className="flex items-center justify-between border-b border-black/10 pb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-black" />
+                          <h3 className="font-title text-xs font-black uppercase text-black">
+                            Joueurs ({activeConnectedPlayers.length})
+                          </h3>
+                        </div>
+                      </div>
+                      <CloseButton
+                        onClick={() => setShowMobilePlayersModal(false)}
+                        sizeClassName="w-7 h-7"
+                        title="Fermer"
+                      />
+                    </div>
+
+                    {/* Playlist sélectionnée sur mobile */}
+                    <div className="px-3 py-2 bg-[#FAF9F5] border border-black/10 rounded-xl flex flex-col gap-0.5">
+                      <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                        <Music className="w-3 h-3 text-host shrink-0" />
+                        <span>Playlist sélectionnée :</span>
+                      </span>
+                      <p className={`text-xs font-black truncate ${currentSelectedPlaylist ? 'text-black' : 'text-slate-400 italic'}`}>
+                        {quizMode === 'mal'
+                          ? `Mode AnimeLists (${animeConnectedPlatform || animePlatform === 'anilist' ? 'AniList' : 'MyAnimeList'})`
+                          : currentSelectedPlaylist
+                            ? currentSelectedPlaylist.name
+                            : 'Aucune playlist sélectionnée'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 overflow-y-auto max-h-52 pr-1 scrollbar-thin">
+                      {playersList.map((player) => (
+                        <div
+                          key={player.id}
+                          className={`flex items-center justify-between p-2 rounded-xl border-2 border-black ${player.isConnected ? 'bg-white' : 'bg-slate-100 opacity-60'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-400'
+                                }`}
+                            />
+                            <span className="font-black text-xs text-black truncate">{player.name}</span>
+                          </div>
+                          {(player.isHost || player.id === session.hostPlayerId) && (
+                            <img
+                              src="/HOST/Couronne.png"
+                              alt="Host"
+                              className="w-5 h-5 object-contain shrink-0"
+                              title="Host"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobilePlayersModal(false);
+                        handleStartGame();
+                      }}
+                      disabled={
+                        activeConnectedPlayers.length === 0 ||
+                        isStartingGame ||
+                        !hasChosenMode ||
+                        (quizMode === 'playlist' && !selectedPlaylistId)
+                      }
+                      className="w-full py-1 flex items-center justify-center bg-transparent border-none outline-none select-none transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer focus:outline-none"
+                      title={
+                        !hasChosenMode
+                          ? 'Veuillez choisir un mode de jeu'
+                          : quizMode === 'playlist' && !selectedPlaylistId
+                            ? 'Veuillez sélectionner une playlist'
+                            : activeConnectedPlayers.length === 0
+                              ? 'En attente de joueurs ou activez "Host joueur"'
+                              : `Lancer la partie (${activeConnectedPlayers.length} joueur${activeConnectedPlayers.length > 1 ? 's' : ''})`
+                      }
+                      aria-label={`Lancer la partie (${activeConnectedPlayers.length} joueur${activeConnectedPlayers.length > 1 ? 's' : ''})`}
+                    >
+                      {isStartingGame ? (
+                        <div className="flex items-center justify-center gap-2 py-1">
+                          <Loader2 className="w-5 h-5 animate-spin text-black" />
+                          <span className="font-title text-xs font-black uppercase text-black">Démarrage...</span>
+                        </div>
+                      ) : (
+                        <img
+                          src="/JOIN/PlayText.png"
+                          alt="PLAY"
+                          className="h-10 sm:h-11 w-auto max-w-[85%] object-contain drop-shadow-md pointer-events-none select-none"
+                          draggable={false}
+                        />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
         </div>
@@ -1836,11 +2955,10 @@ export default function HostLobby() {
                     {session.isHostPlayer !== false && (
                       <button
                         onClick={handleToggleSkip}
-                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${
-                          hostHasSkipped
-                            ? 'bg-purple-200 text-purple-950 border-dashed'
-                            : 'bg-white text-black hover:bg-slate-100'
-                        }`}
+                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${hostHasSkipped
+                          ? 'bg-purple-200 text-purple-950 border-dashed'
+                          : 'bg-white text-black hover:bg-slate-100'
+                          }`}
                         title="Proposer de passer à la suite (vote volontaire sans forcer)"
                       >
                         {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}
@@ -1864,11 +2982,10 @@ export default function HostLobby() {
                     {session.isHostPlayer !== false && (
                       <button
                         onClick={handleToggleSkip}
-                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${
-                          hostHasSkipped
-                            ? 'bg-amber-200 text-amber-950 border-dashed'
-                            : 'bg-white text-black hover:bg-slate-100'
-                        }`}
+                        className={`px-3 sm:px-4 py-2.5 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover inline-flex items-center gap-1.5 ${hostHasSkipped
+                          ? 'bg-amber-200 text-amber-950 border-dashed'
+                          : 'bg-white text-black hover:bg-slate-100'
+                          }`}
                         title="Proposer de passer la vidéo (vote volontaire sans forcer)"
                       >
                         {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}
@@ -1892,9 +3009,9 @@ export default function HostLobby() {
             </div>
 
             {/* Side info & live votes status (1/3) */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
+            <div className="lg:col-span-1 flex flex-col gap-4 sm:gap-6 min-h-0">
               {/* Currently Playing details */}
-              <div className="info-card border-4 border-black p-4 sm:p-6 rounded-2xl">
+              <div className="info-card border-4 border-black p-4 sm:p-6 rounded-2xl shrink-0">
                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Actuellement en cours</span>
                 <h2 className="mt-2 text-xl sm:text-2xl font-black text-black leading-tight border-b-2 border-black pb-2 mb-2">
                   {currentVideo.title}
@@ -1906,7 +3023,7 @@ export default function HostLobby() {
 
               {/* Mon Vote (Hôte) Voting Widget */}
               {session.isHostPlayer !== false && (
-                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-3 bg-white">
+                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-3 bg-white shrink-0">
                   <div className="flex items-center justify-between border-b border-black pb-2">
                     <h3 className="text-xs sm:text-sm font-black uppercase text-black flex items-center gap-1.5">
                       <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
@@ -1926,11 +3043,10 @@ export default function HostLobby() {
                       </p>
                       <button
                         onClick={handleToggleSkip}
-                        className={`w-full py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${
-                          hostHasSkipped
-                            ? 'bg-purple-200 text-purple-950 border-dashed'
-                            : 'bg-[#DD4DCC] text-white hover:bg-fuchsia-600'
-                        }`}
+                        className={`w-full py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${hostHasSkipped
+                          ? 'bg-purple-200 text-purple-950 border-dashed'
+                          : 'bg-[#DD4DCC] text-white hover:bg-fuchsia-600'
+                          }`}
                       >
                         {hostHasSkipped ? <Check className="w-3.5 h-3.5 shrink-0" /> : <SkipForward className="w-3.5 h-3.5 shrink-0" />}
                         <span>{hostHasSkipped ? 'Prêt pour la suite' : 'Voter pour passer à la suite'}</span>
@@ -1941,21 +3057,15 @@ export default function HostLobby() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2 pt-1">
-                      <div className="flex justify-between items-center gap-1.5">
+                      <div className="flex justify-between items-center gap-1.5 sm:gap-2 px-1 py-1">
                         {[1, 2, 3, 4, 5].map((val) => {
                           const hostVote = session.votes?.[session.hostPlayerId || ''];
                           const isSelected = hostVote === val;
-                          let style = "bg-white border-2 border-black text-black hover:bg-slate-100";
-                          if (isSelected) {
-                            if (val === 1) style = "bg-red-600 border-2 border-black text-white font-black";
-                            else if (val === 2) style = "bg-orange-500 border-2 border-black text-white font-black";
-                            else if (val === 3) style = "bg-yellow-400 border-2 border-black text-black font-black";
-                            else if (val === 4) style = "bg-emerald-500 border-2 border-black text-white font-black";
-                            else if (val === 5) style = "bg-host border-2 border-black text-black font-black";
-                          }
                           return (
-                            <button
+                            <RatingNumberButton
                               key={val}
+                              value={val}
+                              isSelected={isSelected}
                               onClick={async () => {
                                 try {
                                   await submitVote(val);
@@ -1963,20 +3073,17 @@ export default function HostLobby() {
                                   showBanner(err.message || 'Erreur lors du vote', 'error');
                                 }
                               }}
-                              className={`h-10 w-10 sm:h-11 sm:w-11 rounded-full text-sm font-black transition flex items-center justify-center cursor-pointer ${style}`}
-                            >
-                              {val}
-                            </button>
+                              sizeClassName="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12"
+                            />
                           );
                         })}
                       </div>
                       <button
                         onClick={handleToggleSkip}
-                        className={`w-full mt-1 py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${
-                          hostHasSkipped
-                            ? 'bg-amber-200 text-amber-950 border-dashed'
-                            : 'bg-white hover:bg-slate-100 text-black'
-                        }`}
+                        className={`w-full mt-1 py-2.5 px-3 border-2 border-black font-black text-xs uppercase rounded-xl btn-action-hover flex items-center justify-center gap-2 ${hostHasSkipped
+                          ? 'bg-amber-200 text-amber-950 border-dashed'
+                          : 'bg-white hover:bg-slate-100 text-black'
+                          }`}
                       >
                         {hostHasSkipped ? <Check className="w-3.5 h-3.5 shrink-0" /> : <SkipForward className="w-3.5 h-3.5 shrink-0" />}
                         <span>{hostHasSkipped ? 'Vous avez voté pour passer' : 'Voter pour passer la vidéo'}</span>
@@ -1991,7 +3098,7 @@ export default function HostLobby() {
 
               {/* Twitch Live votes tracking */}
               {session.twitchChannel && (
-                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-2">
+                <div className="info-card border-4 border-black p-4 sm:p-5 rounded-2xl flex flex-col gap-2 shrink-0">
                   <h3 className="text-xs font-black uppercase text-purple-700 flex items-center gap-1.5 border-b border-purple-200 pb-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse border border-black" />
                     Votes Twitch
@@ -2006,8 +3113,8 @@ export default function HostLobby() {
               )}
 
               {/* Live Players Voting details */}
-              <div className="flex-1 info-card border-4 border-black p-4 sm:p-6 rounded-2xl flex flex-col">
-                <div className="flex items-center justify-between border-b border-black pb-2 mb-4">
+              <div className="flex-1 min-h-0 info-card border-4 border-black p-4 sm:p-6 rounded-2xl flex flex-col">
+                <div className="flex items-center justify-between border-b border-black pb-2 mb-3 shrink-0">
                   <h3 className="text-xs sm:text-sm font-black uppercase text-black">
                     Joueurs actifs ({Object.keys(session.votes || {}).length} / {playersList.length})
                   </h3>
@@ -2022,7 +3129,7 @@ export default function HostLobby() {
                   )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto max-h-56 flex flex-col gap-2.5 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto max-h-[60vh] lg:max-h-none flex flex-col gap-2.5 pr-1 scrollbar-thin">
                   {playersList.map((player) => {
                     const hasVoted = session.votes?.[player.id] !== undefined;
                     const hasSkipped = session.phase === 'REVEAL'
@@ -2141,11 +3248,11 @@ export default function HostLobby() {
                       );
                       if (playerVote !== undefined) {
                         const labels: Record<number, { text: string; bg: string }> = {
-                          1: { text: '1', bg: 'bg-red-600 text-white' },
-                          2: { text: '2', bg: 'bg-orange-500 text-white' },
-                          3: { text: '3', bg: 'bg-yellow-400 text-black' },
-                          4: { text: '4', bg: 'bg-emerald-500 text-white' },
-                          5: { text: '5', bg: 'bg-host text-black' },
+                          1: { text: '1', bg: 'bg-[var(--accent-red)] text-white' },
+                          2: { text: '2', bg: 'bg-[var(--bg-play)] text-white' },
+                          3: { text: '3', bg: 'bg-[var(--bg-cream)] text-black border border-black' },
+                          4: { text: '4', bg: 'bg-[var(--bg-host)] text-black' },
+                          5: { text: '5', bg: 'bg-[var(--bg-create)] text-black' },
                         };
                         const l = labels[playerVote] || { text: `${playerVote}`, bg: 'bg-black text-white' };
                         voteBadge = (
@@ -2169,11 +3276,10 @@ export default function HostLobby() {
                 {session.isHostPlayer !== false && (
                   <button
                     onClick={handleToggleSkip}
-                    className={`px-5 sm:px-6 py-3 border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 ${
-                      hostHasSkipped
-                        ? 'bg-purple-200 text-purple-950 border-dashed'
-                        : 'bg-white text-black hover:bg-slate-100'
-                    }`}
+                    className={`px-5 sm:px-6 py-3 border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2 ${hostHasSkipped
+                      ? 'bg-purple-200 text-purple-950 border-dashed'
+                      : 'bg-white text-black hover:bg-slate-100'
+                      }`}
                     title="Proposer de passer à la suite (ne force pas)"
                   >
                     {hostHasSkipped ? <Check className="w-4 h-4 shrink-0" /> : <SkipForward className="w-4 h-4 shrink-0" />}

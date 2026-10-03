@@ -3,6 +3,7 @@ import {
   getPlaylistsList,
   getPlaylistById,
   createPlaylistRecord,
+  getAllCategories,
 } from '../services/playlistService.js';
 import { safeTimingCompare } from '../utils/security.js';
 
@@ -32,8 +33,29 @@ function checkCreationRateLimit(ip) {
 }
 
 /**
+ * GET /api/playlists/categories
+ * Returns active categories list
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await getAllCategories();
+    res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=120');
+    return res.status(200).json({
+      success: true,
+      categories,
+    });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur lors de la récupération des catégories',
+    });
+  }
+});
+
+/**
  * GET /api/playlists
- * Returns all validated and community playlists.
+ * Returns all validated and community playlists + dynamic categories list.
  * Serves with HTTP Cache-Control headers for CDN / browser caching.
  */
 router.get('/', async (req, res) => {
@@ -45,7 +67,10 @@ router.get('/', async (req, res) => {
       isAdmin = safeTimingCompare(String(password).trim(), String(process.env.ADMIN_PASSWORD).trim());
     }
 
-    const data = await getPlaylistsList({ isAdmin });
+    const [data, categories] = await Promise.all([
+      getPlaylistsList({ isAdmin }),
+      getAllCategories(),
+    ]);
 
     // If public (not admin), set HTTP cache headers
     if (!isAdmin) {
@@ -58,6 +83,7 @@ router.get('/', async (req, res) => {
       success: true,
       validated: data.validated,
       community: data.community,
+      categories,
     });
   } catch (error) {
     console.error('Error fetching playlists via REST API:', error);

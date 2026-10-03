@@ -181,6 +181,20 @@
   will-change: transform;
 }
 
+@keyframes dodecagonSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-dodecagon-spin {
+  animation: dodecagonSpin 10s linear infinite;
+  will-change: transform;
+}
+
 *,
 ::before,
 ::after {
@@ -290,6 +304,24 @@ button {
   overflow: hidden;
 }
 
+.info-card.fixed,
+.info-card.\!fixed,
+.\!fixed.info-card {
+  position: fixed !important;
+}
+
+.info-card.sticky,
+.info-card.\!sticky,
+.\!sticky.info-card {
+  position: sticky !important;
+}
+
+.info-card.absolute,
+.info-card.\!absolute,
+.\!absolute.info-card {
+  position: absolute !important;
+}
+
 .info-card.overflow-y-auto,
 .info-card.overflow-auto,
 .info-card.\!overflow-y-auto,
@@ -309,6 +341,7 @@ button {
   background-image: url('/BACKGROUNDS/Background_Basique.png');
   background-repeat: no-repeat;
   background-position: center bottom;
+  background-size: cover;
   pointer-events: none;
   z-index: 1;
 }
@@ -316,6 +349,17 @@ button {
 .info-card>* {
   position: relative;
   z-index: 1;
+}
+
+.info-card>.\!absolute,
+.info-card>.absolute {
+  position: absolute !important;
+  z-index: 30;
+}
+
+.info-card>.\!z-50,
+.info-card>.z-50 {
+  z-index: 50 !important;
 }
 
 /* Reusable tactile offset movement animation for classic action buttons */

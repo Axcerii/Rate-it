@@ -53,6 +53,35 @@ export async function runPlaylistCategoriesMigration() {
       );
     }
 
+    // 4. Create playlist_categories table if it does not exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS playlist_categories (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 5. Seed initial categories if table is empty
+    const catCountRes = await client.query('SELECT COUNT(*) FROM playlist_categories');
+    if (parseInt(catCountRes.rows[0].count, 10) === 0) {
+      for (const cat of ALLOWED_CATEGORIES) {
+        await client.query(
+          'INSERT INTO playlist_categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+          [cat]
+        );
+      }
+    }
+
+    // 6. Ensure any existing categories from playlists are also registered
+    await client.query(`
+      INSERT INTO playlist_categories (name)
+      SELECT DISTINCT unnest(categories)
+      FROM playlists
+      WHERE categories IS NOT NULL AND array_length(categories, 1) > 0
+      ON CONFLICT (name) DO NOTHING
+    `);
+
     await client.query('COMMIT');
     console.log('Playlist categories migration completed successfully.');
     return true;

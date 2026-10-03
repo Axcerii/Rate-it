@@ -4,6 +4,9 @@ import {
   getPlaylistById,
   createPlaylistRecord,
   invalidatePlaylistCaches,
+  getAllCategories,
+  deleteCategory,
+  addCategory,
 } from '../services/playlistService.js';
 import { getSession, saveSession } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
@@ -560,6 +563,64 @@ export function registerPlaylistHandlers(io, socket) {
       }
     } catch (error) {
       console.error(`Error updating playlist ${id} as admin:`, error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 6b2. Categories: Get active categories
+  socket.on('playlist:get_categories', async (callback) => {
+    try {
+      const categories = await getAllCategories();
+      if (typeof callback === 'function') {
+        callback({ success: true, categories });
+      }
+    } catch (error) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 6b3. Admin: Delete a category completely
+  socket.on('playlist:admin_delete_category', async ({ category, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+      if (!category || typeof category !== 'string') {
+        throw new Error('Nom de catégorie requis');
+      }
+      const updatedCategories = await deleteCategory(category.trim());
+      console.log(`Admin deleted category "${category}"`);
+      // Broadcast to all clients
+      io.emit('categories:updated', { categories: updatedCategories });
+      if (typeof callback === 'function') {
+        callback({ success: true, categories: updatedCategories });
+      }
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: error.message });
+      }
+    }
+  });
+
+  // 6b4. Admin: Add a category
+  socket.on('playlist:admin_add_category', async ({ category, password }, callback) => {
+    try {
+      verifyAdminAuth(password, socket);
+      if (!category || typeof category !== 'string') {
+        throw new Error('Nom de catégorie requis');
+      }
+      const updatedCategories = await addCategory(category.trim());
+      console.log(`Admin added category "${category}"`);
+      // Broadcast to all clients
+      io.emit('categories:updated', { categories: updatedCategories });
+      if (typeof callback === 'function') {
+        callback({ success: true, categories: updatedCategories });
+      }
+    } catch (error) {
+      console.error('Error adding category:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }

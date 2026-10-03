@@ -317,3 +317,76 @@ export async function createPlaylistRecord({ name, description, videos, categori
     client.release();
   }
 }
+
+/**
+ * Retrieve all registered playlist categories from DB.
+ */
+export async function getAllCategories() {
+  try {
+    const res = await pool.query('SELECT name FROM playlist_categories ORDER BY name ASC');
+    if (res.rows.length > 0) {
+      return res.rows.map((r) => r.name);
+    }
+  } catch (err) {
+    console.error('Error fetching categories from DB:', err.message);
+  }
+  return [
+    'Anime/Manga',
+    'Film/Cinéma',
+    'Jeux Vidéo',
+    'Série/TV',
+    'Dessins Animés/Cartoons',
+    'Streaming/VTuber',
+    'Youtube',
+    'Musique',
+    'KPop',
+    'JPop',
+  ];
+}
+
+/**
+ * Delete a category completely:
+ * 1. Delete from playlist_categories table
+ * 2. Remove the tag from all playlists' categories array
+ * 3. Invalidate Redis caches
+ * Returns updated categories list.
+ */
+export async function deleteCategory(categoryName) {
+  const client = await pool.connect();
+  try {
+    const clean = sanitizeText(categoryName, 50).trim();
+    if (!clean) throw new Error('Nom de catégorie invalide');
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM playlist_categories WHERE name = $1', [clean]);
+    await client.query(
+      'UPDATE playlists SET categories = array_remove(categories, $1) WHERE $1 = ANY(categories)',
+      [clean]
+    );
+    await client.query('COMMIT');
+
+    await invalidatePlaylistCaches();
+    return await getAllCategories();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Add a new category to playlist_categories.
+ * Returns updated categories list.
+ */
+export async function addCategory(categoryName) {
+  const clean = sanitizeText(categoryName, 50).trim();
+  if (!clean) throw new Error('Nom de catégorie invalide');
+
+  await pool.query(
+    'INSERT INTO playlist_categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+    [clean]
+  );
+  return await getAllCategories();
+}
+

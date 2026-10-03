@@ -73,25 +73,27 @@ export function filterVideosByMalList(videos, malTitles) {
     return [];
   }
 
-  const matchedVideos = videos.filter((video) => {
+  const matchedVideos = [];
+
+  for (const video of videos) {
+    let matchedEntry = null;
+
     // 1. Primary check: Exact MAL Anime ID match if specified on video
     if (video.malAnimeId || video.mal_anime_id) {
       const parsedVideoMalId = parseInt(video.malAnimeId || video.mal_anime_id, 10);
-      const hasDirectIdMatch = malTitles.some(entry => entry.animeId && parseInt(entry.animeId, 10) === parsedVideoMalId);
-      if (hasDirectIdMatch) return true;
+      matchedEntry = malTitles.find(entry => entry.animeId && parseInt(entry.animeId, 10) === parsedVideoMalId);
     }
 
     // 1b. Direct AniList ID match if specified on video
-    if (video.anilistId || video.anilist_id) {
+    if (!matchedEntry && (video.anilistId || video.anilist_id)) {
       const parsedVideoAnilistId = parseInt(video.anilistId || video.anilist_id, 10);
-      const hasDirectAnilistMatch = malTitles.some(entry => entry.anilistId && parseInt(entry.anilistId, 10) === parsedVideoAnilistId);
-      if (hasDirectAnilistMatch) return true;
+      matchedEntry = malTitles.find(entry => entry.anilistId && parseInt(entry.anilistId, 10) === parsedVideoAnilistId);
     }
 
     // 2. Secondary check: Explicit Anime Title match (malTitle or anilistTitle)
     const explicitAnimeTitle = video.malTitle || video.mal_title || video.anilistTitle || video.anilist_title;
-    if (explicitAnimeTitle) {
-      const hasTitleMatch = malTitles.some(entry => {
+    if (!matchedEntry && explicitAnimeTitle) {
+      matchedEntry = malTitles.find(entry => {
         const candidateTitles = [
           entry.title,
           entry.englishTitle,
@@ -100,17 +102,16 @@ export function filterVideosByMalList(videos, malTitles) {
 
         return candidateTitles.some(cTitle => isAnimeTitleMatch(explicitAnimeTitle, cTitle));
       });
-      if (hasTitleMatch) return true;
     }
 
     // 3. Fallback: ONLY check description if NO explicit anime title is specified on the video.
     // NEVER search song title or artist name, and NEVER check if anime title contains the song/description!
     // This allows legacy tracks that only noted the anime in the description (e.g. "Opening - Violet Evergarden")
     // to be matched strictly against the anime title, using whole word boundaries.
-    if (!explicitAnimeTitle && video.description) {
+    if (!matchedEntry && !explicitAnimeTitle && video.description) {
       const normDesc = normalizeText(video.description);
       if (normDesc.length >= 4) {
-        const hasDescMatch = malTitles.some(entry => {
+        matchedEntry = malTitles.find(entry => {
           const candidateTitles = [
             entry.title,
             entry.englishTitle,
@@ -125,12 +126,40 @@ export function filterVideosByMalList(videos, malTitles) {
             return malRegex.test(normDesc);
           });
         });
-        if (hasDescMatch) return true;
       }
     }
 
-    return false;
-  });
+    if (matchedEntry) {
+      let displayTitle = '';
+      const matchedEng = matchedEntry.englishTitle && typeof matchedEntry.englishTitle === 'string' ? matchedEntry.englishTitle.trim() : '';
+      const matchedRomaji = matchedEntry.title && typeof matchedEntry.title === 'string' ? matchedEntry.title.trim() : '';
+
+      if (explicitAnimeTitle) {
+        const normExp = normalizeText(explicitAnimeTitle);
+        const normMatchedTitle = normalizeText(matchedRomaji);
+        const normMatchedEng = normalizeText(matchedEng);
+
+        // If explicitAnimeTitle is an exact match with romaji or english, prioritize the english title
+        if (normExp === normMatchedTitle || (normMatchedEng && normExp === normMatchedEng)) {
+          displayTitle = matchedEng || explicitAnimeTitle || matchedRomaji;
+        } else if (normMatchedTitle.startsWith(normExp) && normMatchedTitle.length > normExp.length + 3) {
+          // It was a root/parent match (e.g. video is "One Piece", matched entry is "One Piece Fan Letter")
+          // Retain the canonical root series title!
+          displayTitle = explicitAnimeTitle;
+        } else {
+          displayTitle = matchedEng || explicitAnimeTitle || matchedRomaji;
+        }
+      } else {
+        displayTitle = matchedEng || matchedRomaji || 'Autre';
+      }
+
+      matchedVideos.push({
+        ...video,
+        malTitle: displayTitle,
+        matchedAnimeTitle: displayTitle,
+      });
+    }
+  }
 
   // Deduplicate matched videos by youtubeId (or fallback key)
   const seenYoutubeIds = new Set();
