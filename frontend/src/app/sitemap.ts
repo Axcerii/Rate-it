@@ -1,6 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { fetchPlaylistsApi } from '@/lib/api';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rate-it.fr';
   const lastModified = new Date();

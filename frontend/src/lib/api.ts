@@ -88,22 +88,49 @@ export async function fetchPlaylistsApi(options?: {
     }
   }
 
-  const res = await fetch(url, fetchOptions);
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Erreur HTTP ${res.status} lors de la récupération des playlists`);
-  }
+  try {
+    const res = await fetch(url, fetchOptions);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erreur HTTP ${res.status} lors de la récupération des playlists`);
+    }
 
-  const data: PlaylistsResponse = await res.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Échec de la récupération des playlists');
-  }
+    const data: PlaylistsResponse = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Échec de la récupération des playlists');
+    }
 
-  return {
-    validated: data.validated || [],
-    community: data.community || [],
-    categories: data.categories || [],
-  };
+    return {
+      validated: data.validated || [],
+      community: data.community || [],
+      categories: data.categories || [],
+    };
+  } catch (primaryErr) {
+    if (typeof window === 'undefined' && process.env.NEXT_PUBLIC_APP_URL) {
+      const fallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/playlists${query}`;
+      if (fallbackUrl !== url) {
+        try {
+          const fallbackRes = await fetch(fallbackUrl, {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+          });
+          if (fallbackRes.ok) {
+            const fbData: PlaylistsResponse = await fallbackRes.json();
+            if (fbData.success) {
+              return {
+                validated: fbData.validated || [],
+                community: fbData.community || [],
+                categories: fbData.categories || [],
+              };
+            }
+          }
+        } catch {
+          // Ignore fallback error
+        }
+      }
+    }
+    throw primaryErr;
+  }
 }
 
 /**
@@ -157,21 +184,47 @@ export async function fetchPlaylistDetailsApi(
     }
   }
 
-  const res = await fetch(url, fetchOptions);
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Erreur HTTP ${res.status} lors de la récupération de la playlist`);
-  }
+  try {
+    const res = await fetch(url, fetchOptions);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erreur HTTP ${res.status} lors de la récupération de la playlist`);
+    }
 
-  const data: PlaylistDetailsResponse = await res.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Échec de la récupération de la playlist');
-  }
+    const data: PlaylistDetailsResponse = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Échec de la récupération de la playlist');
+    }
 
-  return {
-    playlist: data.playlist,
-    videos: data.videos || [],
-  };
+    return {
+      playlist: data.playlist,
+      videos: data.videos || [],
+    };
+  } catch (primaryErr) {
+    if (typeof window === 'undefined' && process.env.NEXT_PUBLIC_APP_URL) {
+      const fallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/playlists/${cleanId}`;
+      if (fallbackUrl !== url) {
+        try {
+          const fallbackRes = await fetch(fallbackUrl, {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+          });
+          if (fallbackRes.ok) {
+            const fbData: PlaylistDetailsResponse = await fallbackRes.json();
+            if (fbData.success) {
+              return {
+                playlist: fbData.playlist,
+                videos: fbData.videos || [],
+              };
+            }
+          }
+        } catch {
+          // Ignore fallback error
+        }
+      }
+    }
+    throw primaryErr;
+  }
 }
 
 /**
