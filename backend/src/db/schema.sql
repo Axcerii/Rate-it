@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS ratings (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Ensure columns exist on tables created in older versions before creating indexes
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS is_custom BOOLEAN DEFAULT FALSE;
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS played_count INTEGER DEFAULT 0;
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS last_played TIMESTAMP WITH TIME ZONE;
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS is_validated BOOLEAN DEFAULT FALSE;
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS secret_code VARCHAR(64);
+ALTER TABLE playlists ADD COLUMN IF NOT EXISTS categories TEXT[] DEFAULT '{}';
+
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS mal_anime_id INTEGER;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS mal_title VARCHAR(255);
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS anilist_id INTEGER;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS anilist_title VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_video_id ON playlist_tracks(video_id);
 CREATE INDEX IF NOT EXISTS idx_videos_youtube_id ON videos(youtube_id);
@@ -59,6 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_ratings_youtube_id ON ratings(youtube_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_playlist_id ON ratings(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_secret_code ON playlists(secret_code);
 CREATE INDEX IF NOT EXISTS idx_playlists_categories ON playlists USING GIN(categories);
+
 
 
 
