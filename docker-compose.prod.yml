@@ -76,6 +76,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      INTERNAL_BACKEND_URL: ${INTERNAL_BACKEND_URL:-http://backend:4000}
     ports:
       # Binds to localhost only for reverse proxy access
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"

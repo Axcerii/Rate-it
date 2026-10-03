@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/playlist',
+        destination: '/playlists',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

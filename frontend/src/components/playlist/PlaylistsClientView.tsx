@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import HomeButton from '@/components/HomeButton';
 import { PlaylistCard, PlaylistFilters } from '@/components/playlist';
-import { PlaylistSummary, PlaylistVideo, fetchPlaylistDetailsApi } from '@/lib/api';
+import { PlaylistSummary, PlaylistVideo, fetchPlaylistDetailsApi, fetchPlaylistsApi } from '@/lib/api';
 
 const CATEGORIES = [
   'Anime/Manga',
@@ -36,6 +36,25 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
   const [activeTab, setActiveTab] = useState<'validated' | 'community'>('validated');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Client-side fallback fetch if initialPlaylists was empty (e.g., SSR network hiccup or cold boot)
+  useEffect(() => {
+    if (playlists.validated.length === 0 && playlists.community.length === 0) {
+      fetchPlaylistsApi({ revalidate: false })
+        .then((data) => {
+          if (data && (data.validated.length > 0 || data.community.length > 0)) {
+            setPlaylists({
+              validated: data.validated,
+              community: data.community,
+              categories: data.categories,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Client-side fallback fetch error:', err);
+        });
+    }
+  }, []);
 
   // When categories update, remove deleted categories from local playlists state
   useEffect(() => {
