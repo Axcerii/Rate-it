@@ -33,15 +33,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const { validated } = await fetchPlaylistsApi({ revalidate: 3600 });
-    const dynamicRoutes: MetadataRoute.Sitemap = validated.map((pl) => ({
+    const { validated, community } = await fetchPlaylistsApi({ revalidate: 3600 });
+
+    const validatedRoutes: MetadataRoute.Sitemap = (validated || []).map((pl) => ({
       url: `${baseUrl}/playlists/${pl.id}`,
       lastModified: pl.created_at ? new Date(pl.created_at) : lastModified,
       changeFrequency: 'weekly',
       priority: 0.8,
     }));
 
-    return [...staticRoutes, ...dynamicRoutes];
+    const validatedIds = new Set((validated || []).map((pl) => pl.id));
+    const communityRoutes: MetadataRoute.Sitemap = (community || [])
+      .filter((pl) => !validatedIds.has(pl.id))
+      .map((pl) => ({
+        url: `${baseUrl}/playlists/${pl.id}`,
+        lastModified: pl.created_at ? new Date(pl.created_at) : lastModified,
+        changeFrequency: 'weekly',
+        priority: 0.6,
+      }));
+
+    return [...staticRoutes, ...validatedRoutes, ...communityRoutes];
   } catch (err) {
     console.warn('Could not generate dynamic sitemap entries for playlists:', err);
     return staticRoutes;
