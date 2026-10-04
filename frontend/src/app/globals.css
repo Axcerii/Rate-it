@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Cherry Bomb One';
+  src: url('/fonts/CherryBombOne-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'cherryBombOne';
+  src: url('/fonts/CherryBombOne-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Section Background Palette */
   --bg-menu: #FEEC66;
@@ -25,6 +41,10 @@
   --brand-twitch: #9146FF;
   --bg-cream: #FAF6EB;
   --color-players: var(--bg-host);
+
+  /* Font Fallbacks */
+  --font-cherry-bomb-one: 'Cherry Bomb One', cherryBombOne;
+  --font-dynapuff: 'Cherry Bomb One', cherryBombOne;
 }
 
 
@@ -47,7 +67,7 @@
 
   /* Typography Design Tokens */
   --font-sans: var(--font-exo), sans-serif;
-  --font-title: var(--font-dynapuff), cursive;
+  --font-title: var(--font-cherry-bomb-one, 'Cherry Bomb One'), 'Cherry Bomb One', cherryBombOne, cursive;
   --font-mono: var(--font-exo), monospace;
 
   /* Custom Animations */
@@ -185,6 +205,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -243,6 +264,7 @@ body {
 
 /* Scrollbar mobile pour les playlists : thumb couleur "menu" (#FEEC66) */
 @media (max-width: 640px) {
+
   html,
   body {
     scrollbar-color: var(--bg-menu) var(--color-card-bg);
@@ -267,7 +289,8 @@ button {
 
 /* Utility classes for typography */
 .font-title {
-  font-family: var(--font-dynapuff), cursive;
+  font-family: var(--font-title);
+  font-weight: 400;
 }
 
 .font-sans {

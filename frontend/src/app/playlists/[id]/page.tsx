@@ -157,7 +157,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
               </div>
 
               {/* Title & Description */}
-              <h1 className="font-title text-2xl sm:text-4xl font-black text-black leading-tight">
+              <h1 className="font-title text-2xl sm:text-4xl text-black leading-tight">
                 {playlist.name}
               </h1>
 
@@ -204,7 +204,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
         {/* Tracklist Section */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between px-1">
-            <h2 className="font-title text-xl font-black text-black uppercase flex items-center gap-2">
+            <h2 className="font-title text-xl text-black uppercase flex items-center gap-2">
               <Music2 className="w-5 h-5 text-catalog" />
               <span>Liste des pistes ({videos.length})</span>
             </h2>

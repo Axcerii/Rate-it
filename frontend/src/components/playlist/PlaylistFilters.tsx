@@ -160,7 +160,7 @@ export default function PlaylistFilters({
               <div className="flex items-center justify-between p-4 border-b-2 border-black bg-white">
                 <div className="flex items-center gap-2">
                   <Filter className="w-5 h-5 text-catalog" />
-                  <h3 className="font-title text-base font-black uppercase text-black">
+                  <h3 className="font-title text-base uppercase text-black">
                     Filtrer par Catégorie
                   </h3>
                 </div>

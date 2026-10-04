@@ -173,7 +173,8 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
           const q = searchQuery.toLowerCase().trim();
           const matchName = pl.name && pl.name.toLowerCase().includes(q);
           const matchDesc = pl.description && pl.description.toLowerCase().includes(q);
-          if (!matchName && !matchDesc) return false;
+          const matchId = pl.id && pl.id.toLowerCase().includes(q);
+          if (!matchName && !matchDesc && !matchId) return false;
         }
         return true;
       })
@@ -240,7 +241,7 @@ export default function PlaylistsClientView({ initialPlaylists }: PlaylistsClien
             {/* Playlists List */}
             {displayedPlaylists.length === 0 ? (
               <div className="p-8 sm:p-12 info-card rounded-2xl text-center flex flex-col items-center justify-center gap-4 shadow-none">
-                <h3 className="font-title text-xl font-black text-black">Aucune playlist trouvée</h3>
+                <h3 className="font-title text-xl text-black">Aucune playlist trouvée</h3>
                 <p className="text-xs font-bold text-slate-700 max-w-md">
                   {activeCategory !== 'all'
                     ? `Aucune playlist disponible dans la catégorie "${activeCategory}".`

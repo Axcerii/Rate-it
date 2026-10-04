@@ -16,7 +16,7 @@ export default function CGUPage() {
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-[#24B3F1] shrink-0" />
             <div>
-              <h1 className="text-2xl sm:text-4xl font-black font-title uppercase tracking-wider text-black">
+              <h1 className="text-2xl sm:text-4xl font-title uppercase tracking-wider text-black">
                 CGU & Crédits
               </h1>
               <p className="text-xs sm:text-sm font-bold text-slate-700">
@@ -172,7 +172,7 @@ export default function CGUPage() {
           <div className="p-4 bg-slate-50 border-2 border-black rounded-2xl flex flex-col gap-2 text-xs font-bold text-slate-700">
             <h3 className="font-black text-black text-xs uppercase">Ressources Typographiques & Graphiques</h3>
             <p>
-              • <strong>Typographies</strong> : Polices Google Fonts (<em>Exo</em> & <em>DynaPuff</em>).
+              • <strong>Typographies</strong> : Polices Google Fonts (<em>Exo</em> & <em>Cherry Bomb One</em>).
               <br />
               • <strong>Icônes</strong> : <em>Lucide Icons</em> sous licence MIT.
               <br />

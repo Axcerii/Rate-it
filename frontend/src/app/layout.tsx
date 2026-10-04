@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Exo, DynaPuff } from "next/font/google";
+import { Exo } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SocketProvider } from "@/lib/useSocket";
 import DynamicBackground from "@/components/DynamicBackground";
@@ -10,9 +11,10 @@ const exo = Exo({
   subsets: ["latin"],
 });
 
-const dynapuff = DynaPuff({
-  variable: "--font-dynapuff",
-  subsets: ["latin"],
+const cherryBombOne = localFont({
+  src: "./fonts/CherryBombOne-Regular.ttf",
+  variable: "--font-cherry-bomb-one",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -109,7 +111,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${exo.variable} ${dynapuff.variable} h-full antialiased`}
+      className={`${exo.variable} ${cherryBombOne.variable} h-full antialiased`}
     >
       <head>
         <script

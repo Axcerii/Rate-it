@@ -8,6 +8,7 @@ import {
   Plus,
   Check,
   X,
+  Copy,
 } from 'lucide-react';
 import PlaylistTrackCard, { PlaylistTrack } from './PlaylistTrackCard';
 
@@ -78,6 +79,16 @@ export default function PlaylistCard({
 
   // État local pour gérer l'animation de repliement fluide avant démontage
   const [isClosing, setIsClosing] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (playlist?.id && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(playlist.id);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
 
   // Recadrage fluide du scroll au niveau de la cassette qui vient de s'ouvrir
   const articleRef = useRef<HTMLElement>(null);
@@ -190,7 +201,7 @@ export default function PlaylistCard({
             <div className="flex flex-col justify-center min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h3
-                  className="font-title text-black font-black text-xs sm:text-base md:text-lg leading-tight line-clamp-2 sm:truncate tracking-tight"
+                  className="font-title text-black text-xs sm:text-base md:text-lg leading-tight line-clamp-2 sm:truncate tracking-tight"
                   title={playlist.name}
                 >
                   {playlist.name}
@@ -269,7 +280,7 @@ export default function PlaylistCard({
               <div className="flex flex-col justify-center min-w-0 flex-1 pr-3">
                 <div className="flex items-center gap-2">
                   <h3
-                    className="font-title text-black font-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate tracking-tight"
+                    className="font-title text-black text-xs sm:text-base md:text-lg lg:text-xl leading-tight truncate tracking-tight"
                     title={playlist.name}
                   >
                     {playlist.name}
@@ -443,6 +454,44 @@ export default function PlaylistCard({
                 </button>
               </div>
             )}
+
+            {/* Code public imprimé en bas à gauche de la cassette (sans encadré) */}
+            {playlist.id && (
+              <div
+                className="absolute z-20 pointer-events-auto flex items-center"
+                style={{
+                  bottom: '3.5%',
+                  left: '4.5%',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="group/printcode flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer text-left transition-opacity hover:opacity-100 select-none outline-none focus:outline-none"
+                  title={`Code public : ${playlist.id} (Cliquer pour copier)`}
+                  aria-label={`Copier le code public ${playlist.id}`}
+                >
+                  {copiedCode ? (
+                    <span className="flex items-center gap-1 text-emerald-400 font-mono text-[10px] sm:text-xs font-bold tracking-wider">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Copié !</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-white/45 font-mono text-[9px] sm:text-[11px] font-bold uppercase tracking-widest group-hover/printcode:text-white/70 transition-colors">
+                        N°
+                      </span>
+                      <span className="text-white/85 font-mono text-[11px] sm:text-[13px] font-black tracking-wider group-hover/printcode:text-white transition-colors">
+                        {playlist.id}
+                      </span>
+                      <span className="p-1 rounded text-white/40 group-hover/printcode:text-white group-hover/printcode:bg-white/10 transition-all ml-0.5">
+                        <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ========================================================================= */}
@@ -494,7 +543,7 @@ export default function PlaylistCard({
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <h3
-                      className="font-title text-black font-black text-sm leading-tight break-words"
+                      className="font-title text-black text-sm leading-tight break-words"
                       title={playlist.name}
                     >
                       {playlist.name}
@@ -687,12 +736,40 @@ export default function PlaylistCard({
               )}
             </div>
 
-            {/* Vis inférieures du boîtier */}
+            {/* Vis inférieures du boîtier & Code imprimé en bas à gauche */}
             <div className="flex items-center justify-between px-3 pb-2 text-[#555]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none">
-                +
-              </span>
-              <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none text-[#555]">
+                  +
+                </span>
+                {playlist.id && (
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    className="group/printcode flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-left transition-opacity hover:opacity-100 select-none outline-none focus:outline-none"
+                    title={`Code public : ${playlist.id} (Cliquer pour copier)`}
+                    aria-label={`Copier le code public ${playlist.id}`}
+                  >
+                    {copiedCode ? (
+                      <span className="flex items-center gap-1 text-emerald-400 font-mono text-[9px] font-bold tracking-wider">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>Copié !</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-white/40 font-mono text-[8px] font-bold uppercase tracking-wider group-hover/printcode:text-white/70 transition-colors">
+                          N°
+                        </span>
+                        <span className="text-white/80 font-mono text-[10px] font-bold tracking-wider group-hover/printcode:text-white transition-colors">
+                          {playlist.id}
+                        </span>
+                        <Copy className="w-2.5 h-2.5 text-white/40 group-hover/printcode:text-white transition-colors ml-0.5" />
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#333] border border-[#555] flex items-center justify-center text-[7px] font-mono leading-none select-none text-[#555]">
                 +
               </span>
             </div>

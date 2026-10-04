@@ -781,7 +781,7 @@ export default function AdminConsole() {
     return (
       <div className="min-h-screen bg-transparent text-black font-sans px-3 sm:px-6 py-6 sm:py-12 flex items-center justify-center w-full max-w-full overflow-x-hidden">
         <div className="info-card w-full max-w-md p-6 sm:p-8 rounded-3xl text-center">
-          <h1 className="text-3xl font-black font-title text-[#990000] uppercase tracking-wider mb-6 flex items-center justify-center gap-2">
+          <h1 className="text-3xl font-title text-[#990000] uppercase tracking-wider mb-6 flex items-center justify-center gap-2">
             <ShieldCheck className="w-7 h-7 text-[#990000]" />
             <span>ADMIN LOGIN</span>
           </h1>
@@ -831,7 +831,7 @@ export default function AdminConsole() {
       {/* Header */}
       <div className="w-full max-w-6xl flex flex-col sm:flex-row sm:items-center sm:justify-between border-b-4 border-white/20 pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-black font-title uppercase tracking-wider text-white flex items-center gap-3">
+          <h1 className="text-4xl font-title uppercase tracking-wider text-white flex items-center gap-3">
             <ShieldCheck className="w-9 h-9 text-white" />
             <span>ADMIN CONSOLE</span>
           </h1>
@@ -1896,7 +1896,7 @@ export default function AdminConsole() {
             <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-[#1b1b1b]" />
-                <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
+                <h3 className="text-base sm:text-lg font-title uppercase text-black">
                   Maintenance Vidéo (ID: {modalVideo.id})
                 </h3>
               </div>
@@ -2109,7 +2109,7 @@ export default function AdminConsole() {
             <div className="flex justify-between items-center border-b-2 border-white pb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-[#1b1b1b]" />
-                <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
+                <h3 className="text-base sm:text-lg font-title uppercase text-black">
                   Modifier la Playlist ({modalPlaylist.id})
                 </h3>
               </div>
@@ -2317,7 +2317,7 @@ export default function AdminConsole() {
                 <div className="w-8 h-8 rounded-full bg-red-100 border border-black flex items-center justify-center text-[#990000]">
                   <Trash2 className="w-4 h-4" />
                 </div>
-                <h3 className="font-black text-sm uppercase text-black font-title">
+                <h3 className="text-sm uppercase text-black font-title">
                   Supprimer la catégorie
                 </h3>
               </div>
@@ -2381,7 +2381,7 @@ export default function AdminConsole() {
                 <div className="w-8 h-8 rounded-full bg-[#24B3F1]/20 border border-black flex items-center justify-center text-[#24B3F1]">
                   <Plus className="w-4 h-4 stroke-[3]" />
                 </div>
-                <h3 className="font-black text-sm uppercase text-black font-title">
+                <h3 className="text-sm uppercase text-black font-title">
                   Ajouter une catégorie
                 </h3>
               </div>

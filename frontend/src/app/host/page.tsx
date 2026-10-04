@@ -1725,7 +1725,7 @@ export default function HostLobby() {
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans text-center min-h-screen">
         <div className="info-card w-full max-w-md p-8 rounded-3xl flex flex-col gap-6">
           <Loader2 className="w-10 h-10 animate-spin text-host mx-auto" />
-          <h2 className="text-2xl font-black text-black font-title uppercase transform rotate-[-1deg]">
+          <h2 className="text-2xl text-black font-title uppercase transform rotate-[-1deg]">
             Lancement de la partie
           </h2>
           <div className="py-4 border-t-2 border-b-2 border-black bg-white rounded-xl">
@@ -1746,7 +1746,7 @@ export default function HostLobby() {
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans">
         <div className="text-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent mx-auto" />
-          <h2 className="mt-6 text-xl font-black uppercase text-black font-title">Chargement de la session...</h2>
+          <h2 className="mt-6 text-xl uppercase text-black font-title">Chargement de la session...</h2>
           <p className="mt-2 text-xs font-bold text-slate-600">Redirection vers l'accueil si déconnexion.</p>
           <button
             onClick={handleBackToHome}
@@ -1992,7 +1992,7 @@ export default function HostLobby() {
               {showQRCode && joinUrl && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
                   <div className="info-card rounded-2xl p-6 max-w-sm w-full flex flex-col items-center gap-4 shadow-none relative">
-                    <h3 className="font-title text-base font-black uppercase text-black text-center w-full px-10">
+                    <h3 className="font-title text-base uppercase text-black text-center w-full px-10">
                       Rejoindre la salle
                     </h3>
                     <div className="p-3 bg-white border-2 border-black rounded-xl shadow-none">
@@ -2028,7 +2028,7 @@ export default function HostLobby() {
             /* ÉCRAN DE SÉLECTION DU MODE (écran séparé / formulaire initial plein format) */
             <div className="flex-1 w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto flex flex-col items-center justify-center py-8 sm:py-12 lg:py-16 gap-8 sm:gap-10 lg:gap-12 animate-in fade-in duration-300">
               <div className="text-center flex flex-col items-center">
-                <h2 className="font-title text-2xl font-black text-black leading-tight tracking-wide max-w-2xl lg:max-w-4xl text-center">
+                <h2 className="font-title text-2xl text-black leading-tight tracking-wide max-w-2xl lg:max-w-4xl text-center">
                   Comment souhaitez-vous sélectionner les musiques pour cette session ?
                 </h2>
               </div>
@@ -2057,7 +2057,7 @@ export default function HostLobby() {
                   </div>
 
                   <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
-                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl font-black uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
+                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
                       <span>Utiliser une playlist préfaite</span>
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
                     </div>
@@ -2089,7 +2089,7 @@ export default function HostLobby() {
                   </div>
 
                   <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
-                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl font-black uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
+                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
                       <span>Importer une liste depuis MAL / AL</span>
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
                     </div>
@@ -2165,7 +2165,7 @@ export default function HostLobby() {
               <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
                 {displayedPlaylists.length === 0 ? (
                   <div className="p-8 sm:p-12 info-card rounded-2xl text-center flex flex-col items-center justify-center gap-3 shadow-none">
-                    <h3 className="font-title text-lg font-black text-black">
+                    <h3 className="font-title text-lg text-black">
                       Aucune playlist trouvée
                     </h3>
                     <p className="text-xs font-bold text-slate-700 max-w-md">
@@ -2558,7 +2558,7 @@ export default function HostLobby() {
                     <div className="flex items-center gap-2.5">
                       <div className="flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5 text-black" />
-                        <span className="font-title text-xs font-black uppercase text-black">
+                        <span className="font-title text-xs uppercase text-black">
                           Joueurs
                         </span>
                         <span className="bg-black text-[#FEEC66] px-1.5 py-0.5 rounded-lg text-xs font-mono font-black">
@@ -2681,7 +2681,7 @@ export default function HostLobby() {
                           {isStartingGame ? (
                             <div className="flex items-center justify-center gap-2 py-1">
                               <Loader2 className="w-5 h-5 animate-spin text-black" />
-                              <span className="font-title text-xs font-black uppercase text-black">Démarrage...</span>
+                              <span className="font-title text-xs uppercase text-black">Démarrage...</span>
                             </div>
                           ) : (
                             <img
@@ -2755,7 +2755,7 @@ export default function HostLobby() {
                       <div className="flex items-center gap-2.5">
                         <div className="flex items-center gap-1.5">
                           <Users className="w-4 h-4 text-black" />
-                          <h3 className="font-title text-xs font-black uppercase text-black">
+                          <h3 className="font-title text-xs uppercase text-black">
                             Joueurs ({activeConnectedPlayers.length})
                           </h3>
                         </div>
@@ -2835,7 +2835,7 @@ export default function HostLobby() {
                       {isStartingGame ? (
                         <div className="flex items-center justify-center gap-2 py-1">
                           <Loader2 className="w-5 h-5 animate-spin text-black" />
-                          <span className="font-title text-xs font-black uppercase text-black">Démarrage...</span>
+                          <span className="font-title text-xs uppercase text-black">Démarrage...</span>
                         </div>
                       ) : (
                         <img

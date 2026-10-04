@@ -123,7 +123,7 @@ export default function PlayView() {
       <div className="flex flex-1 flex-col items-center justify-center bg-transparent p-6 font-sans">
         <div className="text-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent mx-auto" />
-          <h2 className="mt-6 text-xl font-black font-title uppercase text-black">Connexion à la salle...</h2>
+          <h2 className="mt-6 text-xl font-title uppercase text-black">Connexion à la salle...</h2>
           <p className="mt-2 text-xs font-bold text-slate-600">Redirection vers l'accueil si déconnexion.</p>
           <button
             onClick={handleLeave}
@@ -195,7 +195,7 @@ export default function PlayView() {
               <div className="p-4 rounded-xl bg-purple-50 border-2 border-purple-300 flex flex-col items-center md:items-start text-center md:text-left gap-2">
                 <div className="flex items-center gap-2">
                   <Gamepad2 className="w-6 h-6 text-purple-700 animate-bounce" />
-                  <h4 className="text-base font-black font-title text-black uppercase">En attente de l'hôte</h4>
+                  <h4 className="text-base font-title text-black uppercase">En attente de l'hôte</h4>
                 </div>
                 <p className="text-xs font-bold text-slate-600 leading-relaxed">
                   La partie commencera dès que l'hôte lancera la session. Préparez-vous !
@@ -299,7 +299,7 @@ export default function PlayView() {
                   <span className="text-xs font-bold font-sans text-slate-600 block mb-1">
                     Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
                   </span>
-                  <h3 className="text-2xl lg:text-3xl font-black font-title text-black leading-snug">
+                  <h3 className="text-2xl lg:text-3xl font-title text-black leading-snug">
                     {currentVideo.title}
                   </h3>
                   <p className="text-sm font-bold text-fuchsia-950 mt-1">
@@ -317,7 +317,7 @@ export default function PlayView() {
                   </span>
 
                   <div className="flex flex-col gap-1.5">
-                    <h2 className="text-xl sm:text-2xl font-black font-title text-black leading-tight border-b-2 border-black pb-2">
+                    <h2 className="text-xl sm:text-2xl font-title text-black leading-tight border-b-2 border-black pb-2">
                       {currentVideo.title}
                     </h2>
                     <p className="text-xs font-bold text-fuchsia-950 mt-1">

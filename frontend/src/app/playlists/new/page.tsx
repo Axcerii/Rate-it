@@ -799,7 +799,7 @@ export default function NewPlaylist() {
           <div className="flex items-center justify-between border-b-2 border-white pb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Sliders className="w-5 h-5 text-black" />
-              <h2 className="text-lg font-black uppercase text-black font-title">
+              <h2 className="text-lg uppercase text-black font-title">
                 Infos & Config Playlist
               </h2>
             </div>
@@ -813,7 +813,7 @@ export default function NewPlaylist() {
           {/* Section: Éditer une playlist (as requested: mets le bouton "éditer une playlist" dedans avec un CTA qui est "Entrer un code secret d'édition") */}
           <div className="bg-white/90 backdrop-blur-xs border-2 border-white p-4 rounded-2xl flex flex-col gap-2.5 shrink-0 shadow-none">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-black font-black text-xs uppercase font-title">
+              <div className="flex items-center gap-1.5 text-black text-xs uppercase font-title">
                 <Key className="w-4 h-4 text-[#24B3F1]" />
                 <span>Éditer une playlist</span>
               </div>
@@ -1014,7 +1014,7 @@ export default function NewPlaylist() {
                   <CheckCircle2 className="w-8 h-8 text-[#4BD66F] stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="text-xl sm:text-2xl font-black font-title uppercase text-black leading-tight">
+                  <h3 className="text-xl sm:text-2xl font-title uppercase text-black leading-tight">
                     Playlist Créée avec Succès !
                   </h3>
                   <p className="text-xs text-slate-800 font-bold mt-0.5">
@@ -1131,7 +1131,7 @@ export default function NewPlaylist() {
                 <div className="p-1.5 bg-[#24B3F1] border-2 border-white rounded-lg shadow-none">
                   <Key className="w-4 h-4 text-black" />
                 </div>
-                <h3 className="text-base sm:text-lg font-black font-title uppercase text-black">
+                <h3 className="text-base sm:text-lg font-title uppercase text-black">
                   Éditer avec un Code Secret
                 </h3>
               </div>
