@@ -124,3 +124,13 @@ test('an invalid track is rejected before any external call', async () => {
   );
   assert.equal(fetchCount, 0);
 });
+
+test('creating a playlist never rewrites a video that is already in the shared catalog', async () => {
+  await createPlaylistRecord({ name: 'Test', description: '', videos: tracks(3), categories: [] });
+
+  const inserts = queries.filter((sql) => /INSERT INTO videos/.test(sql));
+  assert.equal(inserts.length, 3);
+  for (const sql of inserts) {
+    assert.equal(/EXCLUDED/.test(sql), false, 'the submitted values overwrite the existing video');
+  }
+});

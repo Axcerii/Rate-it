@@ -287,20 +287,16 @@ export async function prepareTracksForPlaylist(videos) {
 }
 
 /**
- * Upserts a prepared track into the unique videos catalog and links it to the playlist.
+ * Adds a prepared track to the unique videos catalog if it is not there yet, and links it to the playlist.
+ * A video that already exists is left untouched: this runs for anonymous playlist creation, and the
+ * catalog is shared by every playlist (validated ones included). Only admins can edit a catalog video.
  */
 export async function upsertPlaylistTrack(client, playlistId, track, orderIndex) {
+  // The no-op update is only there so that RETURNING also gives the id of an existing video
   const videoUpsertRes = await client.query(
     `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (youtube_id) DO UPDATE SET
-       title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
-       artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
-       description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
-       mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-       mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
-       anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
-       anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
+     ON CONFLICT (youtube_id) DO UPDATE SET youtube_id = videos.youtube_id
      RETURNING id`,
     [
       track.youtubeId,
