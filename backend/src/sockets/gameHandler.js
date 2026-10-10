@@ -1,4 +1,5 @@
 import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
+import crypto from 'crypto';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
@@ -20,46 +21,48 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
   const playlistId = sanitizeText(session.playlistId, 50);
   const sessionId = sanitizeText(session.sessionId, 50);
 
-  // Track recorded rounds on session to avoid inserting twice for same session & video
+  // 1. Collect the valid votes of this round (players, then Twitch chat)
+  const names = [];
+  const ratings = [];
+  const sources = [];
+  const isValidRating = (value) => typeof value === 'number' && value >= 1 && value <= 5;
+
+  for (const pid in session.votes) {
+    if (isValidRating(session.votes[pid])) {
+      names.push(sanitizeText(session.players?.[pid]?.name || 'Anonymous Player', 100));
+      ratings.push(session.votes[pid]);
+      sources.push('PLAYER');
+    }
+  }
+  for (const rawUsername in session.twitchVotes) {
+    if (isValidRating(session.twitchVotes[rawUsername])) {
+      names.push(sanitizeText(rawUsername, 100));
+      ratings.push(session.twitchVotes[rawUsername]);
+      sources.push('TWITCH');
+    }
+  }
+
+  // 2. Store them, unless this exact set of votes is already stored. Results are computed on reveal
+  // and again when moving on: the second call is skipped, but votes changed during the reveal, or
+  // after the host came back to this video, replace the previous ones instead of being dropped.
   session.savedRatingsMap = session.savedRatingsMap || {};
   const saveKey = `${sessionId}_${currentVideo.id}`;
+  const fingerprint = crypto.createHash('sha1').update(JSON.stringify([names, ratings, sources])).digest('hex');
 
-  if (!session.savedRatingsMap[saveKey]) {
-    session.savedRatingsMap[saveKey] = true;
-
-    // 1. Insert player votes
-    for (const pid in session.votes) {
-      const ratingVal = session.votes[pid];
-      if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
-        const rawPlayerName = session.players?.[pid]?.name || 'Anonymous Player';
-        const playerName = sanitizeText(rawPlayerName, 100);
-        try {
-          await pool.query(
-            `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
-             VALUES ($1, $2, $3, $4, $5, $6, 'PLAYER')`,
-            [videoId, youtubeId, playlistId, sessionId, playerName, ratingVal]
-          );
-        } catch (err) {
-          console.error('Failed to insert player rating:', err);
-        }
-      }
-    }
-
-    // 2. Insert Twitch votes
-    for (const rawUsername in session.twitchVotes) {
-      const ratingVal = session.twitchVotes[rawUsername];
-      if (typeof ratingVal === 'number' && ratingVal >= 1 && ratingVal <= 5) {
-        const username = sanitizeText(rawUsername, 100);
-        try {
-          await pool.query(
-            `INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
-             VALUES ($1, $2, $3, $4, $5, $6, 'TWITCH')`,
-            [videoId, youtubeId, playlistId, sessionId, username, ratingVal]
-          );
-        } catch (err) {
-          console.error('Failed to insert Twitch rating:', err);
-        }
-      }
+  if (session.savedRatingsMap[saveKey] !== fingerprint) {
+    try {
+      await pool.query(
+        `WITH removed AS (
+           DELETE FROM ratings WHERE session_id = $4::text AND youtube_id = $2::text
+         )
+         INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
+         SELECT $1::int, $2::text, $3::text, $4::text, v.player_name, v.rating, v.source
+         FROM unnest($5::text[], $6::int[], $7::text[]) AS v(player_name, rating, source)`,
+        [videoId, youtubeId, playlistId, sessionId, names, ratings, sources]
+      );
+      session.savedRatingsMap[saveKey] = fingerprint;
+    } catch (err) {
+      console.error('Failed to record ratings:', err);
     }
   }
 
