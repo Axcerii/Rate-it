@@ -289,7 +289,32 @@ export function sanitizeVideoId(id) {
 }
 
 /**
- * Checks if a request origin is allowed based on origin header or localhost patterns.
+ * Tells whether a hostname is this machine or a private network address (development setups).
+ * Only real IP literals are matched: "10.evil.com" is a public domain name, not a private IP.
+ *
+ * @param {string} hostname - Hostname as returned by URL.hostname
+ * @returns {boolean}
+ */
+export function isLocalDevHostname(hostname) {
+  if (!hostname) return false;
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host === '[::1]' || host.endsWith('.local')) return true;
+
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4) return false;
+  const [a, b, c, d] = ipv4.slice(1).map(Number);
+  if ([a, b, c, d].some((part) => part > 255)) return false;
+
+  return (
+    a === 127 || // loopback
+    a === 10 || // 10.0.0.0/8
+    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+    (a === 192 && b === 168) // 192.168.0.0/16
+  );
+}
+
+/**
+ * Checks if a request origin is allowed based on origin header or, outside production, local network patterns.
  *
  * @param {string} origin - Origin header from request
  * @param {Array<string>} [allowedList] - Optional whitelist
@@ -339,15 +364,9 @@ export function isAllowedOrigin(origin, allowedList = []) {
       return true;
     }
 
-    // Allow localhost / local network IP development origins
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname.startsWith('192.168.') ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('172.') ||
-      hostname.endsWith('.local')
-    ) {
+    // Allow localhost / local network origins in development only:
+    // in production, only the ALLOWED_ORIGINS whitelist applies
+    if (process.env.NODE_ENV !== 'production' && isLocalDevHostname(hostname)) {
       return true;
     }
   } catch (e) {
