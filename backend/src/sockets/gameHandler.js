@@ -85,6 +85,36 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
   }
 }
 
+// Computes the results of the current video from the votes of the round, stores them in
+// session.results and records the ratings. Must be called while holding the session lock.
+async function accumulateRoundResults(session) {
+  const currentVideo = session.videos?.[session.currentVideoIndex];
+  if (!currentVideo) return;
+
+  const summarize = (votes) => {
+    const list = Object.values(votes || {});
+    const sum = list.reduce((acc, v) => acc + v, 0);
+    return { count: list.length, average: list.length > 0 ? parseFloat((sum / list.length).toFixed(2)) : 0 };
+  };
+  const players = summarize(session.votes);
+  const twitch = summarize(session.twitchVotes);
+
+  session.results = session.results || {};
+  session.results[currentVideo.id] = {
+    id: currentVideo.id,
+    title: currentVideo.title,
+    youtubeId: currentVideo.youtubeId,
+    artistName: currentVideo.artistName,
+    description: currentVideo.description,
+    average: players.average,
+    votesCount: players.count,
+    twitchAverage: twitch.average,
+    twitchVotesCount: twitch.count,
+    playerVotes: { ...(session.votes || {}) },
+  };
+  await recordAndFetchVideoRatings(session, currentVideo);
+}
+
 // Must be called while holding the session lock (it mutates and saves the session)
 export async function checkAndAdvanceSkip(io, session) {
   if (!session || session.status !== 'PLAYING') return false;
@@ -99,34 +129,7 @@ export async function checkAndAdvanceSkip(io, session) {
     if (allSkipped) {
       applyPendingTwitchVotes(session);
       session.phase = 'REVEAL';
-      // Accumulate round results
-      const currentVideo = session.videos?.[session.currentVideoIndex];
-      if (currentVideo) {
-        const votesList = Object.values(session.votes || {});
-        const sum = votesList.reduce((sum, v) => sum + v, 0);
-        const count = votesList.length;
-        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
-
-        const twitchVotesList = Object.values(session.twitchVotes || {});
-        const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
-        const twitchCount = twitchVotesList.length;
-        const twitchAverage = twitchCount > 0 ? parseFloat((twitchSum / twitchCount).toFixed(2)) : 0;
-
-        session.results = session.results || {};
-        session.results[currentVideo.id] = {
-          id: currentVideo.id,
-          title: currentVideo.title,
-          youtubeId: currentVideo.youtubeId,
-          artistName: currentVideo.artistName,
-          description: currentVideo.description,
-          average,
-          votesCount: count,
-          twitchAverage,
-          twitchVotesCount: twitchCount,
-          playerVotes: { ...(session.votes || {}) },
-        };
-        await recordAndFetchVideoRatings(session, currentVideo);
-      }
+      await accumulateRoundResults(session);
       await saveSession(session);
       broadcastRoomUpdate(io, session);
       return true;
@@ -347,33 +350,7 @@ export function registerGameHandlers(io, socket) {
       applyPendingTwitchVotes(session);
       session.phase = 'REVEAL';
 
-      const currentVideo = session.videos?.[session.currentVideoIndex];
-      if (currentVideo) {
-        const votesList = Object.values(session.votes || {});
-        const sum = votesList.reduce((sum, v) => sum + v, 0);
-        const count = votesList.length;
-        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
-
-        const twitchVotesList = Object.values(session.twitchVotes || {});
-        const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
-        const twitchCount = twitchVotesList.length;
-        const twitchAverage = twitchCount > 0 ? parseFloat((twitchSum / twitchCount).toFixed(2)) : 0;
-
-        session.results = session.results || {};
-        session.results[currentVideo.id] = {
-          id: currentVideo.id,
-          title: currentVideo.title,
-          youtubeId: currentVideo.youtubeId,
-          artistName: currentVideo.artistName,
-          description: currentVideo.description,
-          average,
-          votesCount: count,
-          twitchAverage,
-          twitchVotesCount: twitchCount,
-          playerVotes: { ...(session.votes || {}) },
-        };
-        await recordAndFetchVideoRatings(session, currentVideo);
-      }
+      await accumulateRoundResults(session);
 
       await saveSession(session);
       broadcastRoomUpdate(io, session);
@@ -423,6 +400,10 @@ export function registerGameHandlers(io, socket) {
           callback({ success: false, error: 'Non autorisé : identifiant de joueur manquant' });
         }
         return;
+      }
+
+      if (!Object.hasOwn(session.players, playerId)) {
+        throw new Error('Vous ne participez pas à cette partie');
       }
 
       const currentPhase = session.phase || 'VOTING';
@@ -485,34 +466,7 @@ export function registerGameHandlers(io, socket) {
 
       applyPendingTwitchVotes(session);
 
-      // Accumulate votes for the current video before advancing if not accumulated yet
-      const currentVideo = session.videos[session.currentVideoIndex];
-      if (currentVideo) {
-        const votesList = Object.values(session.votes || {});
-        const sum = votesList.reduce((sum, v) => sum + v, 0);
-        const count = votesList.length;
-        const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
-
-        const twitchVotesList = Object.values(session.twitchVotes || {});
-        const twitchSum = twitchVotesList.reduce((sum, v) => sum + v, 0);
-        const twitchCount = twitchVotesList.length;
-        const twitchAverage = twitchCount > 0 ? parseFloat((twitchSum / twitchCount).toFixed(2)) : 0;
-
-        session.results = session.results || {};
-        session.results[currentVideo.id] = {
-          id: currentVideo.id,
-          title: currentVideo.title,
-          youtubeId: currentVideo.youtubeId,
-          artistName: currentVideo.artistName,
-          description: currentVideo.description,
-          average,
-          votesCount: count,
-          twitchAverage,
-          twitchVotesCount: twitchCount,
-          playerVotes: { ...(session.votes || {}) },
-        };
-        await recordAndFetchVideoRatings(session, currentVideo);
-      }
+      await accumulateRoundResults(session);
 
       session.currentVideoIndex++;
       session.votes = {};

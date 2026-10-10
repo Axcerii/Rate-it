@@ -48,15 +48,6 @@ function verifyAdminAuth(password, socket) {
   }
 }
 
-function generatePlaylistId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `PL-${code}`;
-}
-
 export function registerPlaylistHandlers(io, socket) {
   // 0. Tells whether this socket carries a valid admin session (login itself is POST /api/admin/login)
   socket.on('admin:verify', async (payload, callback) => {

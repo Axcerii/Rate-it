@@ -43,6 +43,11 @@ export function registerVoteHandlers(io, socket) {
         throw new Error('Le vote est uniquement actif pendant la lecture');
       }
 
+      // A host who chose not to play keeps a player id: it must not be counted in the votes
+      if (!Object.hasOwn(session.players, playerId)) {
+        throw new Error('Vous ne participez pas à cette partie');
+      }
+
       // Record player's vote
       session.votes = session.votes || {};
       session.votes[playerId] = parsedVote;

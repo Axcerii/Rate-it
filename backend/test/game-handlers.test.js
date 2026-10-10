@@ -228,3 +228,14 @@ test('a player who leaves no longer blocks the automatic skip', async () => {
   assert.equal(session.players.player2.isConnected, false);
   assert.equal(session.phase, 'REVEAL');
 });
+
+test('a host who does not play cannot vote nor skip', async () => {
+  const { host, players, sessionId } = await createRoom({ playerCount: 1, isHostPlayer: false });
+  await host.send('game:start', { playlistId: 'pl', shuffle: false });
+
+  assert.equal((await host.send('game:vote', { voteValue: 5 })).success, false);
+  assert.equal((await host.send('game:player_skip', {})).success, false);
+  assert.equal((await players[0].send('game:vote', { voteValue: 2 })).success, true);
+
+  assert.deepEqual(storedSession(sessionId).votes, { player0: 2 });
+});
