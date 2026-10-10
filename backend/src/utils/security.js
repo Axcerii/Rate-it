@@ -201,8 +201,9 @@ export async function verifyYoutubeVideo(youtubeId) {
  * @returns {number|null} Valid rating integer or null
  */
 export function validateRating(val) {
-  const num = parseInt(val, 10);
-  if (!isNaN(num) && num >= 1 && num <= 5) {
+  // Strict on purpose: parseInt would turn 2.5, "3abc" or [4] into valid ratings
+  const num = typeof val === 'string' && val.trim() !== '' ? Number(val) : val;
+  if (Number.isInteger(num) && num >= 1 && num <= 5) {
     return num;
   }
   return null;
