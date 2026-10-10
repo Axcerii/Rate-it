@@ -304,9 +304,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('[Socket] Connection error:', err?.message || err);
     };
 
-    const onRoomUpdate = (updatedSession: GameSession) => {
+    const onRoomUpdate = (updatedSession: GameSession & { partial?: boolean }) => {
       console.log('Received room update:', updatedSession);
-      setSession(updatedSession);
+      if (!updatedSession.partial) {
+        setSession(updatedSession);
+        return;
+      }
+      // Light update: the server did not resend the large fields that have not changed
+      // (videos, results). Keep the ones received with the last full update.
+      setSession((prev) => {
+        if (!prev || prev.sessionId !== updatedSession.sessionId) return prev;
+        const { partial, ...changes } = updatedSession;
+        return { ...prev, ...changes };
+      });
     };
 
     const onBannerBroadcast = (data: { message: string; sender?: string; type?: BannerType }) => {

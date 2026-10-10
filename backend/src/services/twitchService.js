@@ -227,7 +227,7 @@ async function flushTwitchVotes(io, sessionId) {
     console.log(`Room ${sessionId} [Twitch]: ${changed} chat vote(s) recorded`);
 
     // Broadcast update securely to room
-    broadcastRoomUpdate(io, session);
+    broadcastRoomUpdate(io, session, { light: true });
   } catch (error) {
     console.error('Error saving Twitch chat votes:', error);
   } finally {

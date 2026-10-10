@@ -53,7 +53,9 @@ export function registerVoteHandlers(io, socket) {
 
       // If results were already accumulated for the current video (e.g. during REVEAL phase), update them too
       const currentVideo = session.videos?.[session.currentVideoIndex];
+      let resultsChanged = false;
       if (currentVideo && session.results?.[currentVideo.id]) {
+        resultsChanged = true;
         const resObj = session.results[currentVideo.id];
         resObj.playerVotes = resObj.playerVotes || {};
         resObj.playerVotes[playerId] = parsedVote;
@@ -69,7 +71,7 @@ export function registerVoteHandlers(io, socket) {
       console.log(`Room ${sessionId}: Player ${playerId} voted ${parsedVote}`);
 
       // Securely broadcast updated session state to all clients in the room (with voting masking)
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: !resultsChanged });
 
       if (typeof callback === 'function') {
         callback({ success: true, vote: parsedVote });

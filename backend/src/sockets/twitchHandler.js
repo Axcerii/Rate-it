@@ -31,7 +31,7 @@ export function registerTwitchHandlers(io, socket) {
         // Reset twitchVotes for safety
         session.twitchVotes = {};
         await saveSession(session);
-        broadcastRoomUpdate(io, session);
+        broadcastRoomUpdate(io, session, { light: true });
       }
 
       console.log(`Socket ${socket.id} requested Twitch connection to #${channelName}`);
@@ -70,7 +70,7 @@ export function registerTwitchHandlers(io, socket) {
         session.twitchChannel = null;
         session.twitchVotes = {};
         await saveSession(session);
-        broadcastRoomUpdate(io, session);
+        broadcastRoomUpdate(io, session, { light: true });
       }
 
       console.log(`Socket ${socket.id} requested Twitch disconnect`);

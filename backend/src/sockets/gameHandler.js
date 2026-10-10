@@ -440,7 +440,7 @@ export function registerGameHandlers(io, socket) {
       const advanced = await checkAndAdvanceSkip(io, session);
       if (!advanced) {
         await saveSession(session);
-        broadcastRoomUpdate(io, session);
+        broadcastRoomUpdate(io, session, { light: true });
       }
 
       if (typeof callback === 'function') {

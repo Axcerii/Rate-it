@@ -97,7 +97,14 @@ export function createIo() {
     // What the server emits to this socket is recorded, what the client sends goes to the handlers
     const dispatch = socket.emit.bind(socket);
     socket.emit = (event, payload) => socket.receive(event, payload);
-    socket.send = (event, payload = {}) => new Promise((resolve) => dispatch(event, payload, resolve));
+    // Like the frontend, a session returned in an ack replaces the client state (full update)
+    socket.send = (event, payload = {}) =>
+      new Promise((resolve) =>
+        dispatch(event, payload, (response) => {
+          if (response?.session) socket.receive('room:update', response.session);
+          resolve(response);
+        })
+      );
     socket.close = () => {
       dispatch('disconnect', 'transport close');
       for (const room of [...socket.rooms]) socket.leave(room);

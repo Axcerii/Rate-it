@@ -350,7 +350,7 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       await saveSession(session);
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: true });
 
       if (typeof callback === 'function') {
         callback({ success: true, disabledVideoIds: session.disabledVideoIds });
@@ -399,7 +399,7 @@ export function registerPlaylistHandlers(io, socket) {
 
       session.disabledVideoIds = sanitized;
       await saveSession(session);
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: true });
 
       if (typeof callback === 'function') {
         callback({ success: true, disabledVideoIds: session.disabledVideoIds });

@@ -548,9 +548,80 @@ export function recordSecretCodeAttempt(key = 'default', success = false) {
 }
 
 
+// Large fields that only change on game transitions (start, results, next/previous video):
+// they are left out of "light" updates, the client keeps the ones it already has
+const HEAVY_SESSION_FIELDS = ['videos', 'results'];
+
+/**
+ * Client-safe copy of the session as the host sees it. This is the only deep clone of a broadcast.
+ */
+function buildHostView(session, { light = false } = {}) {
+  let source = session;
+  if (light) {
+    source = { ...session };
+    for (const field of HEAVY_SESSION_FIELDS) delete source[field];
+  }
+
+  const copy = JSON.parse(JSON.stringify(source));
+
+  // Never leak hostToken nor player tokens in any client session payload
+  delete copy.hostToken;
+  if (copy.players) {
+    for (const pid in copy.players) {
+      delete copy.players[pid].token;
+    }
+  }
+
+  // Server-side bookkeeping, of no use to clients
+  delete copy.savedRatingsMap;
+
+  if (light) copy.partial = true;
+  return copy;
+}
+
+/**
+ * Everything the player views have in common, computed once per broadcast.
+ */
+function buildPlayerBase(hostView) {
+  const base = { ...hostView };
+
+  // Host-only data: the per-viewer Twitch votes (players only see the aggregated results)
+  // and the lobby track selection
+  delete base.twitchVotes;
+  delete base.disabledVideoIds;
+
+  // In active VOTING phase, prevent regular players from snooping on other players' ratings
+  const hideVotes = base.status === 'PLAYING' && base.phase === 'VOTING';
+  let maskedPlayers = null;
+  if (hideVotes && base.players) {
+    maskedPlayers = {};
+    for (const pid in base.players) {
+      const player = base.players[pid];
+      maskedPlayers[pid] = player.vote !== undefined ? { ...player, vote: null } : player;
+    }
+  }
+
+  return { base, hideVotes, maskedPlayers };
+}
+
+function buildPlayerView({ base, hideVotes, maskedPlayers }, playerId) {
+  if (!hideVotes) return base;
+
+  const votes = {};
+  if (playerId && base.votes && base.votes[playerId] !== undefined) {
+    votes[playerId] = base.votes[playerId];
+  }
+
+  const view = { ...base, votes };
+  if (maskedPlayers) {
+    view.players = playerId && base.players[playerId] ? { ...maskedPlayers, [playerId]: base.players[playerId] } : maskedPlayers;
+  }
+  return view;
+}
+
 /**
  * Sanitizes the session state object before sending it to a specific client socket.
- * Prevents hostToken leaks and masks hidden vote values during the VOTING phase.
+ * Prevents token leaks and masks hidden vote values during the VOTING phase.
  *
  * @param {object} session
  * @param {object} socketData
@@ -559,59 +630,40 @@ export function recordSecretCodeAttempt(key = 'default', success = false) {
 export function sanitizeSessionForSocket(session, socketData = {}) {
   if (!session) return null;
 
-  const isHost = !!socketData.isHost;
-  const playerId = socketData.playerId;
-
-  const copy = JSON.parse(JSON.stringify(session));
-
-  // 1. Never leak hostToken nor player tokens in any client session payload
-  delete copy.hostToken;
-  if (copy.players) {
-    for (const pid in copy.players) {
-      delete copy.players[pid].token;
-    }
-  }
-
-  // 2. If in active VOTING phase, prevent regular players from snooping on other players' ratings
-  if (copy.status === 'PLAYING' && copy.phase === 'VOTING') {
-    if (!isHost) {
-      const maskedVotes = {};
-      if (playerId && copy.votes && copy.votes[playerId] !== undefined) {
-        maskedVotes[playerId] = copy.votes[playerId];
-      }
-      copy.votes = maskedVotes;
-
-      if (copy.players) {
-        for (const pid in copy.players) {
-          if (pid !== playerId && copy.players[pid].vote !== undefined) {
-            copy.players[pid].vote = null;
-          }
-        }
-      }
-    }
-  }
-
-  return copy;
+  const hostView = buildHostView(session);
+  if (socketData.isHost) return hostView;
+  return buildPlayerView(buildPlayerBase(hostView), socketData.playerId);
 }
 
 /**
  * Securely broadcasts room updates to all sockets in a room,
  * ensuring each socket receives an appropriately masked/sanitized copy.
  *
+ * With `light: true` the update is flagged `partial` and omits HEAVY_SESSION_FIELDS: use it for
+ * every change that does not touch them (votes, skips, joins...). They make up most of the payload.
+ *
  * @param {object} io
  * @param {object} session
+ * @param {{ light?: boolean }} [options]
  */
-export function broadcastRoomUpdate(io, session) {
+export function broadcastRoomUpdate(io, session, { light = false } = {}) {
   if (!io || !session || !session.sessionId) return;
   const roomName = `session:${session.sessionId}`;
   const room = io.sockets.adapter.rooms.get(roomName);
   if (!room || room.size === 0) return;
 
+  const hostView = buildHostView(session, { light });
+  let playerBase = null;
+
   for (const socketId of room) {
     const sock = io.sockets.sockets.get(socketId);
-    if (sock) {
-      const sanitized = sanitizeSessionForSocket(session, sock.data);
-      sock.emit('room:update', sanitized);
+    if (!sock) continue;
+
+    if (sock.data?.isHost) {
+      sock.emit('room:update', hostView);
+    } else {
+      playerBase = playerBase || buildPlayerBase(hostView);
+      sock.emit('room:update', buildPlayerView(playerBase, sock.data?.playerId));
     }
   }
 }

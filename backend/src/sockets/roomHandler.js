@@ -157,7 +157,7 @@ export function registerRoomHandlers(io, socket) {
         });
       }
 
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: true });
     } catch (error) {
       console.error('Error reconnecting host:', error);
       if (typeof callback === 'function') {
@@ -204,7 +204,7 @@ export function registerRoomHandlers(io, socket) {
       }
 
       await saveSession(session);
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: true });
 
       if (typeof callback === 'function') {
         callback({
@@ -292,7 +292,7 @@ export function registerRoomHandlers(io, socket) {
       }
 
       // Broadcast updated session state to all clients in the room
-      broadcastRoomUpdate(io, session);
+      broadcastRoomUpdate(io, session, { light: true });
     } catch (error) {
       console.error('Error joining room:', error);
       if (typeof callback === 'function') {
@@ -356,14 +356,14 @@ export function registerRoomHandlers(io, socket) {
         session.hostSocketId = null;
         await saveSession(session);
         disconnectFromTwitchChat(sessionId);
-        broadcastRoomUpdate(io, session);
+        broadcastRoomUpdate(io, session, { light: true });
       } else if (playerId && session.players[playerId]) {
         console.log(`Player ${playerId} disconnected properly from room ${sessionId} (reason: ${reason})`);
         session.players[playerId].isConnected = false;
         await saveSession(session);
         const advanced = await checkAndAdvanceSkip(io, session);
         if (!advanced) {
-          broadcastRoomUpdate(io, session);
+          broadcastRoomUpdate(io, session, { light: true });
         }
       }
     } catch (error) {
