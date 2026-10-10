@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Shield, Sparkles, Film, ExternalLink, ArrowLeft, Heart, Layers, Music, Info, Mail } from 'lucide-react';
 
 export default function CGUPage() {
@@ -84,7 +85,12 @@ export default function CGUPage() {
                 Rate It <strong>n'héberge, ne stocke et ne télécharge aucun fichier vidéo ou audio</strong> sur ses propres serveurs.
               </p>
               <p className="text-slate-700 mt-1">
-                Toutes les vidéos diffusées sont lues directement depuis les serveurs de <strong>YouTube</strong> via le lecteur officiel intégré (YouTube IFrame Player API) conformément aux Conditions d'Utilisation de YouTube. Les droits d'auteur des œuvres musicales, animés, films et visuels demeurent l'entière propriété exclusive de leurs auteurs, artistes, compositeurs, studios d'animation et maisons de disques respectifs.
+                Toutes les vidéos diffusées sont lues directement depuis les serveurs de <strong>YouTube</strong> via le lecteur officiel intégré (services d'API YouTube : IFrame Player API et oEmbed). Les droits d'auteur des œuvres musicales, animés, films et visuels demeurent l'entière propriété exclusive de leurs auteurs, artistes, compositeurs, studios d'animation et maisons de disques respectifs.
+              </p>
+              <p className="text-slate-700 mt-1">
+                <strong>En utilisant Rate It, vous acceptez d'être lié par les{' '}
+                <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">Conditions d'utilisation de YouTube</a></strong>,
+                puisque c'est son lecteur qui diffuse les vidéos. Rate It ne masque ni ne modifie ce lecteur, ses liens ou ses publicités.
               </p>
             </div>
 
@@ -93,13 +99,19 @@ export default function CGUPage() {
                 Article 5 — Données Personnelles & Confidentialité (RGPD)
               </h3>
               <p className="text-slate-700">
-                Rate It respecte votre vie privée :
+                Pas de compte, pas de publicité, pas de mesure d'audience. Pour que le jeu fonctionne, Rate It a tout de même besoin de retenir deux ou trois choses :
               </p>
               <ul className="list-disc list-inside mt-1 space-y-1 text-slate-700">
-                <li><strong>Aucune donnée personnelle sensible</strong> n'est collectée, conservée ni commercialisée à des tiers.</li>
-                <li>L'application utilise uniquement le stockage local de votre navigateur (<code>localStorage</code>) pour mémoriser votre pseudonyme et vos préférences de session locale.</li>
-                <li>Aucun traceur publicitaire intrusif n'est utilisé.</li>
+                <li>Les <strong>pseudos et les notes</strong> des parties sont enregistrés pour calculer les moyennes des titres, y compris les votes du chat Twitch quand l'hôte l'a relié.</li>
+                <li>Votre navigateur garde votre pseudo et de quoi retrouver votre salle (stockage local, <code>localStorage</code>). Aucun cookie n'est déposé chez les joueurs et les hôtes.</li>
+                <li>Le <strong>lecteur YouTube</strong> appartient à Google, qui applique ses{' '}
+                  <a href="http://www.google.com/policies/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">Règles de confidentialité</a>{' '}
+                  et peut déposer ses propres cookies. Il est chargé en mode confidentialité renforcée.</li>
               </ul>
+              <p className="text-slate-700 mt-2">
+                Le détail (ce qui est gardé, combien de temps, comment le faire supprimer) est sur la page{' '}
+                <Link href="/confidentialite" className="underline hover:text-black font-black text-black">Confidentialité</Link>.
+              </p>
             </div>
 
             <div>
@@ -107,7 +119,7 @@ export default function CGUPage() {
                 Article 6 — Disponibilité & Responsabilité
               </h3>
               <p className="text-slate-700">
-                Le service est fourni « tel quel », sans garantie d'accessibilité permanente ou ininterrompue. L'équipe de Rate It ne saurait être tenue responsable en cas d'indisponibilité momentanée des API tierces (YouTube, MyAnimeList, Twitch).
+                Le service est fourni « tel quel », sans garantie d'accessibilité permanente ou ininterrompue. L'équipe de Rate It ne saurait être tenue responsable en cas d'indisponibilité momentanée des API tierces (YouTube, MyAnimeList, AniList, Twitch).
               </p>
             </div>
           </div>
@@ -149,10 +161,10 @@ export default function CGUPage() {
             <div className="p-4 bg-white border-2 border-black rounded-2xl flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-blue-600" />
-                <h3 className="font-black text-black text-sm uppercase">MyAnimeList (MAL)</h3>
+                <h3 className="font-black text-black text-sm uppercase">MyAnimeList & AniList</h3>
               </div>
               <p className="text-xs font-bold text-slate-600 leading-relaxed">
-                Métadonnées, liaisons des animés et synchronisation optionnelle des listes de profils d'utilisateurs via MyAnimeList.
+                Métadonnées, liaisons des animés et import optionnel des listes de profils publics via MyAnimeList et AniList.
               </p>
             </div>
 
@@ -172,7 +184,7 @@ export default function CGUPage() {
           <div className="p-4 bg-slate-50 border-2 border-black rounded-2xl flex flex-col gap-2 text-xs font-bold text-slate-700">
             <h3 className="font-black text-black text-xs uppercase">Ressources Typographiques & Graphiques</h3>
             <p>
-              • <strong>Typographies</strong> : Polices Google Fonts (<em>Exo</em> & <em>Cherry Bomb One</em>).
+              • <strong>Typographies</strong> : Polices Google Fonts (<em>Exo</em> & <em>Cherry Bomb One</em>), servies depuis Rate It.
               <br />
               • <strong>Icônes</strong> : <em>Lucide Icons</em> sous licence MIT.
               <br />

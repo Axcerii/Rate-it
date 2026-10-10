@@ -180,6 +180,13 @@ export default function Home() {
             Conditions Générales d'Utilisation & Crédits
           </Link>
           <span className="text-slate-400">•</span>
+          <Link
+            href="/confidentialite"
+            className="hover:text-black focus:text-black underline underline-offset-4 decoration-slate-400 hover:decoration-black transition-colors"
+          >
+            Confidentialité
+          </Link>
+          <span className="text-slate-400">•</span>
           <span className="text-slate-600">Rate It © {new Date().getFullYear()}</span>
         </footer>
       </div>
