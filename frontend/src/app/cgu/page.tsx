@@ -102,7 +102,7 @@ export default function CGUPage() {
                 Pas de compte, pas de publicité, pas de mesure d'audience. Pour que le jeu fonctionne, Rate It a tout de même besoin de retenir deux ou trois choses :
               </p>
               <ul className="list-disc list-inside mt-1 space-y-1 text-slate-700">
-                <li>Les <strong>pseudos et les notes</strong> des parties sont enregistrés pour calculer les moyennes des titres, y compris les votes du chat Twitch quand l'hôte l'a relié.</li>
+                <li>Les <strong>notes</strong> des parties sont conservées pour calculer les moyennes des titres, y compris celles du chat Twitch quand l'hôte l'a relié, mais <strong>sans aucun pseudo</strong>. Votre pseudo ne vit que dans la salle, effacée deux heures au plus après la partie.</li>
                 <li>Votre navigateur garde votre pseudo et de quoi retrouver votre salle (stockage local, <code>localStorage</code>). Aucun cookie n'est déposé chez les joueurs et les hôtes.</li>
                 <li>Le <strong>lecteur YouTube</strong> appartient à Google, qui applique ses{' '}
                   <a href="http://www.google.com/policies/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">Règles de confidentialité</a>{' '}

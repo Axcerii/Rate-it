@@ -5,7 +5,7 @@ import { ArrowLeft, Cookie, Database, ExternalLink, Film, Layers, Lock, Mail, Mu
 export const metadata: Metadata = {
   title: 'Confidentialité',
   description:
-    'Ce que Rate It enregistre, ce qui reste dans votre navigateur, et ce que YouTube, Twitch, MyAnimeList et AniList reçoivent quand vous jouez.',
+    'Ce que Rate It enregistre (des notes anonymes), ce qui reste dans votre navigateur, et ce que YouTube, Twitch, MyAnimeList et AniList reçoivent quand vous jouez.',
   alternates: { canonical: '/confidentialite' },
 };
 
@@ -123,19 +123,20 @@ export default function ConfidentialitePage() {
               <p>
                 Une salle contient les pseudos des joueurs, leurs notes et la liste des vidéos. Elle vit en mémoire sur le serveur
                 et s’efface toute seule <strong>deux heures après la dernière action</strong>, ou tout de suite si l’hôte la ferme.
+                C’est le seul endroit où votre pseudo existe côté serveur. Même chose pour les viewers Twitch qui votent dans le chat
+                d’un hôte : leur pseudo Twitch ne sert qu’à compter une note par personne, le temps de la partie.
               </p>
             </div>
 
             <div>
               <h3 className="font-black text-black text-sm sm:text-base uppercase mb-1">Après la partie : les notes</h3>
               <p>
-                Chaque note donnée est conservée avec <strong>le pseudo utilisé, la vidéo, la playlist et le code de la salle</strong>.
-                C’est ce qui permet d’afficher la moyenne historique d’un titre et les statistiques des playlists.
-                Ces notes sont gardées <strong>sans limite de durée</strong>.
+                Les notes sont conservées pour afficher la moyenne historique d’un titre et les statistiques des playlists,
+                mais <strong>sans aucun nom</strong> : ni pseudo de joueur, ni pseudo Twitch. Il reste la note, la vidéo, la playlist,
+                le code de la salle et la date. Rien là-dedans ne permet de dire qui a voté quoi, pas même à moi.
               </p>
               <p className="mt-1">
-                Si l’hôte a relié son chat Twitch, les viewers qui votent dans le chat sont enregistrés de la même façon,
-                avec leur <strong>pseudo Twitch</strong>.
+                Jusqu’en octobre 2026, le pseudo était enregistré avec chaque note alors qu’il ne servait à rien. Ces pseudos ont été effacés.
               </p>
             </div>
 
@@ -151,7 +152,7 @@ export default function ConfidentialitePage() {
               <h3 className="font-black text-black text-sm sm:text-base uppercase mb-1">Votre adresse IP</h3>
               <p>
                 Elle sert, le temps de votre visite, à bloquer les abus (trop de requêtes, tentatives de connexion à l’administration).
-                Elle n’est pas enregistrée avec vos notes ni avec votre pseudo. Comme sur n’importe quel site, elle apparaît dans les
+                Elle n’est rattachée ni à vos notes ni à votre pseudo. Comme sur n’importe quel site, elle apparaît dans les
                 journaux techniques du serveur.
               </p>
             </div>
@@ -244,7 +245,8 @@ export default function ConfidentialitePage() {
               </div>
               <p className="text-xs font-bold text-slate-600 leading-relaxed">
                 Quand un hôte relie sa chaîne, le serveur de Rate It lit les messages publics de son chat pour y repérer les notes
-                (de 1 à 5). Les autres messages ne sont pas conservés. Votre navigateur, lui, ne contacte pas Twitch.
+                (de 1 à 5). Aucun message n’est conservé, et les notes sont enregistrées sans le pseudo de leur auteur.
+                Votre navigateur, lui, ne contacte pas Twitch.
               </p>
             </div>
 
@@ -274,11 +276,12 @@ export default function ConfidentialitePage() {
           <div className="flex flex-col gap-3 text-xs sm:text-sm font-bold text-slate-700 leading-relaxed">
             <p>
               Vous pouvez me demander ce que le site conserve à votre sujet, le faire corriger ou le faire supprimer, et vous opposer
-              à sa conservation. Comme il n’y a pas de compte, j’ai besoin de quoi retrouver vos notes : <strong>le pseudo utilisé</strong> et,
-              si possible, <strong>la date ou le code de la salle</strong>. Pour un vote Twitch, votre pseudo Twitch suffit.
+              à sa conservation. En pratique il n’y a presque rien à chercher : les notes sont anonymes, et votre pseudo disparaît
+              avec la salle, deux heures au plus après la partie.
             </p>
             <p>
-              Je suis le seul responsable de ce traitement, et je réponds dans un délai d’un mois.
+              Ce qui peut rester à votre nom, c’est ce que vous avez écrit vous-même dans une playlist publique (son titre, sa description).
+              Envoyez-moi son code et je la corrige ou la supprime. Je suis le seul responsable de ce traitement, et je réponds dans un délai d’un mois.
             </p>
           </div>
 
