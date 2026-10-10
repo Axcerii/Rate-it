@@ -1,0 +1,34 @@
+# Bloc Rate It du Caddyfile de production.
+# Caddy tourne dans Docker, sur le même réseau que les conteneurs rate-it-* : il les joint par leur nom.
+# Ce fichier ne contient que le site Rate It ; le Caddyfile du serveur contient aussi les autres sites.
+#
+# Caddy gère seul le HTTPS (certificats, redirection depuis HTTP) et transmet au backend la vraie
+# adresse du visiteur dans X-Forwarded-For, en ignorant celle que le visiteur aurait envoyée lui-même.
+# Ne pas ajouter d'option trusted_proxies : les limites anti-abus du backend sont comptées par adresse.
+
+rate-it.fr, www.rate-it.fr {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Temps réel (Socket.io) : directement vers le backend
+    handle /socket.io/* {
+        reverse_proxy rate-it-backend:4000
+    }
+
+    # API REST : directement vers le backend, sans passer par Next.js
+    # (son relais coupe les requêtes au bout de 30 s, trop court pour créer une grosse playlist)
+    handle /api/* {
+        reverse_proxy rate-it-backend:4000
+    }
+
+    # Tout le reste : l'application Next.js
+    handle {
+        reverse_proxy rate-it-frontend:3000
+    }
+}
