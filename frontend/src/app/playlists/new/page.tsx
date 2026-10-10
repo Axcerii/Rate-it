@@ -7,6 +7,9 @@ import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Sliders, X, Check, Ch
 import HomeButton from '@/components/HomeButton';
 import CloseButton from '@/components/CloseButton';
 
+// Same limit as the backend (createPlaylistRecord / playlist:update_with_secret)
+const MAX_PLAYLIST_TRACKS = 200;
+
 interface VideoInput {
   title: string;
   youtubeId: string;
@@ -355,6 +358,8 @@ export default function NewPlaylist() {
     showBanner('Mode édition désactivé. Retour à la création.', 'info');
   };
 
+  const isOverTrackLimit = videos.length > MAX_PLAYLIST_TRACKS;
+
   const handleSavePlaylist = async () => {
     setError(null);
     if (!playlistName.trim()) {
@@ -366,6 +371,12 @@ export default function NewPlaylist() {
     }
     if (videos.length === 0) {
       const errMsg = 'Veuillez ajouter au moins une vidéo à la playlist.';
+      setError(errMsg);
+      showBanner(errMsg, 'error');
+      return;
+    }
+    if (videos.length > MAX_PLAYLIST_TRACKS) {
+      const errMsg = `Une playlist ne peut pas contenir plus de ${MAX_PLAYLIST_TRACKS} vidéos (${videos.length} actuellement).`;
       setError(errMsg);
       showBanner(errMsg, 'error');
       return;
@@ -400,6 +411,36 @@ export default function NewPlaylist() {
     }
   };
 
+  // Adds the videos matched from an anime list, skipping those already in the playlist,
+  // and warns right away when the result exceeds what a playlist can hold
+  const appendImportedVideos = (matched: any[], sourceLabel: string) => {
+    const updated = [...videos];
+    let addedCount = 0;
+    matched.forEach(item => {
+      const exists = updated.some(v => v.youtubeId === item.youtubeId);
+      if (!exists) {
+        updated.push({
+          artistName: item.artistName || 'Artiste inconnu',
+          title: item.title,
+          description: item.description || '',
+          youtubeId: item.youtubeId,
+        });
+        addedCount++;
+      }
+    });
+    setVideos(updated);
+
+    if (updated.length > MAX_PLAYLIST_TRACKS) {
+      const excess = updated.length - MAX_PLAYLIST_TRACKS;
+      showBanner(
+        `${addedCount} vidéos importées depuis ${sourceLabel}. La playlist contient maintenant ${updated.length} vidéos : le maximum est de ${MAX_PLAYLIST_TRACKS}. Retirez-en ${excess} avant de l'enregistrer.`,
+        'error'
+      );
+    } else {
+      showBanner(`${addedCount} vidéos importées depuis ${sourceLabel}`, 'success');
+    }
+  };
+
   const handleImportMal = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -413,25 +454,8 @@ export default function NewPlaylist() {
         throw new Error('Aucune vidéo correspondante trouvée pour ce compte MAL dans la base.');
       }
 
-      let addedCount = 0;
-      setVideos(prev => {
-        const updated = [...prev];
-        matched.forEach(item => {
-          const exists = updated.some(v => v.youtubeId === item.youtubeId);
-          if (!exists) {
-            updated.push({
-              artistName: item.artistName || 'Artiste inconnu',
-              title: item.title,
-              description: item.description || '',
-              youtubeId: item.youtubeId,
-            });
-            addedCount++;
-          }
-        });
-        return updated;
-      });
       setMalUsernameInput('');
-      showBanner(`${addedCount} vidéos importées depuis le profil MAL : ${username}`, 'success');
+      appendImportedVideos(matched, `le profil MAL : ${username}`);
     } catch (err: any) {
       showBanner(err.message || 'Échec de l\'importation des vidéos MAL', 'error');
     } finally {
@@ -452,25 +476,8 @@ export default function NewPlaylist() {
         throw new Error('Aucune vidéo correspondante trouvée pour ce compte AniList dans la base.');
       }
 
-      let addedCount = 0;
-      setVideos(prev => {
-        const updated = [...prev];
-        matched.forEach(item => {
-          const exists = updated.some(v => v.youtubeId === item.youtubeId);
-          if (!exists) {
-            updated.push({
-              artistName: item.artistName || 'Artiste inconnu',
-              title: item.title,
-              description: item.description || '',
-              youtubeId: item.youtubeId,
-            });
-            addedCount++;
-          }
-        });
-        return updated;
-      });
       setAnilistUsernameInput('');
-      showBanner(`${addedCount} vidéos importées depuis le profil AniList : ${username}`, 'success');
+      appendImportedVideos(matched, `le profil AniList : ${username}`);
     } catch (err: any) {
       showBanner(err.message || 'Échec de l\'importation des vidéos AniList', 'error');
     } finally {
@@ -687,8 +694,8 @@ export default function NewPlaylist() {
         <div className="info-card p-3.5 sm:p-6 rounded-2xl flex flex-col min-h-[500px] w-full max-w-full overflow-hidden">
           <h2 className="text-base sm:text-lg font-black uppercase border-b-2 border-black pb-2 mb-4 text-emerald-900 flex items-center justify-between">
             <span>2. Aperçu de la playlist</span>
-            <span className="bg-black text-[#faf6eb] px-2.5 py-0.5 rounded text-xs font-mono">
-              {videos.length} {videos.length === 1 ? 'vidéo' : 'vidéos'}
+            <span className={`${isOverTrackLimit ? 'bg-[#990000]' : 'bg-black'} text-[#faf6eb] px-2.5 py-0.5 rounded text-xs font-mono`}>
+              {videos.length} / {MAX_PLAYLIST_TRACKS} {videos.length === 1 ? 'vidéo' : 'vidéos'}
             </span>
           </h2>
 
@@ -729,6 +736,15 @@ export default function NewPlaylist() {
             </div>
           )}
 
+          {isOverTrackLimit && (
+            <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>
+                Une playlist est limitée à {MAX_PLAYLIST_TRACKS} vidéos : retirez-en {videos.length - MAX_PLAYLIST_TRACKS} pour pouvoir l'enregistrer.
+              </span>
+            </div>
+          )}
+
           {/* Error and Success Indicators */}
           {error && (
             <div className="mb-4 bg-red-100 border-2 border-red-500 text-red-700 px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2">
@@ -754,7 +770,7 @@ export default function NewPlaylist() {
             </button>
             <button
               onClick={handleSavePlaylist}
-              disabled={isSaving || success}
+              disabled={isSaving || success || isOverTrackLimit}
               className="flex-1 py-3 bg-[#4BD66F] text-black border-2 border-black font-black text-xs sm:text-sm uppercase rounded-xl btn-action-hover disabled:opacity-40"
             >
               {isSaving
