@@ -53,6 +53,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Veuillez definir ADMIN_PASSWORD dans .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://rate-it.fr,https://www.rate-it.fr}
       SPECIAL_TWITCH_USER: ${SPECIAL_TWITCH_USER:-ryrynoceros_}
+      MAX_PLAYERS_PER_ROOM: ${MAX_PLAYERS_PER_ROOM:-100}
     ports:
       # Binds to localhost only for reverse proxy access (Nginx/Caddy/Cloudflare)
       - "127.0.0.1:${BACKEND_PORT:-4000}:4000"

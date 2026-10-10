@@ -1,3 +1,5 @@
+import { withSocketRateLimit } from './rateLimiter.js';
+
 // Events emitted by Socket.io itself (not by clients): their arguments must not be altered
 const RESERVED_EVENTS = new Set(['disconnect', 'disconnecting', 'error']);
 
@@ -32,12 +34,15 @@ export function safeHandler(eventName, handler) {
 }
 
 /**
- * Patches socket.on / socket.once so that every handler registered afterwards is wrapped with safeHandler.
- * Must be called before registering the handlers.
+ * Patches socket.on / socket.once so that every handler registered afterwards is rate limited
+ * and wrapped with safeHandler. Must be called before registering the handlers.
  */
 export function installSafeHandlers(socket) {
   for (const method of ['on', 'once']) {
     const original = socket[method].bind(socket);
-    socket[method] = (eventName, handler) => original(eventName, safeHandler(eventName, handler));
+    socket[method] = (eventName, handler) => {
+      const limited = RESERVED_EVENTS.has(eventName) ? handler : withSocketRateLimit(socket, eventName, handler);
+      return original(eventName, safeHandler(eventName, limited));
+    };
   }
 }

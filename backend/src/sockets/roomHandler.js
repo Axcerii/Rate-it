@@ -10,6 +10,9 @@ import {
   sanitizeSessionForSocket,
 } from '../utils/security.js';
 
+// Every player receives the whole room state on each update: an unbounded room would take the backend down
+const MAX_PLAYERS_PER_ROOM = parseInt(process.env.MAX_PLAYERS_PER_ROOM, 10) || 100;
+
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -246,6 +249,9 @@ export function registerRoomHandlers(io, socket) {
         session.players[cleanPlayerId].isConnected = true;
         session.players[cleanPlayerId].name = cleanPlayerName;
       } else {
+        if (Object.keys(session.players).length >= MAX_PLAYERS_PER_ROOM) {
+          throw new Error(`Cette salle est complète (${MAX_PLAYERS_PER_ROOM} joueurs maximum).`);
+        }
         session.players[cleanPlayerId] = {
           id: cleanPlayerId,
           name: cleanPlayerName,

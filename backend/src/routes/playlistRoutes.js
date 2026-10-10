@@ -6,30 +6,13 @@ import {
   getAllCategories,
 } from '../services/playlistService.js';
 import { verifyAdminCredential } from '../utils/security.js';
+import { consumeRateLimit, PLAYLIST_WRITE_LIMIT } from '../utils/rateLimiter.js';
 
 const router = Router();
 
-// Rate limiter map for playlist creation by IP
-const creationAttempts = new Map();
-const MAX_CREATIONS_PER_WINDOW = 20; // max 20 playlists per 15 minutes per IP
-const CREATION_WINDOW_MS = 15 * 60 * 1000;
-
+// Playlist creation budget per IP, shared with the playlist:create / playlist:update_with_secret socket events
 function checkCreationRateLimit(ip) {
-  const now = Date.now();
-  const entry = creationAttempts.get(ip);
-  if (!entry) {
-    creationAttempts.set(ip, { count: 1, resetAt: now + CREATION_WINDOW_MS });
-    return true;
-  }
-  if (now > entry.resetAt) {
-    creationAttempts.set(ip, { count: 1, resetAt: now + CREATION_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= MAX_CREATIONS_PER_WINDOW) {
-    return false;
-  }
-  entry.count += 1;
-  return true;
+  return consumeRateLimit('playlist:write', ip, PLAYLIST_WRITE_LIMIT);
 }
 
 /**
