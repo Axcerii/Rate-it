@@ -30,6 +30,7 @@ import {
 import gsap from 'gsap';
 import HostLeaderboardView from '@/components/host/HostLeaderboardView';
 import HostPlayingView from '@/components/host/HostPlayingView';
+import HostModeChoice from '@/components/host/HostModeChoice';
 import { getRoomStats } from '@/components/host/roomStats';
 import HomeButton from '@/components/HomeButton';
 import CloseButton from '@/components/CloseButton';
@@ -1514,91 +1515,16 @@ export default function HostLobby() {
 
           {/* MAIN CONTENT AREA */}
           {!hasChosenMode ? (
-            /* ÉCRAN DE SÉLECTION DU MODE (écran séparé / formulaire initial plein format) */
-            <div className="flex-1 w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto flex flex-col items-center justify-center py-8 sm:py-12 lg:py-16 gap-8 sm:gap-10 lg:gap-12 animate-in fade-in duration-300">
-              <div className="text-center flex flex-col items-center">
-                <h2 className="font-title text-2xl text-black leading-tight tracking-wide max-w-2xl lg:max-w-4xl text-center">
-                  Comment souhaitez-vous sélectionner les musiques pour cette session ?
-                </h2>
-              </div>
-
-              {/* Les 2 boutons agrandis sur grands écrans et descriptions égalisées */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 lg:gap-10 xl:gap-12 w-full px-2 sm:px-4 lg:px-6 items-stretch">
-                {/* 1. Bouton : Utiliser une playlist préfaite */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuizMode('playlist');
-                    setHasChosenMode(true);
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
-                    }
-                  }}
-                  className="group relative flex flex-col h-full w-full text-left cursor-pointer select-none focus:outline-none shadow-none"
-                >
-                  <div className="relative w-full flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.03] group-focus:scale-[1.03] group-active:scale-[0.98]">
-                    <img
-                      src="/LOGOS/Bouton_Playlist.png"
-                      alt="Playlists"
-                      className="w-full h-auto max-h-[220px] sm:max-h-[280px] lg:max-h-[340px] xl:max-h-[400px] object-contain drop-shadow-md group-hover:drop-shadow-xl transition-all duration-200"
-                      draggable={false}
-                    />
-                  </div>
-
-                  <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
-                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
-                      <span>Utiliser une playlist préfaite</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
-                    </div>
-                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg font-bold text-slate-700 mt-2 lg:mt-3 leading-relaxed min-h-[2.75rem] sm:min-h-[3rem] lg:min-h-[3.25rem] flex items-center text-left">
-                      Explorez le catalogue officiel, les playlists communautaires ou chargez un code.
-                    </p>
-                  </div>
-                </button>
-
-                {/* 2. Bouton : Importer une liste depuis MyAnimeList / Anilist */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuizMode('mal');
-                    setHasChosenMode(true);
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
-                    }
-                  }}
-                  className="group relative flex flex-col h-full w-full text-left cursor-pointer select-none focus:outline-none shadow-none"
-                >
-                  <div className="relative w-full flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.03] group-focus:scale-[1.03] group-active:scale-[0.98]">
-                    <img
-                      src="/LOGOS/Bouton_MAL_AL.png"
-                      alt="MyAnimeList / AniList"
-                      className="w-full h-auto max-h-[220px] sm:max-h-[280px] lg:max-h-[340px] xl:max-h-[400px] object-contain drop-shadow-md group-hover:drop-shadow-xl transition-all duration-200"
-                      draggable={false}
-                    />
-                  </div>
-
-                  <div className="mt-4 lg:mt-6 w-full bg-white border-3 sm:border-4 xl:border-[5px] border-black rounded-2xl sm:rounded-3xl xl:rounded-[32px] p-4 sm:p-6 lg:p-7 xl:p-8 text-left shadow-none group-hover:bg-[#FEEC66] transition-all duration-200 flex-1 flex flex-col justify-center items-start">
-                    <div className="flex items-center justify-between w-full gap-2 text-black font-title text-base sm:text-xl lg:text-2xl xl:text-3xl uppercase min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] text-left leading-snug">
-                      <span>Importer une liste depuis MAL / AL</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0 transition-transform group-hover:translate-x-1" />
-                    </div>
-                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg font-bold text-slate-700 mt-2 lg:mt-3 leading-relaxed min-h-[2.75rem] sm:min-h-[3rem] lg:min-h-[3.25rem] flex items-center text-left">
-                      Générez automatiquement une playlist avec les openings de vos animes complétés.
-                    </p>
-                  </div>
-                </button>
-              </div>
-
-              {/* Petit bouton Accueil pour quitter si on souhaite annuler */}
-              <div className="flex justify-center pt-2">
-                <HomeButton
-                  onClick={handleBackToHome}
-                  sizeClassName="h-10 sm:h-12 md:h-14"
-                  title="Retourner à l'accueil"
-                  ariaLabel="Retourner à l'accueil"
-                />
-              </div>
-            </div>
+            <HostModeChoice
+              onChoose={(mode) => {
+                setQuizMode(mode);
+                setHasChosenMode(true);
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
+                }
+              }}
+              onBackToHome={handleBackToHome}
+            />
           ) : quizMode === 'playlist' ? (
             /* PLAYLISTS VIEW WITH FILTERS & CARDS (REUSING PLAYLISTCARD & PLAYLISTFILTERS) */
             <div className="flex flex-col lg:flex-row items-start gap-6 w-full flex-1">

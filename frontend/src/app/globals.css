@@ -435,3 +435,30 @@ button {
   outline: 3px solid #000000;
   outline-offset: -3px;
 }
+
+/* Host lobby: luggage tags hanging from the mode pictures (HostModeChoice).
+   They pivot around the top of their string, hidden behind the picture. */
+.mode-tag {
+  transform-origin: 50% 0;
+  rotate: var(--tag-tilt, 0deg);
+}
+
+@keyframes modeTagSwing {
+  0% { rotate: var(--tag-tilt, 0deg); }
+  22% { rotate: calc(var(--tag-tilt, 0deg) + 5deg); }
+  50% { rotate: calc(var(--tag-tilt, 0deg) - 3.5deg); }
+  76% { rotate: calc(var(--tag-tilt, 0deg) + 1.5deg); }
+  100% { rotate: var(--tag-tilt, 0deg); }
+}
+
+.group:hover .mode-tag,
+.group:focus-visible .mode-tag {
+  animation: modeTagSwing 900ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .mode-tag,
+  .group:focus-visible .mode-tag {
+    animation: none;
+  }
+}
