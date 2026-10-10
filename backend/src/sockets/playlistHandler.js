@@ -21,9 +21,8 @@ import {
   validateYoutubeId,
   verifyYoutubeVideo,
   safeTimingCompare,
-  verifyAdminCredential,
-  createAdminSession,
   isValidAdminSession,
+  getAdminSessionToken,
   getSocketClientIp,
   sanitizeVideoId,
   validateMalUsername,
@@ -36,9 +35,17 @@ import {
 } from '../utils/security.js';
 import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
-// `password` is the admin password or, once logged in, the session token returned by admin:verify
+// Admin actions are authorized by the session cookie sent with the socket handshake
+// (set by POST /api/admin/login). Nothing sent in the event payload can grant admin rights.
+function isAdminSocket(socket) {
+  return isValidAdminSession(getAdminSessionToken(socket?.handshake?.headers?.cookie));
+}
+
+// The `password` argument is kept for the call sites, it is no longer read
 function verifyAdminAuth(password, socket) {
-  verifyAdminCredential(password, getSocketClientIp(socket));
+  if (!isAdminSocket(socket)) {
+    throw new Error('Session administrateur absente ou expirée. Veuillez vous reconnecter.');
+  }
 }
 
 function generatePlaylistId() {
@@ -51,18 +58,16 @@ function generatePlaylistId() {
 }
 
 export function registerPlaylistHandlers(io, socket) {
-  // 0. Verify Admin Password
-  socket.on('admin:verify', async ({ password }, callback) => {
+  // 0. Tells whether this socket carries a valid admin session (login itself is POST /api/admin/login)
+  socket.on('admin:verify', async (payload, callback) => {
     try {
-      verifyAdminAuth(password, socket);
-      // The client keeps this token and sends it instead of the password from now on
-      const token = isValidAdminSession(password) ? password : createAdminSession();
+      verifyAdminAuth(null, socket);
       if (typeof callback === 'function') {
-        callback({ success: true, message: 'Mot de passe administrateur validé avec succès', token });
+        callback({ success: true });
       }
     } catch (error) {
       if (typeof callback === 'function') {
-        callback({ success: false, error: error.message || 'Mot de passe administrateur invalide' });
+        callback({ success: false, error: error.message });
       }
     }
   });
@@ -70,15 +75,8 @@ export function registerPlaylistHandlers(io, socket) {
   // 1. Get all playlists (Validated & Community) - includes secretCode if admin authenticated
   socket.on('playlist:list', async (payload, callback) => {
     try {
-      let isAdmin = false;
-      if (payload && payload.password) {
-        try {
-          verifyAdminAuth(payload.password, socket);
-          isAdmin = true;
-        } catch (_) {
-          isAdmin = false;
-        }
-      }
+      // Admin view (with secret codes) only when asked for, by a socket holding an admin session
+      const isAdmin = Boolean(payload && payload.admin) && isAdminSocket(socket);
 
       const result = await getPlaylistsList({ isAdmin });
       if (typeof callback === 'function') {

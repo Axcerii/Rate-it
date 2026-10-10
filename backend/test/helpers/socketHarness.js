@@ -76,12 +76,13 @@ export function createIo() {
   };
 
   // Connects a new client. Each client gets its own IP unless one is given.
-  io.connect = (ip = `203.0.113.${nextIp++ % 250}`) => {
+  // `cookie` is the Cookie header sent with the handshake (admin session).
+  io.connect = (ip = `203.0.113.${nextIp++ % 250}`, { cookie } = {}) => {
     const socket = new EventEmitter();
     socket.id = `socket${nextSocketId++}`;
     socket.data = {};
     socket.rooms = new Set();
-    socket.handshake = { address: '172.18.0.1', headers: { 'x-forwarded-for': ip } };
+    socket.handshake = { address: '172.18.0.1', headers: { 'x-forwarded-for': ip, ...(cookie ? { cookie } : {}) } };
     socket.received = []; // every event the server sent to this client: { event, payload }
     socket.receive = (event, payload) => socket.received.push({ event, payload, bytes: JSON.stringify(payload ?? null).length });
     socket.join = (room) => {

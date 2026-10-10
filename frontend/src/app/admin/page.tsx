@@ -66,7 +66,9 @@ export default function AdminConsole() {
     adminUpdateVideo,
     adminSearchVideos,
     verifyVideo,
-    verifyAdminPassword,
+    adminLogin,
+    adminLogout,
+    checkAdminSession,
     getGlobalStats,
     isConnected,
     categories: socketCategories,
@@ -208,7 +210,7 @@ export default function AdminConsole() {
   const fetchLists = async () => {
     setError(null);
     try {
-      const { validated, community } = await getPlaylists(adminPassword);
+      const { validated, community } = await getPlaylists(true);
       setValidatedLists(validated);
       setCommunityLists(community);
     } catch (err: any) {
@@ -287,14 +289,13 @@ export default function AdminConsole() {
     }
 
     try {
-      // From here on, adminPassword holds the session token: the password itself is not kept
-      const sessionToken = await verifyAdminPassword(adminPassword.trim());
-      const { validated, community } = await getPlaylists(sessionToken);
+      // The server keeps the session in an HttpOnly cookie: nothing secret stays in the page
+      await adminLogin(adminPassword.trim());
+      const { validated, community } = await getPlaylists(true);
       setValidatedLists(validated);
       setCommunityLists(community);
-      setAdminPassword(sessionToken);
+      setAdminPassword('');
       setIsAuthenticated(true);
-      localStorage.setItem('rate_it_admin_session', sessionToken);
     } catch (err: any) {
       setError(err.message || 'Mot de passe administrateur incorrect.');
       setIsAuthenticated(false);
@@ -303,24 +304,27 @@ export default function AdminConsole() {
 
   // Restore admin session on mount with verification
   useEffect(() => {
-    // Older versions stored the admin password itself in the browser: purge it
+    // Older versions stored the admin password or session token in the browser: purge them
     localStorage.removeItem('rate_it_admin_password');
+    localStorage.removeItem('rate_it_admin_session');
 
-    const savedSession = localStorage.getItem('rate_it_admin_session');
-    if (savedSession && isConnected) {
-      verifyAdminPassword(savedSession)
-        .then(async (sessionToken) => {
-          const { validated, community } = await getPlaylists(sessionToken);
-          setValidatedLists(validated);
-          setCommunityLists(community);
-          setAdminPassword(sessionToken);
-          setIsAuthenticated(true);
-        })
-        .catch(() => {
-          localStorage.removeItem('rate_it_admin_session');
-          setIsAuthenticated(false);
-        });
-    }
+    if (!isConnected) return;
+    let cancelled = false;
+    checkAdminSession()
+      .then(async (authenticated) => {
+        if (!authenticated || cancelled) return;
+        const { validated, community } = await getPlaylists(true);
+        if (cancelled) return;
+        setValidatedLists(validated);
+        setCommunityLists(community);
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        if (!cancelled) setIsAuthenticated(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isConnected]);
 
   const handleToggleValidation = async (id: string, currentStatus: boolean) => {
@@ -776,7 +780,7 @@ export default function AdminConsole() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('rate_it_admin_session');
+    adminLogout().catch((err) => console.error('Admin logout failed:', err));
     setAdminPassword('');
     setIsAuthenticated(false);
   };

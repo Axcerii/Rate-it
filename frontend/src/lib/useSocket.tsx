@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { GameSession } from '../../../shared/types';
-import { fetchPlaylistsApi, fetchPlaylistDetailsApi, createPlaylistApi, fetchCategoriesApi } from './api';
+import { fetchPlaylistsApi, fetchPlaylistDetailsApi, createPlaylistApi, fetchCategoriesApi, adminLoginApi, adminLogoutApi, adminSessionApi } from './api';
 
 export type BannerType = 'error' | 'announcement' | 'info' | 'success' | 'warning';
 
@@ -36,7 +36,7 @@ interface SocketContextType {
   submitVote: (voteValue: number) => Promise<number>;
   connectTwitch: (channelName: string) => Promise<string>;
   disconnectTwitch: () => Promise<void>;
-  getPlaylists: (password?: string) => Promise<{ validated: any[]; community: any[] }>;
+  getPlaylists: (admin?: boolean) => Promise<{ validated: any[]; community: any[] }>;
   createPlaylist: (name: string, description: string, videos: any[], categories?: string[]) => Promise<{ playlistId: string; secretCode: string }>;
   verifyPlaylistSecret: (secretCode: string) => Promise<{ playlist: any; videos: any[] }>;
   updatePlaylistWithSecret: (id: string, secretCode: string, name: string, description: string, videos: any[]) => Promise<string>;
@@ -65,7 +65,9 @@ interface SocketContextType {
   adminUpdateVideo: (videoId: string | number, videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string; anilistId?: number | string; anilistTitle?: string }, password?: string) => Promise<any>;
   adminSearchVideos: (query?: string, limit?: number, offset?: number, password?: string) => Promise<{ videos: any[]; total: number }>;
   verifyVideo: (youtubeId: string) => Promise<{ valid: boolean; title?: string; author?: string; error?: string }>;
-  verifyAdminPassword: (password: string) => Promise<string>;
+  adminLogin: (password: string) => Promise<void>;
+  adminLogout: () => Promise<void>;
+  checkAdminSession: () => Promise<boolean>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -233,6 +235,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnectionDelayMax: 5000,
       timeout: 10000,
       transports: ['polling', 'websocket'],
+      // Send cookies with the handshake when the backend is on another port (dev): admin session cookie
+      withCredentials: true,
     });
 
     setSocket(socketInstance);
@@ -592,14 +596,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const getPlaylists = async (password?: string): Promise<{ validated: any[]; community: any[] }> => {
+  const getPlaylists = async (admin?: boolean): Promise<{ validated: any[]; community: any[] }> => {
     try {
-      return await fetchPlaylistsApi({ password });
+      return await fetchPlaylistsApi({ admin });
     } catch (err) {
       // Fallback to socket if HTTP fails
       return new Promise((resolve, reject) => {
         if (!socket) return reject(err);
-        socket.emit('playlist:list', { password }, (response: any) => {
+        socket.emit('playlist:list', { admin }, (response: any) => {
           if (response?.success) {
             resolve({ validated: response.validated, community: response.community });
           } else {
@@ -993,17 +997,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Resolves to the admin session token, to be passed as `password` to every admin call
-  const verifyAdminPassword = (password: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (!socket) return reject(new Error('Socket non connecté'));
-      socket.emit('admin:verify', { password }, (response: any) => {
-        if (response && response.success) {
-          resolve(response.token || password);
-        } else {
-          reject(new Error(response?.error || 'Mot de passe administrateur incorrect'));
-        }
-      });
+  // Opens the admin session: the server sets an HttpOnly cookie that scripts cannot read.
+  // The socket then reconnects, because admin events are authorized by the cookie sent with its handshake.
+  const adminLogin = async (password: string): Promise<void> => {
+    await adminLoginApi(password);
+    const sock = socketRef.current || socket;
+    if (sock) {
+      sock.disconnect();
+      sock.connect();
+      await waitForConnection(5000);
+    }
+  };
+
+  const adminLogout = async (): Promise<void> => {
+    await adminLogoutApi();
+  };
+
+  // True when this browser holds a valid admin session and the current socket carries it
+  const checkAdminSession = async (): Promise<boolean> => {
+    if (!(await adminSessionApi())) return false;
+    const sock = await waitForConnection(5000);
+    return new Promise((resolve) => {
+      sock.emit('admin:verify', {}, (response: any) => resolve(Boolean(response && response.success)));
     });
   };
 
@@ -1107,7 +1122,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         adminUpdateVideo,
         adminSearchVideos,
         verifyVideo,
-        verifyAdminPassword,
+        adminLogin,
+        adminLogout,
+        checkAdminSession,
       }}
     >
       {children}

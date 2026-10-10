@@ -4,8 +4,10 @@ import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoom, createIo, storedSession, redisStore, playlistVideos, dbHandlers, dbQueries, silenceLogs } from './helpers/socketHarness.js';
 import redisClient from '../src/store/redis.js';
+import { ADMIN_COOKIE_NAME, createAdminSession } from '../src/utils/security.js';
 
-const ADMIN_PASSWORD = 'admin-test-password';
+// Socket of a logged-in admin: the session cookie travels with the handshake
+const connectAdmin = (io) => io.connect(undefined, { cookie: `${ADMIN_COOKIE_NAME}=${createAdminSession()}` });
 
 // Rating writes sent to Postgres: [{ names, ratings, sources }]
 const ratingWrites = () =>
@@ -15,7 +17,7 @@ const ratingWrites = () =>
 
 before(() => {
   silenceLogs();
-  process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = 'admin-test-password';
   dbHandlers.push(playlistVideos(3));
 });
 
@@ -69,11 +71,11 @@ test('votes are recorded again after going back to a video', async () => {
 
 test('playlist:validate applies the requested state instead of toggling', async () => {
   const io = createIo();
-  const admin = io.connect();
+  const admin = connectAdmin(io);
 
   // A double click sends the same request twice: the playlist must end up validated
-  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: true, password: ADMIN_PASSWORD });
-  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: true, password: ADMIN_PASSWORD });
+  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: true });
+  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: true });
 
   const updates = dbQueries.filter((q) => /UPDATE playlists SET is_validated/.test(q.sql));
   assert.equal(updates.length, 2);
@@ -82,7 +84,7 @@ test('playlist:validate applies the requested state instead of toggling', async 
     assert.deepEqual(update.params, ['PL-ABC123', true]);
   }
 
-  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: false, password: ADMIN_PASSWORD });
+  await admin.send('playlist:validate', { id: 'PL-ABC123', isValidated: false });
   assert.deepEqual(dbQueries.filter((q) => /UPDATE playlists SET is_validated/.test(q.sql)).at(-1).params, ['PL-ABC123', false]);
 });
 
@@ -123,8 +125,8 @@ test('admin changes on a video invalidate every cached playlist', async () => {
     redisStore.set('session:KEEPME', '{"sessionId":"KEEPME"}');
 
     const io = createIo();
-    const admin = io.connect();
-    const res = await admin.send('playlist:admin_delete_video_direct', { videoId: '12', password: ADMIN_PASSWORD });
+    const admin = connectAdmin(io);
+    const res = await admin.send('playlist:admin_delete_video_direct', { videoId: '12' });
 
     assert.equal(res.success, true, res.error);
     assert.equal(redisStore.has('playlists:list:public'), false);

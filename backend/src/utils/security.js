@@ -437,11 +437,13 @@ export function getSocketClientIp(socket) {
 
 // Admin sessions: token -> expiry timestamp. In memory: admins log in again after a backend restart.
 const adminSessions = new Map();
-const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+export const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+// The session token is only ever sent to the browser in this HttpOnly cookie (see adminRoutes.js)
+export const ADMIN_COOKIE_NAME = 'rate_it_admin';
 
 /**
- * Issues a session token to an authenticated admin, so that the password itself
- * is neither stored in the browser nor sent again with every admin action.
+ * Opens an admin session and returns its token.
  *
  * @returns {string}
  */
@@ -450,13 +452,13 @@ export function createAdminSession() {
   for (const [token, expiresAt] of adminSessions) {
     if (expiresAt <= now) adminSessions.delete(token);
   }
-  const token = `adm_${generateSecureToken(32)}`;
+  const token = generateSecureToken(32);
   adminSessions.set(token, now + ADMIN_SESSION_TTL_MS);
   return token;
 }
 
 export function isValidAdminSession(token) {
-  if (typeof token !== 'string') return false;
+  if (typeof token !== 'string' || !token) return false;
   const expiresAt = adminSessions.get(token);
   if (!expiresAt) return false;
   if (expiresAt <= Date.now()) {
@@ -466,29 +468,47 @@ export function isValidAdminSession(token) {
   return true;
 }
 
+export function revokeAdminSession(token) {
+  if (typeof token === 'string') adminSessions.delete(token);
+}
+
 /**
- * Checks an admin credential: either a session token issued by createAdminSession()
- * or the admin password itself. Wrong credentials are rate limited per client.
+ * Extracts the admin session token from a Cookie request header (HTTP request or socket handshake).
+ *
+ * @param {string|undefined} cookieHeader
+ * @returns {string|null}
+ */
+export function getAdminSessionToken(cookieHeader) {
+  if (typeof cookieHeader !== 'string') return null;
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator > 0 && part.slice(0, separator).trim() === ADMIN_COOKIE_NAME) {
+      return part.slice(separator + 1).trim() || null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Checks the admin password. Wrong attempts are rate limited per client.
  * Throws an Error with a user-facing message when access is denied.
  *
- * @param {string} credential
- * @param {string} clientKey - Client IP (getSocketClientIp / req.ip)
+ * @param {string} password
+ * @param {string} clientKey - Client IP (req.ip)
  */
-export function verifyAdminCredential(credential, clientKey = 'admin') {
+export function verifyAdminPassword(password, clientKey = 'admin') {
   const configuredPassword = process.env.ADMIN_PASSWORD ? String(process.env.ADMIN_PASSWORD).trim() : '';
   if (!configuredPassword) {
     console.error("Connexion admin refusée : la variable d'environnement ADMIN_PASSWORD n'est pas configurée sur le serveur.");
     throw new Error("Connexion impossible : aucun mot de passe administrateur n'est configuré sur le serveur.");
   }
 
-  if (isValidAdminSession(credential)) return;
-
   const rateLimit = checkAdminRateLimit(clientKey);
   if (!rateLimit.allowed) {
     throw new Error(`Trop de tentatives administratives incorrectes. Verrouillé pour encore ${rateLimit.remainingSec}s.`);
   }
 
-  const isValid = safeTimingCompare(String(credential || ''), configuredPassword);
+  const isValid = safeTimingCompare(typeof password === 'string' ? password.trim() : '', configuredPassword);
 
   recordAdminAttempt(clientKey, isValid);
 

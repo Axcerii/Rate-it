@@ -65,19 +65,19 @@ export interface PlaylistDetailsResponse {
  * Fetch all playlists (Server or Client)
  */
 export async function fetchPlaylistsApi(options?: {
-  password?: string;
+  // Admin view (with secret codes): only granted to a browser holding the admin session cookie
+  admin?: boolean;
   revalidate?: number | false;
 }): Promise<{ validated: PlaylistSummary[]; community: PlaylistSummary[]; categories: string[] }> {
   const baseUrl = getBaseApiUrl();
-  const url = `${baseUrl}/api/playlists`;
+  const url = `${baseUrl}/api/playlists${options?.admin ? '?admin=1' : ''}`;
 
   const fetchOptions: RequestInit = {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
-      // Admin credential goes in a header, never in the URL (proxy logs, browser history)
-      ...(options?.password ? { 'X-Admin-Auth': options.password } : {}),
     },
+    ...(options?.admin ? { cache: 'no-store' as RequestCache } : {}),
   };
 
   // If on server, apply Next.js cache/revalidation tags
@@ -226,6 +226,32 @@ export async function fetchPlaylistDetailsApi(
     }
     throw primaryErr;
   }
+}
+
+/**
+ * Admin session. The session token lives in an HttpOnly cookie set by the server:
+ * scripts cannot read it, the browser sends it by itself with same-site requests.
+ */
+export async function adminLoginApi(password: string): Promise<void> {
+  const res = await fetch(`${getBaseApiUrl()}/api/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Mot de passe administrateur incorrect');
+  }
+}
+
+export async function adminLogoutApi(): Promise<void> {
+  await fetch(`${getBaseApiUrl()}/api/admin/logout`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+}
+
+export async function adminSessionApi(): Promise<boolean> {
+  const res = await fetch(`${getBaseApiUrl()}/api/admin/session`, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+  const data = await res.json().catch(() => ({}));
+  return Boolean(res.ok && data.authenticated);
 }
 
 /**

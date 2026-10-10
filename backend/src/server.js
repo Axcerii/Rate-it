@@ -10,6 +10,7 @@ import redisClient, { connectRedis } from './store/redis.js';
 import { isAllowedOrigin } from './utils/security.js';
 import { onConnection } from './sockets/index.js';
 import playlistRouter from './routes/playlistRoutes.js';
+import adminRouter from './routes/adminRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +62,7 @@ app.use(express.json({ limit: '1mb' }));
 
 // REST API Routes
 app.use('/api/playlists', playlistRouter);
+app.use('/api/admin', adminRouter);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

@@ -5,7 +5,7 @@ import {
   createPlaylistRecord,
   getAllCategories,
 } from '../services/playlistService.js';
-import { verifyAdminCredential } from '../utils/security.js';
+import { getAdminSessionToken, isValidAdminSession } from '../utils/security.js';
 import { consumeRateLimit, PLAYLIST_WRITE_LIMIT } from '../utils/rateLimiter.js';
 
 const router = Router();
@@ -43,18 +43,9 @@ router.get('/categories', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    // Admin credential (session token) travels in a header: query strings end up in proxy logs and history
-    let isAdmin = false;
-    const credential = req.get('x-admin-auth');
-
-    if (credential) {
-      try {
-        verifyAdminCredential(credential.trim(), req.ip);
-        isAdmin = true;
-      } catch (_) {
-        isAdmin = false;
-      }
-    }
+    // Admin view (with secret codes) only when asked for (?admin=1) by a browser holding an admin session.
+    // The flag is not a secret: the session cookie is what grants access.
+    const isAdmin = Boolean(req.query.admin) && isValidAdminSession(getAdminSessionToken(req.headers.cookie));
 
     const [data, categories] = await Promise.all([
       getPlaylistsList({ isAdmin }),
