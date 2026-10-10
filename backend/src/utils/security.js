@@ -390,10 +390,15 @@ export function isAllowedOrigin(origin, allowedList = []) {
   return false;
 }
 
-// In-memory rate limiting tracker for admin password brute-force prevention
+// In-memory rate limiting tracker for admin password brute-force prevention.
+// Every 5 wrong passwords lock the client out, twice as long each time (1 min, 2 min... up to 1 hour):
+// a fixed one-minute lockout would still allow thousands of guesses per day.
 const adminAttempts = new Map();
 const MAX_ADMIN_ATTEMPTS = 5;
-const LOCKOUT_MS = 60 * 1000; // 1 minute lockout
+const LOCKOUT_MS = 60 * 1000;
+const MAX_LOCKOUT_MS = 60 * 60 * 1000;
+// A client that stays quiet this long starts again from scratch
+const ADMIN_ATTEMPTS_MEMORY_MS = MAX_LOCKOUT_MS;
 
 export function checkAdminRateLimit(key = 'default') {
   const now = Date.now();
@@ -404,7 +409,7 @@ export function checkAdminRateLimit(key = 'default') {
       const remainingSec = Math.ceil((entry.lockedUntil - now) / 1000);
       return { allowed: false, remainingSec };
     }
-    if (now - entry.lastAttempt > LOCKOUT_MS) {
+    if (now - Math.max(entry.lastAttempt, entry.lockedUntil || 0) > ADMIN_ATTEMPTS_MEMORY_MS) {
       adminAttempts.delete(key);
     }
   }
@@ -417,12 +422,13 @@ export function recordAdminAttempt(key = 'default', success = false) {
     adminAttempts.delete(key);
     return;
   }
-  let entry = adminAttempts.get(key) || { count: 0, lastAttempt: now };
+  let entry = adminAttempts.get(key) || { count: 0, lockouts: 0, lastAttempt: now };
   entry.count += 1;
   entry.lastAttempt = now;
 
   if (entry.count >= MAX_ADMIN_ATTEMPTS) {
-    entry.lockedUntil = now + LOCKOUT_MS;
+    entry.lockedUntil = now + Math.min(LOCKOUT_MS * 2 ** (entry.lockouts || 0), MAX_LOCKOUT_MS);
+    entry.lockouts = (entry.lockouts || 0) + 1;
     entry.count = 0;
   }
   adminAttempts.set(key, entry);

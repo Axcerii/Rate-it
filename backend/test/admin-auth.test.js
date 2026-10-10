@@ -187,3 +187,32 @@ test('verifyAdminPassword rejects everything but the exact password', () => {
     assert.throws(() => verifyAdminPassword(wrong, `203.0.113.${70 + n}`), /invalide/);
   }
 });
+
+test('each new lockout lasts twice as long as the previous one', async (t) => {
+  const { checkAdminRateLimit, recordAdminAttempt } = await import('../src/utils/security.js');
+  t.mock.timers.enable({ apis: ['Date'] });
+  const key = 'escalation-test';
+  const failFiveTimes = () => {
+    for (let i = 0; i < 5; i++) recordAdminAttempt(key, false);
+    return checkAdminRateLimit(key);
+  };
+
+  const first = failFiveTimes();
+  assert.equal(first.allowed, false);
+  assert.equal(first.remainingSec, 60);
+
+  t.mock.timers.tick(61 * 1000);
+  assert.equal(checkAdminRateLimit(key).allowed, true);
+  assert.equal(failFiveTimes().remainingSec, 120);
+
+  // Capped at one hour
+  for (let i = 0; i < 10; i++) {
+    t.mock.timers.tick(60 * 60 * 1000 + 1000 - 1);
+    recordAdminAttempt(key, false);
+  }
+  assert.ok(checkAdminRateLimit(key).remainingSec <= 3600);
+
+  // A successful login clears everything
+  recordAdminAttempt(key, true);
+  assert.equal(failFiveTimes().remainingSec, 60);
+});

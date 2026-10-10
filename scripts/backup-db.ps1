@@ -21,8 +21,16 @@ if ($RunningContainers -notcontains $ContainerName) {
     exit 1
 }
 
-# Exécuter pg_dump
-docker exec -t $ContainerName pg_dump -U $User $Db | Out-File -FilePath $BackupFile -Encoding utf8
+# Exécuter pg_dump dans le conteneur puis copier le fichier : faire passer le dump par le pipeline
+# PowerShell (ou par un pseudo-terminal, option -t) en modifie l'encodage et les fins de ligne.
+$TempFile = "/tmp/rate_it_backup_$Timestamp.sql"
+docker exec $ContainerName pg_dump -U $User -f $TempFile $Db
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Erreur : pg_dump a échoué." -ForegroundColor Red
+    exit 1
+}
+docker cp "${ContainerName}:$TempFile" $BackupFile
+docker exec $ContainerName rm -f $TempFile
 
 if ((Get-Item $BackupFile).Length -gt 0) {
     Write-Host "✅ Sauvegarde terminée : $BackupFile" -ForegroundColor Green
