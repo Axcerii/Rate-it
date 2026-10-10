@@ -191,8 +191,9 @@ export function registerPlaylistHandlers(io, socket) {
 
   // 2c. Update playlist with secret code (replaces tracks and updates metadata, blocked if validated)
   socket.on('playlist:update_with_secret', async ({ id, secretCode, name, description, videos }, callback) => {
-    const client = await pool.connect();
+    let client;
     try {
+      client = await pool.connect();
       const cleanId = sanitizeText(id, 50);
       const cleanSecret = sanitizeText(secretCode, 64);
       const cleanName = sanitizeText(name, 100);
@@ -338,13 +339,15 @@ export function registerPlaylistHandlers(io, socket) {
         callback({ success: true, playlistId: cleanId });
       }
     } catch (error) {
-      await client.query('ROLLBACK');
+      if (client) {
+        await client.query('ROLLBACK').catch((rollbackErr) => console.error('Rollback failed:', rollbackErr));
+      }
       console.error('Error updating playlist with secret code:', error);
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
     } finally {
-      client.release();
+      if (client) client.release();
     }
   });
 

@@ -127,7 +127,7 @@ async function startServer() {
 
 // Graceful Shutdown on termination signals
 let isShuttingDown = false;
-async function gracefulShutdown(signal) {
+async function gracefulShutdown(signal, exitCode = 0) {
   if (isShuttingDown) return;
   isShuttingDown = true;
   console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
@@ -157,7 +157,7 @@ async function gracefulShutdown(signal) {
       }
 
       console.log('Graceful shutdown completed successfully.');
-      process.exit(0);
+      process.exit(exitCode);
     });
 
     // Force shutdown after 10s if connections hang
@@ -173,5 +173,16 @@ async function gracefulShutdown(signal) {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Safety nets: a rejected promise must never kill the process (running games would be lost)
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
+
+// After an uncaught exception the process state is unreliable: log, then shut down cleanly
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  gracefulShutdown('uncaughtException', 1);
+});
 
 startServer();
