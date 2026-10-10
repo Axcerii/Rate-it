@@ -159,7 +159,7 @@ export default function ConfidentialitePage() {
 
             <p className="p-3 bg-white border-2 border-black rounded-xl text-slate-800">
               Ces traitements reposent sur mon intérêt légitime à faire fonctionner le jeu, à afficher ses statistiques et à le protéger.
-              Rien n’est transmis ni vendu à qui que ce soit. Tout est stocké sur un serveur loué à OVH, en France.
+              Rien n’est transmis ni vendu à qui que ce soit. Tout est stocké sur un serveur loué à OVH, à Strasbourg.
             </p>
           </div>
         </div>

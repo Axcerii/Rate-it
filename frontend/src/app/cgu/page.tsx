@@ -134,7 +134,7 @@ export default function CGUPage() {
               <p className="text-slate-700 mt-1">
                 Le site est hébergé par <strong>OVH SAS</strong>, 2 rue Kellermann, 59100 Roubaix, France (
                 <a href="https://www.ovhcloud.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">ovhcloud.com</a>
-                ), sur un serveur situé en France.
+                ), sur un serveur situé à Strasbourg, en France.
               </p>
             </div>
           </div>
