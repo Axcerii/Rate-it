@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { LeaderboardCard, useLeaderboardAnimation } from '@/components/leaderboard';
 import RatingNumberButton from '@/components/RatingNumberButton';
+import YoutubeNotice from '@/components/YoutubeNotice';
 
 export default function PlayView() {
   const router = useRouter();
@@ -295,6 +296,7 @@ export default function PlayView() {
                     />
                   )}
                 </div>
+                <YoutubeNotice className="-mt-2 px-2 py-1 bg-white/90 border border-black rounded-lg self-start" />
                 <div className="bg-white p-5 rounded-2xl border-2 border-black">
                   <span className="text-xs font-bold font-sans text-slate-600 block mb-1">
                     Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
@@ -349,6 +351,7 @@ export default function PlayView() {
                             allowFullScreen
                           />
                         </div>
+                        <YoutubeNotice className="text-center" />
                         <button
                           type="button"
                           onClick={() => setShowMobileVideo(false)}

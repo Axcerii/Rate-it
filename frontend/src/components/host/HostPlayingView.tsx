@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, BarChart2, Check, Copy, Eye, EyeOff, LogOut, SkipForward, Star, Users } from 'lucide-react';
 import { useSocket } from '@/lib/useSocket';
 import RatingNumberButton from '@/components/RatingNumberButton';
+import YoutubeNotice from '@/components/YoutubeNotice';
 import { getRoomStats } from './roomStats';
 import type { GameSession } from '../../../../shared/types';
 
@@ -47,6 +48,8 @@ export default function HostPlayingView({
 
       // @ts-ignore
       ytPlayer = new window.YT.Player('youtube-player', {
+        // Privacy-enhanced mode, like the players' embed (not in the IFrame API reference, but honoured by it)
+        host: 'https://www.youtube-nocookie.com',
         videoId: currentVideo.youtubeId,
         width: '100%',
         height: '100%',
@@ -209,6 +212,7 @@ export default function HostPlayingView({
             <div className="aspect-video w-full rounded-2xl border-4 border-black bg-black overflow-hidden relative">
               <div id="youtube-player-container" className="w-full h-full" />
             </div>
+            <YoutubeNotice className="-mt-2 px-2 py-1 bg-white/90 border border-black rounded-lg self-start" />
 
             {/* Navigation controls */}
             <div className="flex flex-wrap justify-between items-center bg-menu border-10 border-white  p-3 sm:p-4 rounded-2xl gap-2">
