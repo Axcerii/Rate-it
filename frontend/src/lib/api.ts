@@ -69,13 +69,14 @@ export async function fetchPlaylistsApi(options?: {
   revalidate?: number | false;
 }): Promise<{ validated: PlaylistSummary[]; community: PlaylistSummary[]; categories: string[] }> {
   const baseUrl = getBaseApiUrl();
-  const query = options?.password ? `?password=${encodeURIComponent(options.password)}` : '';
-  const url = `${baseUrl}/api/playlists${query}`;
+  const url = `${baseUrl}/api/playlists`;
 
   const fetchOptions: RequestInit = {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
+      // Admin credential goes in a header, never in the URL (proxy logs, browser history)
+      ...(options?.password ? { 'X-Admin-Auth': options.password } : {}),
     },
   };
 
@@ -107,7 +108,7 @@ export async function fetchPlaylistsApi(options?: {
     };
   } catch (primaryErr) {
     if (typeof window === 'undefined' && process.env.NEXT_PUBLIC_APP_URL) {
-      const fallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/playlists${query}`;
+      const fallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/playlists`;
       if (fallbackUrl !== url) {
         try {
           const fallbackRes = await fetch(fallbackUrl, {

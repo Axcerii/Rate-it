@@ -18,8 +18,10 @@ import {
   validateYoutubeId,
   verifyYoutubeVideo,
   safeTimingCompare,
-  checkAdminRateLimit,
-  recordAdminAttempt,
+  verifyAdminCredential,
+  createAdminSession,
+  isValidAdminSession,
+  getSocketClientIp,
   sanitizeVideoId,
   validateMalUsername,
   validateAnilistUsername,
@@ -31,28 +33,9 @@ import {
 } from '../utils/security.js';
 import { buildVideoSearchConditions } from '../utils/searchHelper.js';
 
+// `password` is the admin password or, once logged in, the session token returned by admin:verify
 function verifyAdminAuth(password, socket) {
-  const configuredPassword = process.env.ADMIN_PASSWORD ? String(process.env.ADMIN_PASSWORD).trim() : '';
-  if (!configuredPassword) {
-    console.error('Connexion admin refusée : la variable d\'environnement ADMIN_PASSWORD n\'est pas configurée sur le serveur.');
-    throw new Error('Connexion impossible : aucun mot de passe administrateur n\'est configuré sur le serveur.');
-  }
-
-  const forwarded = socket?.handshake?.headers?.['x-forwarded-for'];
-  const clientKey = forwarded ? forwarded.split(',')[0].trim() : (socket?.handshake?.address || socket?.id || 'admin');
-
-  const rateLimit = checkAdminRateLimit(clientKey);
-  if (!rateLimit.allowed) {
-    throw new Error(`Trop de tentatives administratives incorrectes. Verrouillé pour encore ${rateLimit.remainingSec}s.`);
-  }
-
-  const isValid = safeTimingCompare(String(password || ''), configuredPassword);
-
-  recordAdminAttempt(clientKey, isValid);
-
-  if (!isValid) {
-    throw new Error('Mot de passe administrateur invalide');
-  }
+  verifyAdminCredential(password, getSocketClientIp(socket));
 }
 
 function generatePlaylistId() {
@@ -69,8 +52,10 @@ export function registerPlaylistHandlers(io, socket) {
   socket.on('admin:verify', async ({ password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
+      // The client keeps this token and sends it instead of the password from now on
+      const token = isValidAdminSession(password) ? password : createAdminSession();
       if (typeof callback === 'function') {
-        callback({ success: true, message: 'Mot de passe administrateur validé avec succès' });
+        callback({ success: true, message: 'Mot de passe administrateur validé avec succès', token });
       }
     } catch (error) {
       if (typeof callback === 'function') {
@@ -126,8 +111,7 @@ export function registerPlaylistHandlers(io, socket) {
   // 2b. Verify secret code & load playlist in edit mode (fails if playlist is validated)
   socket.on('playlist:verify_secret_code', async ({ secretCode }, callback) => {
     try {
-      const forwarded = socket?.handshake?.headers?.['x-forwarded-for'];
-      const clientKey = forwarded ? forwarded.split(',')[0].trim() : (socket?.handshake?.address || socket?.id || 'client');
+      const clientKey = getSocketClientIp(socket);
       const rateLimit = checkSecretCodeRateLimit(clientKey);
       if (!rateLimit.allowed) {
         throw new Error(`Trop de tentatives incorrectes. Veuillez patienter encore ${rateLimit.remainingSec}s.`);

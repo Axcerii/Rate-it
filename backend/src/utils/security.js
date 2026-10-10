@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import net from 'net';
 
 /**
  * Centralized Security Utility Module for Input Sanitization, SQL Injection Prevention,
@@ -412,6 +413,87 @@ export function recordAdminAttempt(key = 'default', success = false) {
     entry.count = 0;
   }
   adminAttempts.set(key, entry);
+}
+
+/**
+ * Real client IP of a socket, used as rate-limit key.
+ * The backend is only reachable through a reverse proxy, which appends the address of its peer
+ * at the END of X-Forwarded-For. The entries before it are sent by the client itself and must
+ * never be trusted (a random value per attempt would defeat any rate limit).
+ * Same rule as Express "trust proxy: 1" (req.ip) on the REST side.
+ *
+ * @param {object} socket
+ * @returns {string}
+ */
+export function getSocketClientIp(socket) {
+  const forwarded = socket?.handshake?.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    const lastHop = forwarded.split(',').pop().trim();
+    if (net.isIP(lastHop)) return lastHop;
+  }
+  return socket?.handshake?.address || socket?.id || 'unknown';
+}
+
+// Admin sessions: token -> expiry timestamp. In memory: admins log in again after a backend restart.
+const adminSessions = new Map();
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Issues a session token to an authenticated admin, so that the password itself
+ * is neither stored in the browser nor sent again with every admin action.
+ *
+ * @returns {string}
+ */
+export function createAdminSession() {
+  const now = Date.now();
+  for (const [token, expiresAt] of adminSessions) {
+    if (expiresAt <= now) adminSessions.delete(token);
+  }
+  const token = `adm_${generateSecureToken(32)}`;
+  adminSessions.set(token, now + ADMIN_SESSION_TTL_MS);
+  return token;
+}
+
+export function isValidAdminSession(token) {
+  if (typeof token !== 'string') return false;
+  const expiresAt = adminSessions.get(token);
+  if (!expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    adminSessions.delete(token);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Checks an admin credential: either a session token issued by createAdminSession()
+ * or the admin password itself. Wrong credentials are rate limited per client.
+ * Throws an Error with a user-facing message when access is denied.
+ *
+ * @param {string} credential
+ * @param {string} clientKey - Client IP (getSocketClientIp / req.ip)
+ */
+export function verifyAdminCredential(credential, clientKey = 'admin') {
+  const configuredPassword = process.env.ADMIN_PASSWORD ? String(process.env.ADMIN_PASSWORD).trim() : '';
+  if (!configuredPassword) {
+    console.error("Connexion admin refusée : la variable d'environnement ADMIN_PASSWORD n'est pas configurée sur le serveur.");
+    throw new Error("Connexion impossible : aucun mot de passe administrateur n'est configuré sur le serveur.");
+  }
+
+  if (isValidAdminSession(credential)) return;
+
+  const rateLimit = checkAdminRateLimit(clientKey);
+  if (!rateLimit.allowed) {
+    throw new Error(`Trop de tentatives administratives incorrectes. Verrouillé pour encore ${rateLimit.remainingSec}s.`);
+  }
+
+  const isValid = safeTimingCompare(String(credential || ''), configuredPassword);
+
+  recordAdminAttempt(clientKey, isValid);
+
+  if (!isValid) {
+    throw new Error('Mot de passe administrateur invalide');
+  }
 }
 
 // =========================================================================

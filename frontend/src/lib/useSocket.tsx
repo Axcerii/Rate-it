@@ -65,7 +65,7 @@ interface SocketContextType {
   adminUpdateVideo: (videoId: string | number, videoData: { title: string; youtubeId: string; artistName?: string; description?: string; malAnimeId?: number | string; malTitle?: string; anilistId?: number | string; anilistTitle?: string }, password?: string) => Promise<any>;
   adminSearchVideos: (query?: string, limit?: number, offset?: number, password?: string) => Promise<{ videos: any[]; total: number }>;
   verifyVideo: (youtubeId: string) => Promise<{ valid: boolean; title?: string; author?: string; error?: string }>;
-  verifyAdminPassword: (password: string) => Promise<boolean>;
+  verifyAdminPassword: (password: string) => Promise<string>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -969,12 +969,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const verifyAdminPassword = (password: string): Promise<boolean> => {
+  // Resolves to the admin session token, to be passed as `password` to every admin call
+  const verifyAdminPassword = (password: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!socket) return reject(new Error('Socket non connecté'));
       socket.emit('admin:verify', { password }, (response: any) => {
         if (response && response.success) {
-          resolve(true);
+          resolve(response.token || password);
         } else {
           reject(new Error(response?.error || 'Mot de passe administrateur incorrect'));
         }

@@ -287,32 +287,37 @@ export default function AdminConsole() {
     }
 
     try {
-      await verifyAdminPassword(adminPassword.trim());
-      const { validated, community } = await getPlaylists(adminPassword.trim());
+      // From here on, adminPassword holds the session token: the password itself is not kept
+      const sessionToken = await verifyAdminPassword(adminPassword.trim());
+      const { validated, community } = await getPlaylists(sessionToken);
       setValidatedLists(validated);
       setCommunityLists(community);
+      setAdminPassword(sessionToken);
       setIsAuthenticated(true);
-      localStorage.setItem('rate_it_admin_password', adminPassword.trim());
+      localStorage.setItem('rate_it_admin_session', sessionToken);
     } catch (err: any) {
       setError(err.message || 'Mot de passe administrateur incorrect.');
       setIsAuthenticated(false);
     }
   };
 
-  // Restore password on mount with verification
+  // Restore admin session on mount with verification
   useEffect(() => {
-    const savedPassword = localStorage.getItem('rate_it_admin_password');
-    if (savedPassword && isConnected) {
-      setAdminPassword(savedPassword);
-      verifyAdminPassword(savedPassword)
-        .then(async () => {
-          const { validated, community } = await getPlaylists(savedPassword);
+    // Older versions stored the admin password itself in the browser: purge it
+    localStorage.removeItem('rate_it_admin_password');
+
+    const savedSession = localStorage.getItem('rate_it_admin_session');
+    if (savedSession && isConnected) {
+      verifyAdminPassword(savedSession)
+        .then(async (sessionToken) => {
+          const { validated, community } = await getPlaylists(sessionToken);
           setValidatedLists(validated);
           setCommunityLists(community);
+          setAdminPassword(sessionToken);
           setIsAuthenticated(true);
         })
         .catch(() => {
-          localStorage.removeItem('rate_it_admin_password');
+          localStorage.removeItem('rate_it_admin_session');
           setIsAuthenticated(false);
         });
     }
@@ -771,7 +776,7 @@ export default function AdminConsole() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('rate_it_admin_password');
+    localStorage.removeItem('rate_it_admin_session');
     setAdminPassword('');
     setIsAuthenticated(false);
   };

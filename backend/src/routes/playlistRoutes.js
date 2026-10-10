@@ -5,7 +5,7 @@ import {
   createPlaylistRecord,
   getAllCategories,
 } from '../services/playlistService.js';
-import { safeTimingCompare } from '../utils/security.js';
+import { verifyAdminCredential } from '../utils/security.js';
 
 const router = Router();
 
@@ -60,11 +60,17 @@ router.get('/categories', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
+    // Admin credential (session token) travels in a header: query strings end up in proxy logs and history
     let isAdmin = false;
-    const { password } = req.query;
+    const credential = req.get('x-admin-auth');
 
-    if (password && process.env.ADMIN_PASSWORD) {
-      isAdmin = safeTimingCompare(String(password).trim(), String(process.env.ADMIN_PASSWORD).trim());
+    if (credential) {
+      try {
+        verifyAdminCredential(credential.trim(), req.ip);
+        isAdmin = true;
+      } catch (_) {
+        isAdmin = false;
+      }
     }
 
     const [data, categories] = await Promise.all([
@@ -126,7 +132,8 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'unknown';
+    // req.ip follows "trust proxy": the address appended by the reverse proxy, not a client-supplied header
+    const ip = req.ip || 'unknown';
     if (!checkCreationRateLimit(ip)) {
       return res.status(429).json({
         success: false,
