@@ -21,23 +21,21 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
   const playlistId = sanitizeText(session.playlistId, 50);
   const sessionId = sanitizeText(session.sessionId, 50);
 
-  // 1. Collect the valid votes of this round (players, then Twitch chat)
-  const names = [];
+  // 1. Collect the valid votes of this round (players, then Twitch chat).
+  // Ratings are stored anonymously: who gave which rating only lives in the session (Redis, 2 hours).
   const ratings = [];
   const sources = [];
   const isValidRating = (value) => typeof value === 'number' && value >= 1 && value <= 5;
 
   for (const pid in session.votes) {
     if (isValidRating(session.votes[pid])) {
-      names.push(sanitizeText(session.players?.[pid]?.name || 'Anonymous Player', 100));
       ratings.push(session.votes[pid]);
       sources.push('PLAYER');
     }
   }
-  for (const rawUsername in session.twitchVotes) {
-    if (isValidRating(session.twitchVotes[rawUsername])) {
-      names.push(sanitizeText(rawUsername, 100));
-      ratings.push(session.twitchVotes[rawUsername]);
+  for (const username in session.twitchVotes) {
+    if (isValidRating(session.twitchVotes[username])) {
+      ratings.push(session.twitchVotes[username]);
       sources.push('TWITCH');
     }
   }
@@ -47,7 +45,7 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
   // after the host came back to this video, replace the previous ones instead of being dropped.
   session.savedRatingsMap = session.savedRatingsMap || {};
   const saveKey = `${sessionId}_${currentVideo.id}`;
-  const fingerprint = crypto.createHash('sha1').update(JSON.stringify([names, ratings, sources])).digest('hex');
+  const fingerprint = crypto.createHash('sha1').update(JSON.stringify([ratings, sources])).digest('hex');
 
   if (session.savedRatingsMap[saveKey] !== fingerprint) {
     try {
@@ -55,10 +53,10 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
         `WITH removed AS (
            DELETE FROM ratings WHERE session_id = $4::text AND youtube_id = $2::text
          )
-         INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, player_name, rating, source)
-         SELECT $1::int, $2::text, $3::text, $4::text, v.player_name, v.rating, v.source
-         FROM unnest($5::text[], $6::int[], $7::text[]) AS v(player_name, rating, source)`,
-        [videoId, youtubeId, playlistId, sessionId, names, ratings, sources]
+         INSERT INTO ratings (video_id, youtube_id, playlist_id, session_id, rating, source)
+         SELECT $1::int, $2::text, $3::text, $4::text, v.rating, v.source
+         FROM unnest($5::int[], $6::text[]) AS v(rating, source)`,
+        [videoId, youtubeId, playlistId, sessionId, ratings, sources]
       );
       session.savedRatingsMap[saveKey] = fingerprint;
     } catch (err) {

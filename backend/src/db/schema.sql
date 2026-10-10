@@ -63,6 +63,22 @@ ALTER TABLE videos ADD COLUMN IF NOT EXISTS mal_title VARCHAR(255);
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS anilist_id INTEGER;
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS anilist_title VARCHAR(255);
 
+-- Ratings are anonymous: names (players and Twitch viewers) used to be stored with each rating
+-- but were never read. The column is kept so that an older backend can still run against this
+-- schema; it is no longer written, and what it contained is erased here (also in the copy of
+-- the table left by the many-to-many migration, when there is one).
+UPDATE ratings SET player_name = NULL WHERE player_name IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'ratings_pre_migration_backup' AND column_name = 'player_name'
+  ) THEN
+    EXECUTE 'UPDATE ratings_pre_migration_backup SET player_name = NULL WHERE player_name IS NOT NULL';
+  END IF;
+END
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_video_id ON playlist_tracks(video_id);
 CREATE INDEX IF NOT EXISTS idx_videos_youtube_id ON videos(youtube_id);

@@ -9,11 +9,11 @@ import { ADMIN_COOKIE_NAME, createAdminSession } from '../src/utils/security.js'
 // Socket of a logged-in admin: the session cookie travels with the handshake
 const connectAdmin = (io) => io.connect(undefined, { cookie: `${ADMIN_COOKIE_NAME}=${createAdminSession()}` });
 
-// Rating writes sent to Postgres: [{ names, ratings, sources }]
+// Rating writes sent to Postgres: [{ ratings, sources }]
 const ratingWrites = () =>
   dbQueries
     .filter((q) => /INSERT INTO ratings/.test(q.sql))
-    .map((q) => ({ names: q.params[4], ratings: q.params[5], sources: q.params[6] }));
+    .map((q) => ({ ratings: q.params[4], sources: q.params[5] }));
 
 before(() => {
   silenceLogs();
@@ -34,7 +34,38 @@ test('ratings are stored once per round when nothing changes', async () => {
   await host.send('game:show_results');
   await host.send('game:next');
 
-  assert.deepEqual(ratingWrites(), [{ names: ['Player 0', 'Player 1'], ratings: [5, 3], sources: ['PLAYER', 'PLAYER'] }]);
+  assert.deepEqual(ratingWrites(), [{ ratings: [5, 3], sources: ['PLAYER', 'PLAYER'] }]);
+});
+
+test('ratings are stored without any player or viewer name', async () => {
+  const { io, host, players, sessionId } = await createRoom({ playerCount: 2, isHostPlayer: true });
+  await host.send('game:start', { playlistId: 'pl', shuffle: false });
+  await players[0].send('game:vote', { voteValue: 5 });
+  await host.send('game:vote', { voteValue: 2 });
+
+  // A Twitch viewer votes in the chat
+  globalThis.WebSocket = class {
+    constructor() {
+      globalThis.__twitchSocket = this;
+    }
+    send() {}
+    close() {}
+  };
+  const { connectToTwitchChat, disconnectFromTwitchChat } = await import('../src/services/twitchService.js');
+  connectToTwitchChat(io, sessionId, 'chan');
+  await globalThis.__twitchSocket.onmessage({ data: ':secretviewer!secretviewer@secretviewer.tmi.twitch.tv PRIVMSG #chan :4\r\n' });
+
+  await host.send('game:show_results');
+  disconnectFromTwitchChat(sessionId);
+
+  const writes = dbQueries.filter((q) => /INSERT INTO ratings/.test(q.sql));
+  assert.equal(writes.length, 1);
+  assert.doesNotMatch(writes[0].sql, /player_name/);
+  assert.deepEqual(writes[0].params.slice(4), [[5, 2, 4], ['PLAYER', 'PLAYER', 'TWITCH']]);
+  const sent = JSON.stringify(writes[0].params);
+  for (const name of ['Player 0', 'Host', 'secretviewer', 'player0', 'host-player']) {
+    assert.equal(sent.includes(name), false, `"${name}" was sent to the ratings table`);
+  }
 });
 
 test('a vote changed during the reveal replaces the stored rating', async () => {
@@ -65,7 +96,7 @@ test('votes are recorded again after going back to a video', async () => {
   await host.send('game:next');
 
   const writes = ratingWrites();
-  assert.deepEqual(writes.at(-1), { names: ['Player 0', 'Player 1'], ratings: [5, 4], sources: ['PLAYER', 'PLAYER'] });
+  assert.deepEqual(writes.at(-1), { ratings: [5, 4], sources: ['PLAYER', 'PLAYER'] });
   assert.equal(storedSession(sessionId).results['1'].average, 4.5);
 });
 
