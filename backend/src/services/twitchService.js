@@ -7,6 +7,12 @@ const twitchConnections = new Map();
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 
+// Chat votes are buffered and written in batches: a busy chat produces hundreds of votes per second,
+// and each write rewrites the whole session and broadcasts it to every socket of the room
+const TWITCH_VOTE_FLUSH_MS = 500;
+// Votes waiting to be written, by sessionId: { votes: Map<user, vote>, timer }
+const pendingTwitchVotes = new Map();
+
 export function connectToTwitchChat(io, sessionId, channelName) {
   // Clean up any existing connection
   disconnectFromTwitchChat(sessionId);
@@ -87,7 +93,7 @@ function openTwitchSocket(io, sessionId, entry) {
           if (!isNaN(vote) && vote >= 1 && vote <= 5) {
             // Also ensure it is either a single digit or a scale like '5/5', '4 stars'
             if (text.length === 1 || text.includes('/5') || text.toLowerCase().includes('star')) {
-              await registerTwitchVote(io, sessionId, user, vote);
+              queueTwitchVote(io, sessionId, user, vote);
             }
           }
         }
@@ -143,6 +149,7 @@ export function disconnectFromTwitchChat(sessionId) {
     console.log(`Closing Twitch connection for session ${sessionId}`);
     // Remove the entry first so that onclose does not trigger a reconnect
     twitchConnections.delete(sessionId);
+    discardPendingTwitchVotes(sessionId);
     if (entry.retryTimer) clearTimeout(entry.retryTimer);
     try {
       entry.ws?.close();
@@ -152,27 +159,77 @@ export function disconnectFromTwitchChat(sessionId) {
   }
 }
 
-async function registerTwitchVote(io, sessionId, user, vote) {
+function queueTwitchVote(io, sessionId, user, vote) {
+  let pending = pendingTwitchVotes.get(sessionId);
+  if (!pending) {
+    pending = { votes: new Map(), timer: null };
+    pendingTwitchVotes.set(sessionId, pending);
+  }
+  pending.votes.set(user, vote);
+
+  if (!pending.timer) {
+    pending.timer = setTimeout(() => {
+      pending.timer = null;
+      flushTwitchVotes(io, sessionId);
+    }, TWITCH_VOTE_FLUSH_MS);
+    pending.timer.unref?.();
+  }
+}
+
+export function discardPendingTwitchVotes(sessionId) {
+  const pending = pendingTwitchVotes.get(sessionId);
+  if (!pending) return;
+  if (pending.timer) clearTimeout(pending.timer);
+  pendingTwitchVotes.delete(sessionId);
+}
+
+/**
+ * Moves the buffered chat votes into the given session object and returns how many votes changed.
+ * Must be called while holding the session lock; the caller saves the session.
+ * Handlers that close a round (results, next video) call it first so that late votes
+ * are counted for the right video instead of leaking into the next one.
+ */
+export function applyPendingTwitchVotes(session) {
+  if (!session) return 0;
+  const pending = pendingTwitchVotes.get(session.sessionId);
+  if (!pending) return 0;
+  discardPendingTwitchVotes(session.sessionId);
+
+  if (session.status !== 'PLAYING') return 0;
+
+  session.twitchVotes = session.twitchVotes || {};
+  let changed = 0;
+  for (const [user, vote] of pending.votes) {
+    // Only record if vote changed or is new
+    if (session.twitchVotes[user] !== vote) {
+      session.twitchVotes[user] = vote;
+      changed++;
+    }
+  }
+  return changed;
+}
+
+async function flushTwitchVotes(io, sessionId) {
   let release;
   try {
     release = await acquireSessionLock(sessionId);
     const session = await getSession(sessionId);
-    if (!session || session.status !== 'PLAYING') return;
+    if (!session) {
+      discardPendingTwitchVotes(sessionId);
+      return;
+    }
 
-    session.twitchVotes = session.twitchVotes || {};
-    
-    // Only record if vote changed or is new
-    if (session.twitchVotes[user] === vote) return;
+    const changed = applyPendingTwitchVotes(session);
+    if (changed === 0) return;
 
-    session.twitchVotes[user] = vote;
     await saveSession(session);
 
-    console.log(`Room ${sessionId} [Twitch]: Viewer ${user} voted ${vote}`);
+    console.log(`Room ${sessionId} [Twitch]: ${changed} chat vote(s) recorded`);
 
     // Broadcast update securely to room
     broadcastRoomUpdate(io, session);
   } catch (error) {
-    console.error('Error saving Twitch chat vote:', error);
+    console.error('Error saving Twitch chat votes:', error);
   } finally {
     release?.();
   }

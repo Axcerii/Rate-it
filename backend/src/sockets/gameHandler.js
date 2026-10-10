@@ -3,6 +3,7 @@ import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
 import { filterVideosByMalList } from '../services/malMatcher.js';
+import { applyPendingTwitchVotes, discardPendingTwitchVotes } from '../services/twitchService.js';
 import {
   sanitizeText,
   validateMalUsername,
@@ -95,6 +96,7 @@ export async function checkAndAdvanceSkip(io, session) {
   if (phase === 'VOTING') {
     const allSkipped = activePlayers.every(p => session.skips && session.skips[p.id]);
     if (allSkipped) {
+      applyPendingTwitchVotes(session);
       session.phase = 'REVEAL';
       // Accumulate round results
       const currentVideo = session.videos?.[session.currentVideoIndex];
@@ -131,6 +133,7 @@ export async function checkAndAdvanceSkip(io, session) {
   } else if (phase === 'REVEAL') {
     const allSkipped = activePlayers.every(p => session.revealSkips && session.revealSkips[p.id]);
     if (allSkipped) {
+      discardPendingTwitchVotes(session.sessionId);
       session.currentVideoIndex++;
       session.votes = {};
       session.twitchVotes = {};
@@ -282,6 +285,7 @@ export function registerGameHandlers(io, socket) {
         console.error(`Failed to update play metrics for playlist ${activePlaylistId}:`, err);
       }
 
+      discardPendingTwitchVotes(sessionId);
       session.status = 'PLAYING';
       session.phase = 'VOTING';
       session.playlistId = activePlaylistId;
@@ -339,6 +343,7 @@ export function registerGameHandlers(io, socket) {
       const session = await getSession(sessionId);
       if (!session) throw new Error('Session introuvable');
 
+      applyPendingTwitchVotes(session);
       session.phase = 'REVEAL';
 
       const currentVideo = session.videos?.[session.currentVideoIndex];
@@ -477,6 +482,8 @@ export function registerGameHandlers(io, socket) {
         throw new Error('Aucune vidéo trouvée dans la session');
       }
 
+      applyPendingTwitchVotes(session);
+
       // Accumulate votes for the current video before advancing if not accumulated yet
       const currentVideo = session.videos[session.currentVideoIndex];
       if (currentVideo) {
@@ -564,6 +571,7 @@ export function registerGameHandlers(io, socket) {
       }
 
       if (session.currentVideoIndex > 0) {
+        discardPendingTwitchVotes(sessionId);
         session.currentVideoIndex--;
         session.status = 'PLAYING';
         session.phase = 'VOTING';
