@@ -13,6 +13,15 @@ import {
 // Every player receives the whole room state on each update: an unbounded room would take the backend down
 const MAX_PLAYERS_PER_ROOM = parseInt(process.env.MAX_PLAYERS_PER_ROOM, 10) || 100;
 
+// A socket that creates or joins another room must stop receiving the events of the previous one
+function joinSessionRoom(socket, sessionId) {
+  const roomName = `session:${sessionId}`;
+  for (const room of socket.rooms) {
+    if (room.startsWith('session:') && room !== roomName) socket.leave(room);
+  }
+  socket.join(roomName);
+}
+
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -73,7 +82,7 @@ export function registerRoomHandlers(io, socket) {
       socket.data.sessionId = code;
       socket.data.isHost = true;
       socket.data.playerId = hostPlayerId;
-      socket.join(`session:${code}`);
+      joinSessionRoom(socket, code);
 
       console.log(`Room created: ${code} by Host ${socket.id} (isHostPlayer: ${isHostPlayer})`);
 
@@ -141,7 +150,7 @@ export function registerRoomHandlers(io, socket) {
       socket.data.sessionId = formattedCode;
       socket.data.isHost = true;
       socket.data.playerId = hostPlayerId;
-      socket.join(`session:${formattedCode}`);
+      joinSessionRoom(socket, formattedCode);
 
       console.log(`Host ${socket.id} securely reconnected to room ${formattedCode}`);
 
@@ -277,7 +286,7 @@ export function registerRoomHandlers(io, socket) {
       socket.data.sessionId = formattedCode;
       socket.data.playerId = cleanPlayerId;
       socket.data.isHost = false;
-      socket.join(`session:${formattedCode}`);
+      joinSessionRoom(socket, formattedCode);
 
       console.log(`Player ${cleanPlayerName} (${cleanPlayerId}) joined room ${formattedCode}`);
 

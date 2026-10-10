@@ -122,6 +122,8 @@ async function startServer() {
     });
   } catch (error) {
     console.error('Failed to start server due to connection error:', error);
+    // Exit so that the container restarts instead of staying "up" without listening
+    process.exit(1);
   }
 }
 
