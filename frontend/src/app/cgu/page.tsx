@@ -122,6 +122,21 @@ export default function CGUPage() {
                 Le service est fourni « tel quel », sans garantie d'accessibilité permanente ou ininterrompue. L'équipe de Rate It ne saurait être tenue responsable en cas d'indisponibilité momentanée des API tierces (YouTube, MyAnimeList, AniList, Twitch).
               </p>
             </div>
+
+            <div>
+              <h3 className="font-black text-black text-sm sm:text-base uppercase mb-1">
+                Article 7 — Éditeur & Hébergeur
+              </h3>
+              <p className="text-slate-700">
+                Rate It est édité par un particulier, à titre non professionnel et sans but lucratif. Pour me joindre :{' '}
+                <a href="mailto:malezethp@gmail.com" className="underline hover:text-black">malezethp@gmail.com</a>.
+              </p>
+              <p className="text-slate-700 mt-1">
+                Le site est hébergé par <strong>OVH SAS</strong>, 2 rue Kellermann, 59100 Roubaix, France (
+                <a href="https://www.ovhcloud.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">ovhcloud.com</a>
+                ), sur un serveur situé en France.
+              </p>
+            </div>
           </div>
         </div>
 
