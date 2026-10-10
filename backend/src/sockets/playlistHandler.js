@@ -3,6 +3,8 @@ import {
   getPlaylistsList,
   getPlaylistById,
   createPlaylistRecord,
+  prepareTracksForPlaylist,
+  upsertPlaylistTrack,
   invalidatePlaylistCaches,
   getAllCategories,
   deleteCategory,
@@ -177,7 +179,6 @@ export function registerPlaylistHandlers(io, socket) {
   socket.on('playlist:update_with_secret', async ({ id, secretCode, name, description, videos }, callback) => {
     let client;
     try {
-      client = await pool.connect();
       const cleanId = sanitizeText(id, 50);
       const cleanSecret = sanitizeText(secretCode, 64);
       const cleanName = sanitizeText(name, 100);
@@ -196,7 +197,7 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       // 1. Verify playlist ownership & validation status
-      const checkRes = await client.query(
+      const checkRes = await pool.query(
         `SELECT id, name, is_validated, secret_code FROM playlists WHERE id = $1`,
         [cleanId]
       );
@@ -206,117 +207,47 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       const existingPlaylist = checkRes.rows[0];
+      const validatedError = "Cette playlist a été validée par l'administration et ne peut plus être modifiée.";
 
       if (existingPlaylist.is_validated) {
-        throw new Error('Cette playlist a été validée par l\'administration et ne peut plus être modifiée.');
+        throw new Error(validatedError);
       }
 
       if (!safeTimingCompare(existingPlaylist.secret_code, cleanSecret)) {
         throw new Error('Code secret invalide pour cette playlist.');
       }
 
+      // 2. External checks (YouTube / AniList), before taking a database connection
+      const tracks = await prepareTracksForPlaylist(videos);
+
+      client = await pool.connect();
       await client.query('BEGIN');
 
-      // 2. Update playlist metadata
-      await client.query(
-        `UPDATE playlists SET name = $1, description = $2 WHERE id = $3`,
-        [cleanName, cleanDescription, cleanId]
+      // 3. Update playlist metadata. The checks above may have taken a while:
+      // make sure the playlist was not validated (or its code changed) in the meantime
+      const updateRes = await client.query(
+        `UPDATE playlists SET name = $1, description = $2
+         WHERE id = $3 AND is_validated = FALSE AND secret_code = $4`,
+        [cleanName, cleanDescription, cleanId, existingPlaylist.secret_code]
       );
 
-      // 3. Clear existing playlist_tracks for this playlist
+      if (updateRes.rowCount === 0) {
+        throw new Error(validatedError);
+      }
+
+      // 4. Clear existing playlist_tracks for this playlist
       await client.query(
         `DELETE FROM playlist_tracks WHERE playlist_id = $1`,
         [cleanId]
       );
 
-      // Identify videos already in database to avoid redundant YouTube API calls
-      const candidateYtIds = videos.map((v) => validateYoutubeId(v.youtubeId)).filter(Boolean);
-      let existingVideosMap = new Map();
-      if (candidateYtIds.length > 0) {
-        const existingRes = await client.query(
-          'SELECT youtube_id, id FROM videos WHERE youtube_id = ANY($1)',
-          [candidateYtIds]
-        );
-        existingVideosMap = new Map(existingRes.rows.map((r) => [r.youtube_id, r.id]));
-      }
-
-      // 4. Upsert videos into catalog and recreate playlist_tracks links (only verify with YouTube if not yet in DB)
-      for (let i = 0; i < videos.length; i++) {
-        const video = videos[i];
-        const cleanTitle = sanitizeText(video.title, 255);
-        const validYtId = validateYoutubeId(video.youtubeId);
-        const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
-        const cleanVideoDesc = sanitizeText(video.description, 1000);
-        let cleanMalTitle = sanitizeText(video.malTitle, 255);
-        let cleanAnilistTitle = sanitizeText(video.anilistTitle, 255);
-        let parsedMalAnimeId = video.malAnimeId ? parseInt(video.malAnimeId, 10) : null;
-        let parsedAnilistId = video.anilistId ? parseInt(video.anilistId, 10) : null;
-
-        if (!cleanTitle || !validYtId) {
-          throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
-        }
-
-        // Only verify on YouTube if this video is NOT already stored in the database
-        if (!existingVideosMap.has(validYtId)) {
-          const ytCheck = await verifyYoutubeVideo(validYtId);
-          if (!ytCheck.valid) {
-            throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
-          }
-
-          // Auto-resolve AniList <-> MAL link only if an anime reference is present
-          if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
-            try {
-              const resolved = await resolveAnilistForAnime({
-                malAnimeId: parsedMalAnimeId,
-                malTitle: cleanMalTitle,
-                anilistId: parsedAnilistId,
-              });
-              if (resolved) {
-                if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
-                if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
-                if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
-              }
-            } catch (_) {}
-          }
-        }
-
-        // Upsert into unique videos catalog
-        const videoUpsertRes = await client.query(
-          `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (youtube_id) DO UPDATE SET
-             title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
-             artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
-             description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
-             mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-             mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
-             anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
-             anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
-           RETURNING id`,
-          [
-            validYtId,
-            cleanTitle,
-            cleanArtistName,
-            cleanVideoDesc,
-            parsedMalAnimeId,
-            cleanMalTitle || null,
-            parsedAnilistId,
-            cleanAnilistTitle || null,
-          ]
-        );
-
-        const videoId = videoUpsertRes.rows[0].id;
-
-        // Re-insert link into playlist_tracks with updated order_index
-        await client.query(
-          `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-           VALUES ($1, $2, $3)`,
-          [cleanId, videoId, i]
-        );
+      // 5. Upsert videos into catalog and recreate playlist_tracks links
+      for (let i = 0; i < tracks.length; i++) {
+        await upsertPlaylistTrack(client, cleanId, tracks[i], i);
       }
 
       await client.query('COMMIT');
-      console.log(`Playlist updated with secret code: ${cleanId} - "${cleanName}" (${videos.length} tracks)`);
+      console.log(`Playlist updated with secret code: ${cleanId} - "${cleanName}" (${tracks.length} tracks)`);
       await invalidatePlaylistCaches(cleanId);
 
       if (typeof callback === 'function') {

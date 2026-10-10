@@ -185,6 +185,123 @@ export async function getPlaylistById(id) {
   return result;
 }
 
+// Maximum number of simultaneous YouTube / AniList requests while checking the tracks of one playlist
+const TRACK_CHECK_CONCURRENCY = 4;
+
+/**
+ * Validates the tracks of a playlist and runs every external check (YouTube availability,
+ * AniList <-> MAL resolution) for the videos that are not in the catalog yet.
+ * Must be called BEFORE opening a transaction: these calls can take several seconds per track
+ * and would otherwise hold a database connection (out of a pool of 20) the whole time.
+ * Returns one entry per track, ready for upsertPlaylistTrack().
+ */
+export async function prepareTracksForPlaylist(videos) {
+  const tracks = videos.map((video, i) => {
+    const track = {
+      title: sanitizeText(video?.title, 255),
+      youtubeId: validateYoutubeId(video?.youtubeId),
+      artistName: sanitizeText(video?.artistName, 255) || 'Unknown Artist',
+      description: sanitizeText(video?.description, 1000),
+      malTitle: sanitizeText(video?.malTitle, 255),
+      anilistTitle: sanitizeText(video?.anilistTitle, 255),
+      malAnimeId: video?.malAnimeId ? parseInt(video.malAnimeId, 10) || null : null,
+      anilistId: video?.anilistId ? parseInt(video.anilistId, 10) || null : null,
+    };
+
+    if (!track.title || !track.youtubeId) {
+      throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
+    }
+    return track;
+  });
+
+  // Identify videos already in database to avoid redundant YouTube API calls
+  const existingRes = await pool.query('SELECT youtube_id FROM videos WHERE youtube_id = ANY($1)', [
+    tracks.map((track) => track.youtubeId),
+  ]);
+  const existingYoutubeIds = new Set(existingRes.rows.map((r) => r.youtube_id));
+  const toCheck = tracks.map((_, i) => i).filter((i) => !existingYoutubeIds.has(tracks[i].youtubeId));
+
+  const errors = new Map(); // track index -> error message
+  const youtubeChecks = new Map(); // youtubeId -> pending check (one request per distinct video)
+  let cursor = 0;
+
+  const worker = async () => {
+    // Stop picking new tracks as soon as one is rejected: the whole playlist is refused anyway
+    while (cursor < toCheck.length && errors.size === 0) {
+      const index = toCheck[cursor++];
+      const track = tracks[index];
+
+      if (!youtubeChecks.has(track.youtubeId)) {
+        youtubeChecks.set(track.youtubeId, verifyYoutubeVideo(track.youtubeId));
+      }
+      const ytCheck = await youtubeChecks.get(track.youtubeId);
+      if (!ytCheck.valid) {
+        errors.set(index, `La vidéo de la piste ${index + 1} ("${track.title}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
+        continue;
+      }
+
+      // Auto-resolve AniList <-> MAL link only if an anime reference is present
+      if ((!track.anilistId || !track.malAnimeId) && (track.malAnimeId || track.anilistId || track.malTitle)) {
+        try {
+          const resolved = await resolveAnilistForAnime({
+            malAnimeId: track.malAnimeId,
+            malTitle: track.malTitle,
+            anilistId: track.anilistId,
+          });
+          if (resolved) {
+            if (!track.anilistId && resolved.anilistId) track.anilistId = resolved.anilistId;
+            if (!track.anilistTitle && resolved.anilistTitle) track.anilistTitle = resolved.anilistTitle;
+            if (!track.malAnimeId && resolved.idMal) track.malAnimeId = resolved.idMal;
+          }
+        } catch (_) {}
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(TRACK_CHECK_CONCURRENCY, toCheck.length) }, worker));
+
+  if (errors.size > 0) {
+    throw new Error(errors.get(Math.min(...errors.keys())));
+  }
+
+  return tracks;
+}
+
+/**
+ * Upserts a prepared track into the unique videos catalog and links it to the playlist.
+ */
+export async function upsertPlaylistTrack(client, playlistId, track, orderIndex) {
+  const videoUpsertRes = await client.query(
+    `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (youtube_id) DO UPDATE SET
+       title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
+       artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
+       description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
+       mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
+       mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
+       anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
+       anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
+     RETURNING id`,
+    [
+      track.youtubeId,
+      track.title,
+      track.artistName,
+      track.description,
+      track.malAnimeId,
+      track.malTitle || null,
+      track.anilistId,
+      track.anilistTitle || null,
+    ]
+  );
+
+  await client.query(
+    `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
+     VALUES ($1, $2, $3)`,
+    [playlistId, videoUpsertRes.rows[0].id, orderIndex]
+  );
+}
+
 /**
  * Create a new custom playlist
  */
@@ -201,6 +318,9 @@ export async function createPlaylistRecord({ name, description, videos, categori
     throw new Error('Une playlist ne peut pas contenir plus de 200 pistes.');
   }
 
+  // External checks first: no database connection is held while waiting for YouTube / AniList
+  const tracks = await prepareTracksForPlaylist(videos);
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -215,94 +335,13 @@ export async function createPlaylistRecord({ name, description, videos, categori
       [playlistId, cleanName, cleanDescription, secretCode, cleanCategories]
     );
 
-    // 2. Identify videos already in database to avoid redundant YouTube API calls
-    const candidateYtIds = videos.map((v) => validateYoutubeId(v.youtubeId)).filter(Boolean);
-    let existingVideosMap = new Map();
-    if (candidateYtIds.length > 0) {
-      const existingRes = await client.query(
-        'SELECT youtube_id, id FROM videos WHERE youtube_id = ANY($1)',
-        [candidateYtIds]
-      );
-      existingVideosMap = new Map(existingRes.rows.map((r) => [r.youtube_id, r.id]));
-    }
-
-    // 3. Insert / upsert videos and link to playlist_tracks
-    for (let i = 0; i < videos.length; i++) {
-      const video = videos[i];
-      const cleanTitle = sanitizeText(video.title, 255);
-      const validYtId = validateYoutubeId(video.youtubeId);
-      const cleanArtistName = sanitizeText(video.artistName, 255) || 'Unknown Artist';
-      const cleanVideoDesc = sanitizeText(video.description, 1000);
-      let cleanMalTitle = sanitizeText(video.malTitle, 255);
-      let cleanAnilistTitle = sanitizeText(video.anilistTitle, 255);
-      let parsedMalAnimeId = video.malAnimeId ? parseInt(video.malAnimeId, 10) : null;
-      let parsedAnilistId = video.anilistId ? parseInt(video.anilistId, 10) : null;
-
-      if (!cleanTitle || !validYtId) {
-        throw new Error(`La piste à l'index ${i + 1} a un titre ou un lien YouTube invalide.`);
-      }
-
-      // Only verify on YouTube if this video is NOT already stored in the database
-      if (!existingVideosMap.has(validYtId)) {
-        const ytCheck = await verifyYoutubeVideo(validYtId);
-        if (!ytCheck.valid) {
-          throw new Error(`La vidéo de la piste ${i + 1} ("${cleanTitle}") n'est pas disponible sur YouTube : ${ytCheck.error}`);
-        }
-
-        // Auto-resolve AniList <-> MAL link only if an anime reference is present
-        if ((!parsedAnilistId || !parsedMalAnimeId) && (parsedMalAnimeId || parsedAnilistId || cleanMalTitle)) {
-          try {
-            const resolved = await resolveAnilistForAnime({
-              malAnimeId: parsedMalAnimeId,
-              malTitle: cleanMalTitle,
-              anilistId: parsedAnilistId,
-            });
-            if (resolved) {
-              if (!parsedAnilistId && resolved.anilistId) parsedAnilistId = resolved.anilistId;
-              if (!cleanAnilistTitle && resolved.anilistTitle) cleanAnilistTitle = resolved.anilistTitle;
-              if (!parsedMalAnimeId && resolved.idMal) parsedMalAnimeId = resolved.idMal;
-            }
-          } catch (_) {}
-        }
-      }
-
-      // Upsert into unique videos catalog
-      const videoUpsertRes = await client.query(
-        `INSERT INTO videos (youtube_id, title, artist_name, description, mal_anime_id, mal_title, anilist_id, anilist_title)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (youtube_id) DO UPDATE SET
-           title = COALESCE(NULLIF(EXCLUDED.title, ''), videos.title),
-           artist_name = COALESCE(NULLIF(EXCLUDED.artist_name, ''), videos.artist_name),
-           description = COALESCE(NULLIF(EXCLUDED.description, ''), videos.description),
-           mal_anime_id = COALESCE(EXCLUDED.mal_anime_id, videos.mal_anime_id),
-           mal_title = COALESCE(NULLIF(EXCLUDED.mal_title, ''), videos.mal_title),
-           anilist_id = COALESCE(EXCLUDED.anilist_id, videos.anilist_id),
-           anilist_title = COALESCE(NULLIF(EXCLUDED.anilist_title, ''), videos.anilist_title)
-         RETURNING id`,
-        [
-          validYtId,
-          cleanTitle,
-          cleanArtistName,
-          cleanVideoDesc,
-          parsedMalAnimeId,
-          cleanMalTitle || null,
-          parsedAnilistId,
-          cleanAnilistTitle || null,
-        ]
-      );
-
-      const videoId = videoUpsertRes.rows[0].id;
-
-      // Insert link into playlist_tracks
-      await client.query(
-        `INSERT INTO playlist_tracks (playlist_id, video_id, order_index)
-         VALUES ($1, $2, $3)`,
-        [playlistId, videoId, i]
-      );
+    // 2. Insert / upsert videos and link to playlist_tracks
+    for (let i = 0; i < tracks.length; i++) {
+      await upsertPlaylistTrack(client, playlistId, tracks[i], i);
     }
 
     await client.query('COMMIT');
-    console.log(`Custom playlist created: ${playlistId} - "${cleanName}" with ${videos.length} tracks`);
+    console.log(`Custom playlist created: ${playlistId} - "${cleanName}" with ${tracks.length} tracks`);
 
     // Invalidate caches
     await invalidatePlaylistCaches(playlistId);
@@ -313,7 +352,7 @@ export async function createPlaylistRecord({ name, description, videos, categori
       secretCode,
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch((rollbackErr) => console.error('Rollback failed:', rollbackErr));
     throw error;
   } finally {
     client.release();
