@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { SocketProvider } from "@/lib/useSocket";
 import DynamicBackground from "@/components/DynamicBackground";
+import CookieNotice from "@/components/CookieNotice";
 import BannerNotification from "@/components/BannerNotification";
 
 const exo = Exo({
@@ -122,6 +123,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col text-black">
         <SocketProvider>
           <BannerNotification />
+          <CookieNotice />
           <DynamicBackground>
             {children}
           </DynamicBackground>

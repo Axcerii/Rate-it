@@ -45,6 +45,12 @@ const BROWSER_STORAGE: { keys: string[]; what: string; why: string; until: strin
     until: 'Jusqu’à l’enregistrement ou l’effacement du brouillon',
   },
   {
+    keys: ['rate_it_cookie_notice_closed'],
+    what: 'Le fait d’avoir fermé le bandeau d’information',
+    why: 'Ne pas vous le remontrer à chaque page.',
+    until: 'Tant que vous ne videz pas les données du site',
+  },
+  {
     keys: ['rate_it_host_mode_chosen'],
     what: 'Le mode choisi dans le lobby (playlist ou liste d’animés)',
     why: 'Ne pas vous reposer la question à chaque rechargement.',
