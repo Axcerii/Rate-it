@@ -564,8 +564,13 @@ export function sanitizeSessionForSocket(session, socketData = {}) {
 
   const copy = JSON.parse(JSON.stringify(session));
 
-  // 1. Never leak hostToken in any client session payload
+  // 1. Never leak hostToken nor player tokens in any client session payload
   delete copy.hostToken;
+  if (copy.players) {
+    for (const pid in copy.players) {
+      delete copy.players[pid].token;
+    }
+  }
 
   // 2. If in active VOTING phase, prevent regular players from snooping on other players' ratings
   if (copy.status === 'PLAYING' && copy.phase === 'VOTING') {

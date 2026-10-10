@@ -223,7 +223,7 @@ export function registerRoomHandlers(io, socket) {
   });
 
   // Player joins a room
-  socket.on('room:join', async ({ sessionId, playerName, playerId }, callback) => {
+  socket.on('room:join', async ({ sessionId, playerName, playerId, playerToken }, callback) => {
     let release;
     try {
       const formattedCode = validateRoomCode(sessionId);
@@ -244,10 +244,22 @@ export function registerRoomHandlers(io, socket) {
         throw new Error('Salle introuvable');
       }
 
+      // Player ids are visible to everyone in the room (room:update): knowing one must not be enough
+      // to take over that player. The host player can only come back through room:reconnect_host.
+      const existingPlayer = session.players[cleanPlayerId];
+      if (cleanPlayerId === session.hostPlayerId || existingPlayer?.isHost) {
+        throw new Error("Cet identifiant est réservé à l'hôte de la salle.");
+      }
+
       // Update session state with player info
-      if (session.players[cleanPlayerId]) {
-        session.players[cleanPlayerId].isConnected = true;
-        session.players[cleanPlayerId].name = cleanPlayerName;
+      if (existingPlayer) {
+        if (existingPlayer.token && !safeTimingCompare(String(playerToken || ''), existingPlayer.token)) {
+          throw new Error('Ce joueur est déjà présent dans la salle depuis un autre appareil.');
+        }
+        // Players of a room created before tokens existed get theirs on their next join
+        existingPlayer.token = existingPlayer.token || generateSecureToken(24);
+        existingPlayer.isConnected = true;
+        existingPlayer.name = cleanPlayerName;
       } else {
         if (Object.keys(session.players).length >= MAX_PLAYERS_PER_ROOM) {
           throw new Error(`Cette salle est complète (${MAX_PLAYERS_PER_ROOM} joueurs maximum).`);
@@ -256,6 +268,7 @@ export function registerRoomHandlers(io, socket) {
           id: cleanPlayerId,
           name: cleanPlayerName,
           isConnected: true,
+          token: generateSecureToken(24),
         };
       }
 
@@ -268,11 +281,13 @@ export function registerRoomHandlers(io, socket) {
 
       console.log(`Player ${cleanPlayerName} (${cleanPlayerId}) joined room ${formattedCode}`);
 
-      // Notify player they successfully joined with sanitized view
+      // Notify player they successfully joined with sanitized view.
+      // playerToken is returned to this player only: it is required to rejoin as the same player.
       if (typeof callback === 'function') {
         callback({
           success: true,
           session: sanitizeSessionForSocket(session, socket.data),
+          playerToken: session.players[cleanPlayerId].token,
         });
       }
 

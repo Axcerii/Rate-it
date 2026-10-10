@@ -96,6 +96,10 @@ const getSocketUrl = () => {
   return process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
 };
 
+// Secret returned by the server on room:join, required to rejoin a room as the same player.
+// Stored per room so that two tabs in different rooms do not overwrite each other's token.
+const playerTokenKey = (sessionId: string) => `rate_it_player_token_${sessionId.trim().toUpperCase()}`;
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -267,13 +271,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketInstance.emit('room:join', {
           sessionId: playerSessionId,
           playerName: name,
-          playerId: id
+          playerId: id,
+          playerToken: localStorage.getItem(playerTokenKey(playerSessionId))
         }, (response: any) => {
           if (response.success) {
+            if (response.playerToken) {
+              localStorage.setItem(playerTokenKey(response.session.sessionId), response.playerToken);
+            }
             setSession(response.session);
           } else {
             console.log('Failed to restore Player session, clearing storage');
             localStorage.removeItem('rate_it_player_session_id');
+            localStorage.removeItem(playerTokenKey(playerSessionId));
           }
         });
       }
@@ -403,10 +412,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isHostRef.current = false;
       setIsHost(false);
       playerNameRef.current = playerName;
-      sock.emit('room:join', { sessionId, playerName, playerId }, (response: any) => {
+      const playerToken = localStorage.getItem(playerTokenKey(sessionId));
+      sock.emit('room:join', { sessionId, playerName, playerId, playerToken }, (response: any) => {
         clearTimeout(timeoutId);
         if (response && response.success) {
           localStorage.setItem('rate_it_player_session_id', response.session.sessionId);
+          if (response.playerToken) {
+            localStorage.setItem(playerTokenKey(response.session.sessionId), response.playerToken);
+          }
           localStorage.removeItem('rate_it_host_session_id');
           localStorage.removeItem('rate_it_host_token');
           setSession(response.session);
@@ -428,6 +441,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.removeItem('rate_it_host_session_id');
       localStorage.removeItem('rate_it_host_token');
       localStorage.removeItem('rate_it_player_session_id');
+      localStorage.removeItem(playerTokenKey(session.sessionId));
       socket.disconnect();
       socket.connect();
       setSession(null);
