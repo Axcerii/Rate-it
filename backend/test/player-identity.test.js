@@ -84,3 +84,24 @@ test('players of a room created before tokens existed can still rejoin', async (
   assert.equal(res.success, true);
   assert.match(res.playerToken, /^[0-9a-f]{48}$/);
 });
+
+test('a player id can never reach Object.prototype', async () => {
+  const { io, host, sessionId } = await createRoom({ playerCount: 1 });
+
+  for (const playerId of ['__proto__', 'constructor', 'prototype', 'a b', '<x>', 'x'.repeat(51)]) {
+    const attacker = io.connect();
+    const res = await attacker.send('room:join', { sessionId, playerName: 'pwn', playerId });
+    assert.equal(res.success, false, `player id "${playerId}" was accepted`);
+  }
+  assert.deepEqual(Object.keys(Object.prototype), []);
+
+  // The host id goes through the same check: an invalid one falls back to the default id
+  const otherHost = io.connect();
+  const created = await otherHost.send('room:create', { isHostPlayer: true, playerId: '__proto__', hostName: 'Host' });
+  assert.equal(created.session.hostPlayerId, `host_${created.session.sessionId}`);
+  assert.deepEqual(Object.keys(Object.prototype), []);
+
+  // Games still start
+  const start = await host.send('game:start', { playlistId: 'pl', shuffle: false });
+  assert.equal(start.success, true);
+});

@@ -4,6 +4,7 @@ import { checkAndAdvanceSkip } from './gameHandler.js';
 import {
   sanitizeText,
   validateRoomCode,
+  validatePlayerId,
   generateSecureToken,
   safeTimingCompare,
   broadcastRoomUpdate,
@@ -51,7 +52,7 @@ export function registerRoomHandlers(io, socket) {
       }
 
       const isHostPlayer = payload.isHostPlayer !== false; // default true
-      const hostPlayerId = sanitizeText(payload.playerId, 50) || `host_${code}`;
+      const hostPlayerId = validatePlayerId(payload.playerId) || `host_${code}`;
       const hostName = sanitizeText(payload.hostName, 50) || 'HOST';
       const hostToken = generateSecureToken(32);
 
@@ -124,7 +125,7 @@ export function registerRoomHandlers(io, socket) {
         throw new Error('Authentification de l\'hôte échouée (token invalide ou manquant)');
       }
 
-      const hostPlayerId = session.hostPlayerId || payload.playerId || `host_${formattedCode}`;
+      const hostPlayerId = session.hostPlayerId || validatePlayerId(payload.playerId) || `host_${formattedCode}`;
       session.hostSocketId = socket.id;
       session.hostPlayerId = hostPlayerId;
 
@@ -241,7 +242,7 @@ export function registerRoomHandlers(io, socket) {
       }
 
       const cleanPlayerName = sanitizeText(playerName, 50);
-      const cleanPlayerId = sanitizeText(playerId, 50);
+      const cleanPlayerId = validatePlayerId(playerId);
       if (!cleanPlayerName || !cleanPlayerId) {
         throw new Error('Pseudonyme ou ID joueur invalide');
       }
@@ -255,7 +256,7 @@ export function registerRoomHandlers(io, socket) {
 
       // Player ids are visible to everyone in the room (room:update): knowing one must not be enough
       // to take over that player. The host player can only come back through room:reconnect_host.
-      const existingPlayer = session.players[cleanPlayerId];
+      const existingPlayer = Object.hasOwn(session.players, cleanPlayerId) ? session.players[cleanPlayerId] : null;
       if (cleanPlayerId === session.hostPlayerId || existingPlayer?.isHost) {
         throw new Error("Cet identifiant est réservé à l'hôte de la salle.");
       }

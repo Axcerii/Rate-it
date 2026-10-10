@@ -291,6 +291,18 @@ export function sanitizeVideoId(id) {
 }
 
 /**
+ * Validates a player identifier sent by a client. Player ids are used as keys of plain objects
+ * (session.players, session.votes...): "__proto__" would reach Object.prototype and corrupt
+ * every object of the process.
+ *
+ * @param {any} id
+ * @returns {string|null} Safe player id or null
+ */
+export function validatePlayerId(id) {
+  return sanitizeVideoId(id);
+}
+
+/**
  * Tells whether a hostname is this machine or a private network address (development setups).
  * Only real IP literals are matched: "10.evil.com" is a public domain name, not a private IP.
  *
