@@ -6,6 +6,7 @@ import {
   prepareTracksForPlaylist,
   upsertPlaylistTrack,
   invalidatePlaylistCaches,
+  invalidateAllPlaylistCaches,
   getAllCategories,
   deleteCategory,
   addCategory,
@@ -415,19 +416,22 @@ export function registerPlaylistHandlers(io, socket) {
   });
 
   // 6. Admin: Toggle validation status
-  socket.on('playlist:validate', async ({ id, password }, callback) => {
+  socket.on('playlist:validate', async ({ id, isValidated, password }, callback) => {
     try {
       verifyAdminAuth(password, socket);
 
       const cleanId = sanitizeText(id, 50);
       if (!cleanId) throw new Error('ID de playlist invalide');
 
-      await pool.query(
-        'UPDATE playlists SET is_validated = NOT is_validated WHERE id = $1',
-        [cleanId]
-      );
+      // Apply the state asked by the client: a blind toggle inverts it on a double click or a stale UI.
+      // (Clients that do not send it keep the old toggle behaviour.)
+      if (typeof isValidated === 'boolean') {
+        await pool.query('UPDATE playlists SET is_validated = $2 WHERE id = $1', [cleanId, isValidated]);
+      } else {
+        await pool.query('UPDATE playlists SET is_validated = NOT is_validated WHERE id = $1', [cleanId]);
+      }
 
-      console.log(`Admin toggled validation for playlist: ${cleanId}`);
+      console.log(`Admin set validation for playlist: ${cleanId}`);
       await invalidatePlaylistCaches(cleanId);
 
       if (typeof callback === 'function') {
@@ -483,6 +487,8 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       console.log(`Admin updated playlist ${cleanId}: "${cleanName}"`);
+
+      await invalidateAllPlaylistCaches();
 
       if (typeof callback === 'function') {
         callback({ success: true, playlist: updateRes.rows[0] });
@@ -616,6 +622,8 @@ export function registerPlaylistHandlers(io, socket) {
 
         console.log(`Admin set track ${targetTrackId} as first video in playlist ${cleanPlaylistId}`);
 
+        await invalidateAllPlaylistCaches();
+
         if (typeof callback === 'function') {
           callback({ success: true, videos: updatedRes.rows });
         }
@@ -672,6 +680,8 @@ export function registerPlaylistHandlers(io, socket) {
       );
 
       console.log(`Admin cleaned stale playlists. Total deleted: ${result.rowCount}`);
+
+      await invalidateAllPlaylistCaches();
 
       if (typeof callback === 'function') {
         callback({ success: true, count: result.rowCount });
@@ -854,6 +864,8 @@ export function registerPlaylistHandlers(io, socket) {
 
       console.log(`Admin added video ${videoId} to playlist ${cleanPlaylistId}`);
 
+      await invalidateAllPlaylistCaches();
+
       if (typeof callback === 'function') {
         callback({ success: true, videoId: String(videoId) });
       }
@@ -905,6 +917,8 @@ export function registerPlaylistHandlers(io, socket) {
 
       console.log(`Admin linked existing video ${cleanVideoId} to playlist ${cleanPlaylistId}`);
 
+      await invalidateAllPlaylistCaches();
+
       if (typeof callback === 'function') {
         callback({ success: true, videoId: String(cleanVideoId) });
       }
@@ -934,6 +948,8 @@ export function registerPlaylistHandlers(io, socket) {
 
       console.log(`Admin unlinked video ${cleanVideoId} from playlist ${cleanPlaylistId}`);
 
+      await invalidateAllPlaylistCaches();
+
       if (typeof callback === 'function') {
         callback({ success: true });
       }
@@ -958,6 +974,8 @@ export function registerPlaylistHandlers(io, socket) {
       // Deletes the video globally from catalog (cascades on playlist_tracks and sets ratings to null)
       await pool.query('DELETE FROM videos WHERE id = $1', [cleanVideoId]);
       console.log(`Admin deleted video ${cleanVideoId} directly from catalog`);
+
+      await invalidateAllPlaylistCaches();
 
       if (typeof callback === 'function') {
         callback({ success: true });
@@ -1044,6 +1062,8 @@ export function registerPlaylistHandlers(io, socket) {
       }
 
       console.log(`Admin updated video ${cleanVideoId}: "${cleanTitle}" across all playlists`);
+
+      await invalidateAllPlaylistCaches();
 
       if (typeof callback === 'function') {
         callback({ success: true, video: updateRes.rows[0] });

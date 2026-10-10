@@ -40,6 +40,25 @@ export async function invalidatePlaylistCaches(playlistId = null) {
 }
 
 /**
+ * Invalidate the public list and the details of every playlist.
+ * For changes that can affect several playlists at once: a video of the shared catalog
+ * edited or deleted, bulk deletions...
+ */
+export async function invalidateAllPlaylistCaches() {
+  try {
+    if (redisClient && redisClient.isOpen) {
+      await redisClient.del(CACHE_KEY_PUBLIC_LIST);
+      for await (const found of redisClient.scanIterator({ MATCH: 'playlist:details:*', COUNT: 100 })) {
+        const keys = Array.isArray(found) ? found : [found];
+        if (keys.length > 0) await redisClient.del(keys);
+      }
+    }
+  } catch (err) {
+    console.warn('Erreur lors de l\'invalidation du cache Redis des playlists:', err.message);
+  }
+}
+
+/**
  * Fetch all playlists (Validated & Community)
  * Leverages Redis cache for unauthenticated (public) queries to avoid DB load.
  */
