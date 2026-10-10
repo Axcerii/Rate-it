@@ -1,10 +1,11 @@
 import { connectToTwitchChat, disconnectFromTwitchChat } from '../services/twitchService.js';
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import { validateTwitchChannel, broadcastRoomUpdate } from '../utils/security.js';
 
 export function registerTwitchHandlers(io, socket) {
   // Connect Host to Twitch Chat room
   socket.on('twitch:connect', async ({ channelName }, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -23,6 +24,7 @@ export function registerTwitchHandlers(io, socket) {
       connectToTwitchChat(io, sessionId, validChannel);
 
       // Save channel name in session state for UI reference
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (session) {
         session.twitchChannel = validChannel;
@@ -42,11 +44,14 @@ export function registerTwitchHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Disconnect Host from Twitch Chat room
   socket.on('twitch:disconnect', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -59,6 +64,7 @@ export function registerTwitchHandlers(io, socket) {
 
       disconnectFromTwitchChat(sessionId);
       
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (session) {
         session.twitchChannel = null;
@@ -77,6 +83,8 @@ export function registerTwitchHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 }

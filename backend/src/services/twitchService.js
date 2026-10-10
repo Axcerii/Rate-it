@@ -1,4 +1,4 @@
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import { sanitizeText, broadcastRoomUpdate } from '../utils/security.js';
 
 // Map to hold active Twitch WS connections by sessionId
@@ -107,7 +107,9 @@ export function disconnectFromTwitchChat(sessionId) {
 }
 
 async function registerTwitchVote(io, sessionId, user, vote) {
+  let release;
   try {
+    release = await acquireSessionLock(sessionId);
     const session = await getSession(sessionId);
     if (!session || session.status !== 'PLAYING') return;
 
@@ -125,5 +127,7 @@ async function registerTwitchVote(io, sessionId, user, vote) {
     broadcastRoomUpdate(io, session);
   } catch (error) {
     console.error('Error saving Twitch chat vote:', error);
+  } finally {
+    release?.();
   }
 }

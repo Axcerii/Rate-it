@@ -1,9 +1,10 @@
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import { validateRating, broadcastRoomUpdate } from '../utils/security.js';
 
 export function registerVoteHandlers(io, socket) {
   // Player submits a vote
   socket.on('game:vote', async ({ voteValue }, callback) => {
+    let release;
     try {
       const { sessionId } = socket.data;
       let { playerId } = socket.data;
@@ -20,6 +21,7 @@ export function registerVoteHandlers(io, socket) {
         throw new Error('La note doit être un nombre entier entre 1 et 5');
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
@@ -77,6 +79,8 @@ export function registerVoteHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 }

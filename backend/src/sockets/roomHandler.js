@@ -1,4 +1,4 @@
-import { getSession, saveSession, deleteSession } from '../store/sessionStore.js';
+import { getSession, saveSession, deleteSession, acquireSessionLock } from '../store/sessionStore.js';
 import { disconnectFromTwitchChat } from '../services/twitchService.js';
 import { checkAndAdvanceSkip } from './gameHandler.js';
 import {
@@ -92,12 +92,14 @@ export function registerRoomHandlers(io, socket) {
 
   // Host reconnects to room
   socket.on('room:reconnect_host', async (payload = {}, callback) => {
+    let release;
     try {
       const formattedCode = validateRoomCode(payload.sessionId);
       if (!formattedCode) {
         throw new Error('Code de salle invalide');
       }
 
+      release = await acquireSessionLock(formattedCode);
       const session = await getSession(formattedCode);
 
       if (!session) {
@@ -153,17 +155,21 @@ export function registerRoomHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Host toggles host player setting in lobby
   socket.on('room:toggle_host_player', async ({ isHostPlayer, hostName }, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
       if (!sessionId || !isHost) {
         throw new Error('Non autorisé');
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
@@ -203,11 +209,14 @@ export function registerRoomHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Player joins a room
   socket.on('room:join', async ({ sessionId, playerName, playerId }, callback) => {
+    let release;
     try {
       const formattedCode = validateRoomCode(sessionId);
       if (!formattedCode) {
@@ -220,6 +229,7 @@ export function registerRoomHandlers(io, socket) {
         throw new Error('Pseudonyme ou ID joueur invalide');
       }
 
+      release = await acquireSessionLock(formattedCode);
       const session = await getSession(formattedCode);
 
       if (!session) {
@@ -262,11 +272,14 @@ export function registerRoomHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Host deletes a room session
   socket.on('room:delete', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -276,6 +289,7 @@ export function registerRoomHandlers(io, socket) {
         }
         return;
       }
+      release = await acquireSessionLock(sessionId);
       disconnectFromTwitchChat(sessionId);
       await deleteSession(sessionId);
 
@@ -291,6 +305,8 @@ export function registerRoomHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
@@ -303,7 +319,9 @@ export function registerRoomHandlers(io, socket) {
       return;
     }
 
+    let release;
     try {
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) return;
 
@@ -324,6 +342,8 @@ export function registerRoomHandlers(io, socket) {
       }
     } catch (error) {
       console.error('Error handling disconnect:', error);
+    } finally {
+      release?.();
     }
   });
 }

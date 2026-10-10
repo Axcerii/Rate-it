@@ -1,4 +1,4 @@
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import pool from '../db/db.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 import { fetchUserCompletedAnimeFromAnilist } from '../services/anilistService.js';
@@ -83,6 +83,7 @@ async function recordAndFetchVideoRatings(session, currentVideo) {
   }
 }
 
+// Must be called while holding the session lock (it mutates and saves the session)
 export async function checkAndAdvanceSkip(io, session) {
   if (!session || session.status !== 'PLAYING') return false;
 
@@ -158,6 +159,7 @@ export async function checkAndAdvanceSkip(io, session) {
 export function registerGameHandlers(io, socket) {
   // Start the game session
   socket.on('game:start', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -168,7 +170,7 @@ export function registerGameHandlers(io, socket) {
         return;
       }
 
-      const session = await getSession(sessionId);
+      let session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
       }
@@ -243,6 +245,14 @@ export function registerGameHandlers(io, socket) {
         videos = result.rows;
       }
 
+      // Videos are loaded: lock the session only now (AniList/MAL calls above can take several seconds)
+      // and re-read it so that changes made in the meantime (joins, disabled videos) are not overwritten
+      release = await acquireSessionLock(sessionId);
+      session = await getSession(sessionId);
+      if (!session) {
+        throw new Error('Session introuvable');
+      }
+
       // Filter out any disabled videos
       const disabledIds = session.disabledVideoIds || {};
       videos = videos.filter(video => !disabledIds[video.id]);
@@ -306,11 +316,14 @@ export function registerGameHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Reveal vote results for current round (HOST ONLY)
   socket.on('game:show_results', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -322,6 +335,7 @@ export function registerGameHandlers(io, socket) {
         return;
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) throw new Error('Session introuvable');
 
@@ -369,11 +383,14 @@ export function registerGameHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Active player toggles skip status
   socket.on('game:player_skip', async (payload, callback) => {
+    let release;
     try {
       const { sessionId } = socket.data;
       let { playerId } = socket.data;
@@ -385,6 +402,7 @@ export function registerGameHandlers(io, socket) {
         return;
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) throw new Error('Session introuvable');
       if (session.status !== 'PLAYING') throw new Error('La partie n\'est pas en cours');
@@ -431,11 +449,14 @@ export function registerGameHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Advance to next video (HOST ONLY)
   socket.on('game:next', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -446,6 +467,7 @@ export function registerGameHandlers(io, socket) {
         return;
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
@@ -517,11 +539,14 @@ export function registerGameHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Navigate to previous video (HOST ONLY)
   socket.on('game:previous', async (payload, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -532,6 +557,7 @@ export function registerGameHandlers(io, socket) {
         return;
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         throw new Error('Session introuvable');
@@ -566,6 +592,8 @@ export function registerGameHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 }

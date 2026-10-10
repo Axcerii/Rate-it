@@ -8,7 +8,7 @@ import {
   deleteCategory,
   addCategory,
 } from '../services/playlistService.js';
-import { getSession, saveSession } from '../store/sessionStore.js';
+import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import { fetchUserCompletedAnime } from '../services/malService.js';
 import { fetchUserCompletedAnimeFromAnilist, resolveAnilistForAnime } from '../services/anilistService.js';
 import { filterVideosByMalList } from '../services/malMatcher.js';
@@ -402,6 +402,7 @@ export function registerPlaylistHandlers(io, socket) {
 
   // 5. Toggle track status in active session
   socket.on('playlist:toggle_video', async ({ videoId }, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -417,6 +418,7 @@ export function registerPlaylistHandlers(io, socket) {
         throw new Error('ID vidéo invalide');
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         if (typeof callback === 'function') {
@@ -443,11 +445,14 @@ export function registerPlaylistHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
   // Bulk update of disabled videos in lobby (for "Tout cocher" / "Tout décocher" / playlist switch)
   socket.on('playlist:set_disabled_videos', async ({ disabledVideoIds }, callback) => {
+    let release;
     try {
       const { sessionId, isHost } = socket.data;
 
@@ -458,6 +463,7 @@ export function registerPlaylistHandlers(io, socket) {
         return;
       }
 
+      release = await acquireSessionLock(sessionId);
       const session = await getSession(sessionId);
       if (!session) {
         if (typeof callback === 'function') {
@@ -488,6 +494,8 @@ export function registerPlaylistHandlers(io, socket) {
       if (typeof callback === 'function') {
         callback({ success: false, error: error.message });
       }
+    } finally {
+      release?.();
     }
   });
 
