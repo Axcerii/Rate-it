@@ -1,8 +1,11 @@
 import { getSession, saveSession, acquireSessionLock } from '../store/sessionStore.js';
 import { sanitizeText, broadcastRoomUpdate } from '../utils/security.js';
 
-// Map to hold active Twitch WS connections by sessionId
+// Active Twitch chat links by sessionId: { ws, channel, attempts, retryTimer }
 const twitchConnections = new Map();
+
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
 
 export function connectToTwitchChat(io, sessionId, channelName) {
   // Clean up any existing connection
@@ -11,6 +14,17 @@ export function connectToTwitchChat(io, sessionId, channelName) {
   if (!channelName) return;
 
   const channel = channelName.trim().toLowerCase().replace('#', '');
+  const entry = { ws: null, channel, attempts: 0, retryTimer: null };
+  twitchConnections.set(sessionId, entry);
+  openTwitchSocket(io, sessionId, entry);
+}
+
+export function isTwitchChatActive(sessionId) {
+  return twitchConnections.has(sessionId);
+}
+
+function openTwitchSocket(io, sessionId, entry) {
+  const { channel } = entry;
   const username = `justinfan${Math.floor(10000 + Math.random() * 90000)}`;
   const wsUrl = 'wss://irc-ws.chat.twitch.tv:443';
 
@@ -18,9 +32,11 @@ export function connectToTwitchChat(io, sessionId, channelName) {
 
   try {
     const ws = new globalThis.WebSocket(wsUrl);
+    entry.ws = ws;
 
     ws.onopen = () => {
       console.log(`Twitch WS connected for session ${sessionId}`);
+      entry.attempts = 0;
       ws.send(`PASS oauth:anonymous\r\n`);
       ws.send(`NICK ${username}\r\n`);
       ws.send(`JOIN #${channel}\r\n`);
@@ -84,25 +100,55 @@ export function connectToTwitchChat(io, sessionId, channelName) {
 
     ws.onclose = () => {
       console.log(`Twitch WS closed for session ${sessionId}`);
-      twitchConnections.delete(sessionId);
+      // Ignore sockets that were closed on purpose or already replaced by a newer connection
+      if (twitchConnections.get(sessionId) !== entry || entry.ws !== ws) return;
+      scheduleTwitchReconnect(io, sessionId, entry);
     };
-
-    twitchConnections.set(sessionId, ws);
   } catch (error) {
     console.error(`Failed to connect to Twitch for session ${sessionId}:`, error);
+    scheduleTwitchReconnect(io, sessionId, entry);
   }
 }
 
-export function disconnectFromTwitchChat(sessionId) {
-  const ws = twitchConnections.get(sessionId);
-  if (ws) {
-    console.log(`Closing Twitch connection for session ${sessionId}`);
+// Twitch (or the network) dropped the connection: retry with exponential backoff
+// for as long as the session still exists and still wants its chat connected
+function scheduleTwitchReconnect(io, sessionId, entry) {
+  const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** entry.attempts, RECONNECT_MAX_DELAY_MS);
+  entry.attempts++;
+  console.log(`Twitch reconnect for session ${sessionId} in ${delay}ms (attempt ${entry.attempts})`);
+
+  entry.retryTimer = setTimeout(async () => {
+    entry.retryTimer = null;
     try {
-      ws.close();
+      const session = await getSession(sessionId);
+      if (twitchConnections.get(sessionId) !== entry) return;
+      if (!session || !session.twitchChannel) {
+        twitchConnections.delete(sessionId);
+        return;
+      }
+      openTwitchSocket(io, sessionId, entry);
+    } catch (error) {
+      console.error(`Twitch reconnect check failed for session ${sessionId}:`, error);
+      if (twitchConnections.get(sessionId) === entry) {
+        scheduleTwitchReconnect(io, sessionId, entry);
+      }
+    }
+  }, delay);
+  entry.retryTimer.unref?.();
+}
+
+export function disconnectFromTwitchChat(sessionId) {
+  const entry = twitchConnections.get(sessionId);
+  if (entry) {
+    console.log(`Closing Twitch connection for session ${sessionId}`);
+    // Remove the entry first so that onclose does not trigger a reconnect
+    twitchConnections.delete(sessionId);
+    if (entry.retryTimer) clearTimeout(entry.retryTimer);
+    try {
+      entry.ws?.close();
     } catch (e) {
       console.error(e);
     }
-    twitchConnections.delete(sessionId);
   }
 }
 

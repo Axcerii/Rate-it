@@ -1,5 +1,5 @@
 import { getSession, saveSession, deleteSession, acquireSessionLock } from '../store/sessionStore.js';
-import { disconnectFromTwitchChat } from '../services/twitchService.js';
+import { connectToTwitchChat, disconnectFromTwitchChat, isTwitchChatActive } from '../services/twitchService.js';
 import { checkAndAdvanceSkip } from './gameHandler.js';
 import {
   sanitizeText,
@@ -141,6 +141,11 @@ export function registerRoomHandlers(io, socket) {
       socket.join(`session:${formattedCode}`);
 
       console.log(`Host ${socket.id} securely reconnected to room ${formattedCode}`);
+
+      // The Twitch link is closed when the host socket drops (refresh, network blip): restore it
+      if (session.twitchChannel && !isTwitchChatActive(formattedCode)) {
+        connectToTwitchChat(io, formattedCode, session.twitchChannel);
+      }
 
       if (typeof callback === 'function') {
         callback({
