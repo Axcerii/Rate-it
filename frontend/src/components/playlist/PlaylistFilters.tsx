@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, Users, Search, X, Filter, SlidersHorizontal } from 'lucide-react';
+import { CheckCircle2, Users, Search, X, Filter, SlidersHorizontal } from '@/components/icons';
 import CloseButton from '@/components/CloseButton';
 
 export interface PlaylistFiltersProps {
@@ -98,7 +98,7 @@ export default function PlaylistFilters({
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Validées</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'validated'
+              className={`text-xs px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'validated'
                 ? 'bg-white/20 text-white'
                 : 'bg-white text-slate-800'
                 }`}
@@ -118,7 +118,7 @@ export default function PlaylistFilters({
             <Users className="w-3.5 h-3.5" />
             <span>Communauté</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'community'
+              className={`text-xs px-1.5 py-0.2 rounded-md font-bold ${activeTab === 'community'
                 ? 'bg-white/20 text-white'
                 : 'bg-white text-slate-800'
                 }`}
@@ -132,7 +132,7 @@ export default function PlaylistFilters({
         {activeCategory !== 'all' && (
           <div className="flex items-center justify-between bg-white border-2 border-black rounded-lg px-3 py-1.5 shadow-none">
             <div className="flex items-center gap-2 truncate">
-              <span className="text-[10px] font-black text-catalog uppercase bg-catalog/15 px-2 py-0.5 rounded-md">Filtre</span>
+              <span className="text-xs font-black text-catalog uppercase bg-catalog/15 px-2 py-0.5 rounded-md">Filtre</span>
               <span className="text-xs font-black text-black uppercase truncate">{activeCategory}</span>
             </div>
             <button
@@ -322,7 +322,7 @@ export default function PlaylistFilters({
               <span>Playlists Validées</span>
             </div>
             <span
-              className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${activeTab === 'validated'
+              className={`text-xs px-2 py-0.5 rounded-md font-bold ${activeTab === 'validated'
                 ? 'bg-white/25 text-white'
                 : 'bg-slate-200 text-slate-800'
                 }`}
@@ -344,7 +344,7 @@ export default function PlaylistFilters({
               <span>Communauté</span>
             </div>
             <span
-              className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${activeTab === 'community'
+              className={`text-xs px-2 py-0.5 rounded-md font-bold ${activeTab === 'community'
                 ? 'bg-white/25 text-white'
                 : 'bg-slate-200 text-slate-800'
                 }`}
@@ -365,7 +365,7 @@ export default function PlaylistFilters({
               <button
                 type="button"
                 onClick={() => onSelectCategory('all')}
-                className="text-[10px] font-black uppercase text-white hover:text-white/80 underline drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                className="text-xs font-black uppercase text-white hover:text-white/80 underline drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
               >
                 Réinitialiser
               </button>

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useSocket, BannerType } from '@/lib/useSocket';
-import { AlertOctagon, AlertTriangle, Info, Radio, CheckCircle2, X } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Info, Radio, CheckCircle2, X } from '@/components/icons';
 import CloseButton from '@/components/CloseButton';
 
 interface ThemeConfig {
@@ -111,7 +111,7 @@ export default function BannerNotification() {
             </div>
 
             <div className="flex flex-col flex-1 truncate">
-              <span className={`text-[10px] font-black uppercase tracking-wider ${config.badgeBg} ${config.badgeText} px-2 py-0.5 rounded w-max border border-black mb-0.5`}>
+              <span className={`text-xs font-black uppercase tracking-wider ${config.badgeBg} ${config.badgeText} px-2 py-0.5 rounded w-max border-2 border-black mb-0.5`}>
                 {config.badgeLabel}
               </span>
               <p className={`text-xs sm:text-sm font-black truncate tracking-wide leading-tight ${config.textColor}`}>

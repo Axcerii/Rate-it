@@ -38,7 +38,7 @@ export default function CookieNotice() {
       aria-label="Information sur les cookies"
       className="fixed bottom-2 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100%-1rem)] bg-admin text-white border-2 border-black rounded-xl pl-3 pr-1 py-1 flex items-center gap-1.5 font-sans"
     >
-      <p className="text-[10px] sm:text-[11px] font-bold leading-snug">
+      <p className="text-xs font-bold leading-snug">
         Rate It ne dépose aucun cookie. Les vidéos passent par YouTube, qui peut déposer les siens.{' '}
         <Link href="/confidentialite" className="underline underline-offset-2 hover:text-menu whitespace-nowrap">
           En savoir plus

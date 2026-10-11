@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { fetchPlaylistDetailsApi } from '@/lib/api';
 import PlaylistDetailActions from '@/components/playlist/PlaylistDetailActions';
-import { ChevronLeft, Music2, CheckCircle2, User, Layers, Calendar, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Music2, CheckCircle2, User, Layers, Calendar, ExternalLink } from '@/components/icons';
 
 export const revalidate = 300; // 5 minutes ISR cache
 
@@ -129,7 +129,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
         </div>
 
         {/* Hero Banner Header of the Playlist */}
-        <div className="bg-white border-4 border-black rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-none">
+        <div className="bg-white border-2 border-black rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-none">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="flex flex-col gap-3 max-w-2xl">
               {/* Badges */}
@@ -223,7 +223,7 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
                   </span>
 
                   {/* YouTube Thumbnail */}
-                  <div className="w-14 h-10 sm:w-16 sm:h-12 bg-black rounded-xl overflow-hidden shrink-0 border border-black relative">
+                  <div className="w-14 h-10 sm:w-16 sm:h-12 bg-black rounded-xl overflow-hidden shrink-0 border-2 border-black relative">
                     <img
                       src={`https://img.youtube.com/vi/${track.youtubeId}/hqdefault.jpg`}
                       alt={track.title}
@@ -237,11 +237,11 @@ export default async function PlaylistDetailPage({ params }: PageProps) {
                     <h3 className="font-black text-xs sm:text-sm text-black truncate leading-tight">
                       {track.title}
                     </h3>
-                    <p className="text-[11px] sm:text-xs font-bold text-slate-600 truncate">
+                    <p className="text-xs font-bold text-slate-600 truncate">
                       {track.artistName || 'Artiste inconnu'}
                     </p>
                     {track.malTitle && (
-                      <span className="text-[10px] font-bold text-blue-600 truncate">
+                      <span className="text-xs font-bold text-blue-600 truncate">
                         Anime : {track.malTitle}
                       </span>
                     )}

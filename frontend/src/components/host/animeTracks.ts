@@ -1,14 +1,22 @@
 // Helpers for the anime tracks shown in the host lobby (MyAnimeList / AniList mode)
 
+export type AnimeTrackKind = 'opening' | 'ending';
+
+// Descriptions follow "Opening 4 - BLEACH" / "Ending 2 - BLEACH". Anything not marked as an ending
+// counts as an opening. "ED" is only read in capitals, so that a word ending in "ed" is not taken for it.
+export function getTrackKind(track: any): AnimeTrackKind {
+  const description = typeof track?.description === 'string' ? track.description : '';
+  if (/\bendings?\b/i.test(description) || /\bED\s?\d*\b/.test(description)) return 'ending';
+  return 'opening';
+}
+
 export function getTrackOpeningBadge(track: any, fallbackIndex: number): string {
+  const prefix = getTrackKind(track) === 'ending' ? 'ED' : 'OP';
   if (track.description && typeof track.description === 'string') {
-    const match = track.description.match(/(?:Opening|OP)\s*(\d+)/i);
-    if (match) return `OP ${match[1]}`;
-    const edMatch = track.description.match(/(?:Ending|ED)\s*(\d+)/i);
-    if (edMatch) return `ED ${edMatch[1]}`;
-    if (/Opening|OP/i.test(track.description)) return `OP ${fallbackIndex + 1}`;
+    const match = track.description.match(prefix === 'ED' ? /(?:Ending|ED)\s*(\d+)/i : /(?:Opening|OP)\s*(\d+)/i);
+    if (match) return `${prefix} ${match[1]}`;
   }
-  return `OP ${fallbackIndex + 1}`;
+  return `${prefix} ${fallbackIndex + 1}`;
 }
 
 export function extractAnimeUsername(input: string, platform: 'mal' | 'anilist'): string {

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, ExternalLink } from 'lucide-react';
+import { Play, ExternalLink } from '@/components/icons';
 import { ScoreBar } from './ScoreBar';
 
 export interface LeaderboardCardResult {
@@ -63,13 +63,13 @@ export function LeaderboardCard({
 
   if (isWinner) {
     cardBg = 'bg-podium-gold';
-    borderStyle = 'border-4 border-black transform sm:rotate-[0.5deg]';
+    borderStyle = 'border-2 border-black transform sm:rotate-[0.5deg]';
   } else if (isSecond) {
     cardBg = 'bg-podium-silver';
-    borderStyle = 'border-2 sm:border-3 border-black';
+    borderStyle = 'border-2 border-black';
   } else if (isThird) {
     cardBg = 'bg-podium-bronze';
-    borderStyle = 'border-2 sm:border-3 border-black';
+    borderStyle = 'border-2 border-black';
   } else if (isLast) {
     cardBg = 'bg-red-50';
   }
@@ -138,7 +138,7 @@ export function LeaderboardCard({
             </div>
             <span className="sr-only">Ouvrir sur YouTube</span>
           </a>
-          <div className="absolute bottom-2 left-2 bg-black/80 text-white text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/20 pointer-events-none">
+          <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/20 pointer-events-none">
             <ExternalLink className="w-2.5 h-2.5" />
             <span>YouTube</span>
           </div>
@@ -164,7 +164,7 @@ export function LeaderboardCard({
             </div>
 
             {/* Podium Tag */}
-            <span className="text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border border-black shrink-0 bg-white/95 text-black">
+            <span className="text-xs font-black uppercase px-2.5 py-1 rounded-lg border-2 border-black shrink-0 bg-white/95 text-black">
               {isWinner ? '1ère Place' : isSecond ? '2ème Place' : '3ème Place'}
             </span>
           </div>
@@ -209,14 +209,14 @@ export function LeaderboardCard({
           {/* Player's individual vote underneath the music score */}
           {showPlayerVoteBadge && (
             <div className="flex items-center justify-between font-mono font-bold text-xs pt-1">
-              <span className="text-[11px] font-black uppercase text-slate-800 font-sans">Votre vote</span>
+              <span className="text-xs font-black uppercase text-slate-800 font-sans">Votre vote</span>
               {playerVote !== undefined ? (
-                <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border border-black leading-none gap-0.5">
+                <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border-2 border-black leading-none gap-0.5">
                   <span className="text-base sm:text-lg font-black leading-none">{playerVote}</span>
                   <span className="text-xs font-bold leading-none text-slate-900">/5</span>
                 </div>
               ) : (
-                <span className="text-[10px] text-slate-500 font-sans italic">Non voté</span>
+                <span className="text-xs text-slate-500 font-sans italic">Non voté</span>
               )}
             </div>
           )}
@@ -272,7 +272,7 @@ export function LeaderboardCard({
 
             {/* Floating hover preview popover */}
             <div className="pointer-events-none absolute bottom-full left-0 mb-3 hidden group-hover/title:flex flex-col w-60 sm:w-68 p-2.5 bg-white border-2 border-black rounded-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="relative aspect-video w-full bg-black rounded-xl overflow-hidden border border-black mb-2">
+              <div className="relative aspect-video w-full bg-black rounded-xl overflow-hidden border-2 border-black mb-2">
                 <img
                   src={`https://img.youtube.com/vi/${result.youtubeId}/mqdefault.jpg`}
                   alt={result.title}
@@ -285,10 +285,10 @@ export function LeaderboardCard({
                 </div>
               </div>
               <p className="font-black text-xs text-black truncate">{result.title}</p>
-              <p className="text-[10px] text-slate-500 font-bold truncate mt-0.5">
+              <p className="text-xs text-slate-500 font-bold truncate mt-0.5">
                 par {result.artistName || 'Artiste inconnu'}
               </p>
-              <span className="text-[10px] font-black text-admin uppercase mt-1.5 flex items-center gap-1 border-t border-slate-100 pt-1.5">
+              <span className="text-xs font-black text-admin uppercase mt-1.5 flex items-center gap-1 border-t border-slate-100 pt-1.5">
                 <span>Cliquer pour ouvrir sur YouTube</span>
                 <ExternalLink className="w-2.5 h-2.5" />
               </span>
@@ -326,14 +326,14 @@ export function LeaderboardCard({
         {/* Player's individual vote underneath the music score */}
         {showPlayerVoteBadge && (
           <div className="flex items-center justify-between font-mono font-bold text-xs pt-1">
-            <span className="text-[11px] font-black uppercase text-slate-700 font-sans">Votre vote</span>
+            <span className="text-xs font-black uppercase text-slate-700 font-sans">Votre vote</span>
             {playerVote !== undefined ? (
-              <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border border-black leading-none gap-0.5">
+              <div className="inline-flex items-baseline bg-menu text-black px-2 py-0.5 rounded border-2 border-black leading-none gap-0.5">
                 <span className="text-base sm:text-lg font-black leading-none">{playerVote}</span>
                 <span className="text-xs font-bold leading-none text-slate-900">/5</span>
               </div>
             ) : (
-              <span className="text-[10px] text-slate-500 font-sans italic">Non voté</span>
+              <span className="text-xs text-slate-500 font-sans italic">Non voté</span>
             )}
           </div>
         )}

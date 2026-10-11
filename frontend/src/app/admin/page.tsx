@@ -31,7 +31,7 @@ import {
   Check,
   Tag,
   Filter,
-} from 'lucide-react';
+} from '@/components/icons';
 
 const DEFAULT_CATEGORIES = [
   'Film/Cinéma',

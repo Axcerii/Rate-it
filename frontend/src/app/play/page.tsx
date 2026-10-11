@@ -24,9 +24,10 @@ import {
   Tv,
   Users,
   X,
-} from 'lucide-react';
+} from '@/components/icons';
 import { LeaderboardCard, useLeaderboardAnimation } from '@/components/leaderboard';
-import RatingNumberButton from '@/components/RatingNumberButton';
+import { DODECAGON_CONFIG } from '@/components/RatingNumberButton';
+import { RATING_LABELS, VOTE_TEXTS, WAITING_ROOM_TEXTS, pickVoteReaction } from '@/content/playTexts';
 import YoutubeNotice from '@/components/YoutubeNotice';
 
 export default function PlayView() {
@@ -187,7 +188,7 @@ export default function PlayView() {
             {/* Right side in Lobby on Desktop */}
             <div className="flex flex-col gap-5 text-center md:text-left">
               <div className="p-4 rounded-xl bg-white border-2 border-black">
-                <span className="block text-[10px] sm:text-xs font-black text-slate-500 uppercase">Votre pseudo</span>
+                <span className="block text-xs font-black text-slate-500 uppercase">Votre pseudo</span>
                 <span className="block mt-1 text-2xl sm:text-3xl font-black text-black truncate px-1">
                   {currentPlayer?.name || 'Anonyme'}
                 </span>
@@ -196,12 +197,44 @@ export default function PlayView() {
               <div className="p-4 rounded-xl bg-purple-50 border-2 border-purple-300 flex flex-col items-center md:items-start text-center md:text-left gap-2">
                 <div className="flex items-center gap-2">
                   <Gamepad2 className="w-6 h-6 text-purple-700 animate-bounce" />
-                  <h4 className="text-base font-title text-black uppercase">En attente de l'hôte</h4>
+                  <h4 className="text-base font-title text-black uppercase">{WAITING_ROOM_TEXTS.title}</h4>
                 </div>
                 <p className="text-xs font-bold text-slate-600 leading-relaxed">
-                  La partie commencera dès que l'hôte lancera la session. Préparez-vous !
+                  {WAITING_ROOM_TEXTS.description}
                 </p>
               </div>
+
+              {/* Players already in the room: the wait looks like a room filling up */}
+              {(() => {
+                const present = Object.values(session.players || {}).filter((p) => p.isConnected);
+                return (
+                  <div className="p-4 rounded-xl bg-white border-2 border-black flex flex-col gap-2.5 text-left">
+                    <span className="flex items-center justify-between text-xs font-black uppercase text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-[#DD4DCC]" />
+                        <span>{WAITING_ROOM_TEXTS.playersTitle}</span>
+                      </span>
+                      <span className="bg-black text-[#FEEC66] px-2 py-0.5 rounded-lg font-mono">{present.length}</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                      {present.map((p) => (
+                        <span
+                          key={p.id}
+                          className={`inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-lg border-2 text-xs font-black text-black ${p.id === playerId ? 'bg-fuchsia-100 border-[#DD4DCC]' : 'bg-slate-50 border-black'}`}
+                        >
+                          {(p.isHost || p.id === session.hostPlayerId) && (
+                            <img src="/HOST/Couronne.png" alt="Host" className="w-4 h-4 object-contain shrink-0" />
+                          )}
+                          <span className="truncate">{p.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                    {present.length <= 1 && (
+                      <p className="text-xs font-bold text-slate-500">{WAITING_ROOM_TEXTS.aloneHint}</p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <button
                 onClick={handleLeave}
@@ -232,27 +265,27 @@ export default function PlayView() {
     const ratingOptions = [
       {
         value: 1,
-        label: 'Skip, vite !',
+        label: RATING_LABELS[1],
         icon: <FastForward className="w-4 h-4 md:w-5 md:h-5 text-[var(--accent-red)] fill-[var(--accent-red)]" />
       },
       {
         value: 2,
-        label: 'Oubliable',
+        label: RATING_LABELS[2],
         icon: <Ghost className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-play)] fill-[var(--bg-play)]/25" />
       },
       {
         value: 3,
-        label: 'Honnête',
+        label: RATING_LABELS[3],
         icon: <ThumbsUp className="w-4 h-4 md:w-5 md:h-5 text-black fill-[var(--bg-cream)] stroke-[1.5]" />
       },
       {
         value: 4,
-        label: 'Hop, dans ma playlist',
+        label: RATING_LABELS[4],
         icon: <ListPlus className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-host)] stroke-[2.5]" />
       },
       {
         value: 5,
-        label: 'Aucun défaut',
+        label: RATING_LABELS[5],
         icon: <Crown className="w-4 h-4 md:w-5 md:h-5 text-[var(--bg-create)] fill-[var(--bg-create)]" />
       }
     ];
@@ -263,7 +296,7 @@ export default function PlayView() {
           {/* Top Panel Bar */}
           <div className="flex justify-between items-center border-b-2 border-black pb-3">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] sm:text-xs font-black text-slate-600 uppercase truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs font-black text-slate-600 uppercase truncate max-w-[200px] sm:max-w-xs">
                 Pseudo : {currentPlayer?.name}
               </span>
             </div>
@@ -271,7 +304,7 @@ export default function PlayView() {
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="text-[10px] sm:text-xs font-black text-black hover:text-[#DD4DCC] focus:text-[#DD4DCC] uppercase tracking-wider bg-white px-2.5 py-1 rounded-lg border border-black btn-action-hover inline-flex items-center gap-1.5"
+                className="text-xs font-black text-black hover:text-[#DD4DCC] focus:text-[#DD4DCC] uppercase tracking-wider bg-white px-2.5 py-1 rounded-lg border-2 border-black btn-action-hover inline-flex items-center gap-1.5"
                 title="Copier le lien d'invitation"
               >
                 {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-[#DD4DCC]" />}
@@ -284,7 +317,7 @@ export default function PlayView() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
               {/* Left Side: Video Player (Desktop & Large screens - 7/12 on md, 8/12 on lg) */}
               <div className="hidden md:flex md:col-span-7 lg:col-span-8 flex-col gap-4 text-left">
-                <div className="w-full aspect-video rounded-none border-4 border-black bg-black overflow-hidden relative">
+                <div className="w-full aspect-video rounded-none border-2 border-black bg-black overflow-hidden relative">
                   {isDesktop && (
                     <iframe
                       key={currentVideo.youtubeId}
@@ -296,7 +329,7 @@ export default function PlayView() {
                     />
                   )}
                 </div>
-                <YoutubeNotice className="-mt-2 px-2 py-1 bg-white/90 border border-black rounded-lg self-start" />
+                <YoutubeNotice className="-mt-2 px-2 py-1 bg-white/90 border-2 border-black rounded-lg self-start" />
                 <div className="bg-white p-5 rounded-2xl border-2 border-black">
                   <span className="text-xs font-bold font-sans text-slate-600 block mb-1">
                     Vidéo {session.currentVideoIndex + 1} / {session.videos?.length}
@@ -341,7 +374,7 @@ export default function PlayView() {
                       </button>
                     ) : (
                       <div className="flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200">
-                        <div className="w-full aspect-video rounded-xl border-4 border-black bg-black overflow-hidden relative shadow-md">
+                        <div className="w-full aspect-video rounded-xl border-2 border-black bg-black overflow-hidden relative shadow-md">
                           <iframe
                             key={`mobile-${currentVideo.youtubeId}`}
                             src={`https://www.youtube-nocookie.com/embed/${currentVideo.youtubeId}?autoplay=1&modestbranding=1&rel=0`}
@@ -355,7 +388,7 @@ export default function PlayView() {
                         <button
                           type="button"
                           onClick={() => setShowMobileVideo(false)}
-                          className="self-center py-1.5 px-3 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 font-black text-[11px] uppercase rounded-lg btn-action-hover inline-flex items-center gap-1.5 text-black"
+                          className="self-center py-1.5 px-3 border-2 border-black bg-white hover:bg-slate-100 focus:bg-slate-100 font-black text-xs uppercase rounded-lg btn-action-hover inline-flex items-center gap-1.5 text-black"
                           title="Masquer la vidéo"
                         >
                           <EyeOff className="w-3.5 h-3.5 text-slate-600 shrink-0" />
@@ -385,47 +418,70 @@ export default function PlayView() {
                     >
                       {hasSkipped ? <Check className="w-4 h-4" /> : <SkipForward className="w-4 h-4" />}
                       <span>{hasSkipped ? 'Prêt pour la suite' : 'Passer la vidéo'}</span>
-                      <span className="text-xs bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
+                      <span className="text-xs bg-black text-white px-2 py-0.5 rounded font-mono ml-auto whitespace-nowrap shrink-0">
                         {skipsCount} / {activeConnectedPlayers.length}
                       </span>
                     </button>
                   </div>
                 ) : (
                   /* VOTING PHASE PLAYER VIEW */
-                  <div className="mt-2 flex flex-col gap-5 sm:gap-6">
-                    <div className="flex justify-between items-center px-1 gap-2 md:gap-3">
-                      {ratingOptions.map((item) => {
-                        const isSelected = currentVote === item.value;
-                        return (
-                          <RatingNumberButton
-                            key={item.value}
-                            value={item.value}
-                            isSelected={isSelected}
-                            onClick={() => handleVote(item.value)}
-                            sizeClassName="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16"
-                          />
-                        );
-                      })}
+                  <div className="mt-2 flex flex-col gap-4">
+                    <div className="min-h-6 flex items-center justify-center">
+                      <span className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5 text-center">
+                        {currentVote !== undefined ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-600 stroke-[3] shrink-0" />
+                            <span>{VOTE_TEXTS.voted}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                            <span>{VOTE_TEXTS.prompt}</span>
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                          </>
+                        )}
+                      </span>
                     </div>
 
-                    <div className="h-7 flex items-center justify-center">
-                      {currentVote !== undefined ? (
-                        (() => {
-                          const opt = ratingOptions.find(r => r.value === currentVote);
-                          return (
-                            <span className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                              <span>{opt?.label}</span>
-                              {opt?.icon}
-                            </span>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                          <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                          <span>Choisissez votre note</span>
-                          <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                        </span>
-                      )}
+                    {/* One full-width row per rating: big enough for a thumb, with its label always readable */}
+                    <div className="flex flex-col gap-2">
+                      {ratingOptions.map((item) => {
+                        const isSelected = currentVote === item.value;
+                        const lightText = item.value <= 2;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => handleVote(item.value)}
+                            aria-pressed={isSelected}
+                            aria-label={`Attribuer la note ${item.value} sur 5 : ${item.label}`}
+                            // The cream of the rating 3 is almost white: its selected row takes the yellow of the menu instead
+                            style={isSelected ? { backgroundColor: item.value === 3 ? 'var(--bg-menu)' : DODECAGON_CONFIG[item.value].fill } : undefined}
+                            className={`relative overflow-hidden w-full min-h-[56px] pl-3 pr-16 py-1.5 flex items-center gap-3 border-2 border-black rounded-xl text-left cursor-pointer select-none transition-transform duration-200 active:scale-[0.98] ${isSelected
+                              ? `z-10 scale-[1.04] -rotate-[1.5deg] ${lightText ? 'text-white' : 'text-black'}`
+                              : 'bg-white hover:bg-slate-100 text-black'
+                              }`}
+                          >
+                            <img
+                              src={`/LOGOS/${item.value}.png`}
+                              alt=""
+                              draggable={false}
+                              className="relative z-10 w-10 h-10 object-contain shrink-0 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]"
+                            />
+                            <span className="relative z-10 flex-1 min-w-0 text-sm font-black uppercase leading-tight">{item.label}</span>
+                            {/* The icon of the rating only shows on the chosen row. Like a real stamp bigger than the
+                                label it lands on, it is taller than the row, which cuts what sticks out. */}
+                            {isSelected && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute -right-1 top-1/2 animate-stamp pointer-events-none [&>.rate-icon]:w-16 [&>.rate-icon]:h-16 [&>.rate-icon]:text-current"
+                              >
+                                {item.icon}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
 
                     {/* Skip Button for Player */}
@@ -438,7 +494,7 @@ export default function PlayView() {
                     >
                       {hasSkipped ? <Check className="w-4 h-4" /> : <SkipForward className="w-4 h-4" />}
                       <span>{hasSkipped ? 'Vous avez voté pour passer' : 'Voter pour passer la vidéo'}</span>
-                      <span className="text-[10px] sm:text-xs bg-black text-white px-2.5 py-0.5 rounded font-mono ml-auto">
+                      <span className="text-xs bg-black text-white px-2.5 py-0.5 rounded font-mono ml-auto whitespace-nowrap shrink-0">
                         {skipsCount} / {activeConnectedPlayers.length}
                       </span>
                     </button>
@@ -462,7 +518,7 @@ export default function PlayView() {
         {/* Popup Modal Overlay during REVEAL Phase on Play Screen */}
         {isRevealPhase && currentVideo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-md bg-white border-4 border-black p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-md bg-white border-2 border-black p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-center flex flex-col gap-4 relative max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="flex flex-col items-center gap-1 border-b-2 border-black pb-3">
                 <span className="text-xs font-black text-fuchsia-950 uppercase flex items-center justify-center gap-1.5 tracking-wider">
@@ -478,18 +534,18 @@ export default function PlayView() {
               {currentVideoResult ? (
                 <div className="flex items-center justify-center gap-3 w-full">
                   <div className="flex flex-col items-center bg-fuchsia-50 border-2 border-black p-3 rounded-xl flex-1">
-                    <span className="text-[10px] font-black uppercase text-slate-600 tracking-wider">Moyenne Joueurs</span>
+                    <span className="text-xs font-black uppercase text-slate-600 tracking-wider">Moyenne Joueurs</span>
                     <span className="text-3xl sm:text-4xl font-black text-black font-mono leading-none mt-1">
                       {currentVideoResult.average.toFixed(2)}<span className="text-xs text-slate-500 font-bold">/5</span>
                     </span>
-                    <span className="text-[9px] font-bold text-slate-500 mt-1">
+                    <span className="text-xs font-bold text-slate-500 mt-1">
                       ({currentVideoResult.votesCount} {currentVideoResult.votesCount === 1 ? 'vote' : 'votes'})
                     </span>
                   </div>
 
                   {session.twitchChannel && currentVideoResult.twitchVotesCount !== undefined && (
                     <div className="flex flex-col items-center bg-purple-50 border-2 border-black p-3 rounded-xl flex-1">
-                      <span className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Chat Twitch</span>
+                      <span className="text-xs font-black uppercase text-purple-700 tracking-wider">Chat Twitch</span>
                       <span className="text-3xl sm:text-4xl font-black text-purple-950 font-mono leading-none mt-1">
                         {currentVideoResult.twitchVotesCount > 0 ? (
                           <>{(currentVideoResult.twitchAverage ?? 0).toFixed(2)}<span className="text-xs text-purple-400 font-bold">/5</span></>
@@ -497,7 +553,7 @@ export default function PlayView() {
                           <span className="text-base text-slate-400">N/A</span>
                         )}
                       </span>
-                      <span className="text-[9px] font-bold text-purple-400 mt-1">
+                      <span className="text-xs font-bold text-purple-400 mt-1">
                         ({currentVideoResult.twitchVotesCount} {currentVideoResult.twitchVotesCount === 1 ? 'vote' : 'votes'})
                       </span>
                     </div>
@@ -509,32 +565,39 @@ export default function PlayView() {
                 </div>
               )}
 
-              {/* Personal Vote Info */}
-              <div className="text-xs sm:text-sm font-black text-black flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-600 uppercase text-[10px] font-bold">Votre note :</span>
-                {currentVote !== undefined ? (
-                  (() => {
-                    const opt = ratingOptions.find(r => r.value === currentVote);
-                    return (
-                      <span className="text-xs font-black uppercase tracking-wide flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-black">
-                        <span>{currentVote}/5 ({opt?.label})</span>
-                        {opt?.icon}
-                      </span>
-                    );
-                  })()
-                ) : (
-                  <span className="text-slate-400 text-xs font-bold bg-slate-100 px-2 py-0.5 rounded uppercase">Non voté</span>
+              {/* My rating against the room */}
+              <div className="flex flex-col gap-2 px-3 py-2.5 bg-fuchsia-50 rounded-xl border-2 border-black text-left">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+                  <span className="text-slate-600 uppercase text-xs font-black whitespace-nowrap">Votre note</span>
+                  {currentVote !== undefined ? (
+                    (() => {
+                      const opt = ratingOptions.find(r => r.value === currentVote);
+                      return (
+                        <span className="text-xs font-black uppercase tracking-wide flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border-2 border-black max-w-full">
+                          <span>{currentVote}/5 · {opt?.label}</span>
+                          {opt?.icon}
+                        </span>
+                      );
+                    })()
+                  ) : (
+                    <span className="text-slate-500 text-xs font-black bg-white px-2.5 py-1 rounded-lg border-2 border-slate-300 uppercase">Non voté</span>
+                  )}
+                </div>
+                {currentVideoResult && (
+                  <p className="text-sm font-black text-black leading-snug">
+                    {pickVoteReaction(currentVote, currentVideoResult.average, currentVideoResult.votesCount, session.currentVideoIndex)}
+                  </p>
                 )}
               </div>
 
               {/* Individual Player Votes Breakdown */}
               <div className="rounded-xl border-2 border-black bg-slate-50 p-3 text-left">
                 <div className="flex items-center justify-between border-b border-black pb-1.5 mb-2">
-                  <span className="text-[11px] font-black uppercase text-black flex items-center gap-1.5">
+                  <span className="text-xs font-black uppercase text-black flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-[#DD4DCC]" />
                     <span>Notes des joueurs</span>
                   </span>
-                  <span className="text-[10px] font-mono text-slate-500 font-bold">
+                  <span className="text-xs font-mono text-slate-500 font-bold">
                     ({Object.values(session.players || {}).length} joueurs)
                   </span>
                 </div>
@@ -545,7 +608,7 @@ export default function PlayView() {
                     const playerVote = session.votes?.[player.id] ?? currentVideoResult?.playerVotes?.[player.id];
 
                     let voteBadge = (
-                      <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
+                      <span className="text-xs font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 uppercase">
                         Pas de vote
                       </span>
                     );
@@ -554,13 +617,13 @@ export default function PlayView() {
                       const labels: Record<number, { text: string; bg: string }> = {
                         1: { text: '1', bg: 'bg-[var(--accent-red)] text-white' },
                         2: { text: '2', bg: 'bg-[var(--bg-play)] text-white' },
-                        3: { text: '3', bg: 'bg-[var(--bg-cream)] text-black border border-black' },
+                        3: { text: '3', bg: 'bg-[var(--bg-cream)] text-black border-2 border-black' },
                         4: { text: '4', bg: 'bg-[var(--bg-host)] text-black' },
                         5: { text: '5', bg: 'bg-[var(--bg-create)] text-black' },
                       };
                       const l = labels[playerVote] || { text: `${playerVote}`, bg: 'bg-black text-white' };
                       voteBadge = (
-                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded border border-black uppercase ${l.bg}`}>
+                        <span className={`text-xs font-black px-2.5 py-0.5 rounded border-2 border-black uppercase ${l.bg}`}>
                           {l.text}
                         </span>
                       );
@@ -569,14 +632,14 @@ export default function PlayView() {
                     return (
                       <div
                         key={player.id}
-                        className={`flex items-center justify-between p-2 border border-black rounded-lg ${
+                        className={`flex items-center justify-between p-2 border-2 border-black rounded-lg ${
                           isMe ? 'bg-fuchsia-50 border-2 border-[#DD4DCC]' : 'bg-white'
                         }`}
                       >
                         <span className="text-xs font-black text-black truncate max-w-[140px] flex items-center gap-1.5">
                           <span className="truncate">{player.name}</span>
-                          {isMe && <span className="text-[9px] font-bold text-[#DD4DCC] bg-fuchsia-100 px-1 py-0.2 rounded border border-[#DD4DCC]">Moi</span>}
-                          {player.isHost && <span className="text-[9px] font-bold text-amber-900 bg-amber-200 px-1 py-0.2 rounded border border-black">Host</span>}
+                          {isMe && <span className="text-xs font-bold text-[#DD4DCC] bg-fuchsia-100 px-1 py-0.2 rounded border border-[#DD4DCC]">Moi</span>}
+                          {player.isHost && <span className="text-xs font-bold text-amber-900 bg-amber-200 px-1 py-0.2 rounded border-2 border-black">Host</span>}
                         </span>
                         {voteBadge}
                       </div>
@@ -595,7 +658,7 @@ export default function PlayView() {
               >
                 {hasSkipped ? <Check className="w-4 h-4" /> : <SkipForward className="w-4 h-4" />}
                 <span>{hasSkipped ? 'Prêt pour la suite' : 'Passer à la vidéo suivante'}</span>
-                <span className="text-xs bg-black text-white px-2 py-0.5 rounded font-mono ml-auto">
+                <span className="text-xs bg-black text-white px-2 py-0.5 rounded font-mono ml-auto whitespace-nowrap shrink-0">
                   {skipsCount} / {activeConnectedPlayers.length}
                 </span>
               </button>
@@ -669,21 +732,21 @@ export default function PlayView() {
             {sortedResults.length > 0 && (
               <div className="w-full grid grid-cols-2 gap-3 mt-1 max-w-md">
                 <div className="p-3 bg-white border-2 border-black rounded-xl text-center">
-                  <span className="block text-[10px] font-black text-slate-500 uppercase">Mon vote moyen</span>
+                  <span className="block text-xs font-black text-slate-500 uppercase">Mon vote moyen</span>
                   <span className="block text-xl sm:text-2xl font-black text-play font-mono mt-0.5">
                     {playerVotesCount > 0 ? `${playerAvg.toFixed(2)}/5` : 'N/A'}
                   </span>
-                  <span className="block text-[9px] font-bold text-slate-400">
+                  <span className="block text-xs font-bold text-slate-400">
                     ({playerVotesCount}/{sortedResults.length} thèmes notés)
                   </span>
                 </div>
 
                 <div className="p-3 bg-white border-2 border-black rounded-xl text-center">
-                  <span className="block text-[10px] font-black text-slate-500 uppercase">Moyenne Session</span>
+                  <span className="block text-xs font-black text-slate-500 uppercase">Moyenne Session</span>
                   <span className="block text-xl sm:text-2xl font-black text-black font-mono mt-0.5">
                     {sessionAvg.toFixed(2)}/5
                   </span>
-                  <span className="block text-[9px] font-bold text-slate-400">
+                  <span className="block text-xs font-bold text-slate-400">
                     ({sortedResults.length} thèmes)
                   </span>
                 </div>

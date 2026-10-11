@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
 import {
   ListMusic,
-} from 'lucide-react';
+} from '@/components/icons';
 import HomeButton from '@/components/HomeButton';
 import { PlaylistCard, PlaylistFilters } from '@/components/playlist';
 import { PlaylistSummary, PlaylistVideo, fetchPlaylistDetailsApi, fetchPlaylistsApi } from '@/lib/api';

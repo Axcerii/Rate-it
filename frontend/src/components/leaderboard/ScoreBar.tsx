@@ -23,7 +23,7 @@ export function ScoreBar({
   return (
     <div className={`flex flex-col gap-1 w-full ${className}`}>
       {showLabel && (
-        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase">
+        <div className="flex items-center gap-1.5 text-xs font-black uppercase">
           {isTwitch ? (
             <>
               <span className="h-2 w-2 rounded-full bg-twitch shrink-0" />
@@ -53,7 +53,7 @@ export function ScoreBar({
             /5
           </span>
         </div>
-        <span className={`text-[11px] font-bold ${isTwitch ? 'text-purple-900' : 'text-slate-800'}`}>
+        <span className={`text-xs font-bold ${isTwitch ? 'text-purple-900' : 'text-slate-800'}`}>
           ({votesCount} {votesCount === 1 ? 'vote' : 'votes'})
         </span>
       </div>

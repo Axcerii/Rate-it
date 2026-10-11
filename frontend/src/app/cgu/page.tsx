@@ -3,7 +3,8 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Sparkles, Film, ExternalLink, ArrowLeft, Heart, Layers, Music, Info, Mail } from 'lucide-react';
+import { Shield, Sparkles, Film, ExternalLink, ArrowLeft, Heart, Layers, Music, Info, Mail } from '@/components/icons';
+import { CONTACT_EMAIL, TWITTER_HANDLE, TWITTER_URL } from '@/lib/contact';
 
 export default function CGUPage() {
   const router = useRouter();
@@ -129,7 +130,7 @@ export default function CGUPage() {
               </h3>
               <p className="text-slate-700">
                 Rate It est édité par un particulier, à titre non professionnel et sans but lucratif. Pour me joindre :{' '}
-                <a href="mailto:malezethp@gmail.com" className="underline hover:text-black">malezethp@gmail.com</a>.
+                <a href={`mailto:${CONTACT_EMAIL}`} className="underline hover:text-black">{CONTACT_EMAIL}</a>.
               </p>
               <p className="text-slate-700 mt-1">
                 Le site est hébergé par <strong>OVH SAS</strong>, 2 rue Kellermann, 59100 Roubaix, France (
@@ -199,7 +200,7 @@ export default function CGUPage() {
           <div className="p-4 bg-slate-50 border-2 border-black rounded-2xl flex flex-col gap-2 text-xs font-bold text-slate-700">
             <h3 className="font-black text-black text-xs uppercase">Ressources Typographiques & Graphiques</h3>
             <p>
-              • <strong>Typographies</strong> : Polices Google Fonts (<em>Exo</em> & <em>Cherry Bomb One</em>), servies depuis Rate It.
+              • <strong>Typographies</strong> : Polices Google Fonts (<em>Nunito</em> & <em>Cherry Bomb One</em>), servies depuis Rate It.
               <br />
               • <strong>Icônes</strong> : <em>Lucide Icons</em> sous licence MIT.
               <br />
@@ -232,21 +233,21 @@ export default function CGUPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Twitter Contact */}
             <a
-              href="https://twitter.com/ryrynoceros"
+              href={TWITTER_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 bg-white border-2 border-black rounded-2xl flex items-center justify-between gap-3 btn-action-hover group text-black"
             >
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-[#1DA1F2] text-white rounded-xl flex items-center justify-center font-black text-sm shrink-0 border border-black shadow-sm">
+                <div className="h-10 w-10 bg-[#1DA1F2] text-white rounded-xl flex items-center justify-center font-black text-sm shrink-0 border-2 border-black shadow-sm">
                   <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
                     <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.936 9.936 0 0024 4.59z" />
                   </svg>
                 </div>
                 <div className="text-left min-w-0">
-                  <span className="block text-[10px] font-black uppercase text-slate-500">Twitter</span>
+                  <span className="block text-xs font-black uppercase text-slate-500">Twitter</span>
                   <span className="block text-xs sm:text-sm font-black text-black group-hover:text-[#1DA1F2] transition-colors truncate">
-                    @ryrynoceros
+                    @{TWITTER_HANDLE}
                   </span>
                 </div>
               </div>
@@ -255,7 +256,7 @@ export default function CGUPage() {
 
             {/* Email Contact */}
             <a
-              href="mailto:malezethp@gmail.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="p-4 bg-white border-2 border-black rounded-2xl flex items-center justify-between gap-3 btn-action-hover group text-black"
             >
               <div className="flex items-center gap-3">
@@ -263,9 +264,9 @@ export default function CGUPage() {
                   <Mail className="w-5 h-5" />
                 </div>
                 <div className="text-left min-w-0">
-                  <span className="block text-[10px] font-black uppercase text-slate-500">Courrier électronique</span>
+                  <span className="block text-xs font-black uppercase text-slate-500">Courrier électronique</span>
                   <span className="block text-xs sm:text-sm font-black text-black group-hover:text-[#24B3F1] transition-colors truncate">
-                    malezethp@gmail.com
+                    {CONTACT_EMAIL}
                   </span>
                 </div>
               </div>

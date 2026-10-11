@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, Cookie, Database, ExternalLink, Film, Layers, Lock, Mail, Music, Scale } from 'lucide-react';
+import { ArrowLeft, Cookie, Database, ExternalLink, Film, Layers, Lock, Mail, Music, Scale } from '@/components/icons';
+import { CONTACT_EMAIL } from '@/lib/contact';
 
 export const metadata: Metadata = {
   title: 'Confidentialité',
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 const LAST_UPDATE = '10 octobre 2026';
-const CONTACT_EMAIL = 'malezethp@gmail.com';
+
 
 // Everything the site writes in the visitor's browser (keep in sync with useSocket.tsx and playlists/new)
 const BROWSER_STORAGE: { keys: string[]; what: string; why: string; until: string }[] = [
@@ -185,7 +186,7 @@ export default function ConfidentialitePage() {
               <div key={item.keys[0]} className="p-3 sm:p-4 bg-white border-2 border-black rounded-2xl grid grid-cols-1 sm:grid-cols-12 gap-1.5 sm:gap-4 text-xs font-bold text-slate-700">
                 <div className="sm:col-span-4">
                   <span className="block font-black text-black text-xs sm:text-sm">{item.what}</span>
-                  <span className="block mt-1 font-mono text-[10px] text-slate-500 break-all">{item.keys.join(' · ')}</span>
+                  <span className="block mt-1 font-mono text-xs text-slate-500 break-all">{item.keys.join(' · ')}</span>
                 </div>
                 <p className="sm:col-span-5 leading-relaxed">{item.why}</p>
                 <p className="sm:col-span-3 leading-relaxed text-slate-500 sm:text-right">{item.until}</p>
@@ -300,7 +301,7 @@ export default function ConfidentialitePage() {
                 <Mail className="w-5 h-5" />
               </div>
               <div className="text-left min-w-0">
-                <span className="block text-[10px] font-black uppercase text-slate-500">Une demande, une question</span>
+                <span className="block text-xs font-black uppercase text-slate-500">Une demande, une question</span>
                 <span className="block text-xs sm:text-sm font-black text-black group-hover:text-[#24B3F1] transition-colors truncate">
                   {CONTACT_EMAIL}
                 </span>
@@ -316,7 +317,7 @@ export default function ConfidentialitePage() {
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-4 pt-2 pb-8">
-          <p className="text-[11px] font-bold text-slate-700 text-center">
+          <p className="text-xs font-bold text-slate-700 text-center">
             Dernière mise à jour : {LAST_UPDATE} · <Link href="/cgu" className="underline underline-offset-2 hover:text-black">CGU & Crédits</Link>
           </p>
           <Link

@@ -195,7 +195,8 @@ export function applyPendingTwitchVotes(session) {
   if (!pending) return 0;
   discardPendingTwitchVotes(session.sessionId);
 
-  if (session.status !== 'PLAYING') return 0;
+  // In the lobby, chat votes only feed the connection check shown to the host: game:start wipes them
+  if (session.status !== 'PLAYING' && session.status !== 'LOBBY') return 0;
 
   session.twitchVotes = session.twitchVotes || {};
   let changed = 0;

@@ -72,6 +72,8 @@ services:
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://rate-it.fr}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://rate-it.fr}
+        NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-}
+        NEXT_PUBLIC_TWITTER_HANDLE: ${NEXT_PUBLIC_TWITTER_HANDLE:-}
     container_name: rate-it-frontend
     restart: always
     environment:

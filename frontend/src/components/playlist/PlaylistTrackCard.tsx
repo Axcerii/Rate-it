@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Check, X } from 'lucide-react';
+import { Play, Check, X } from '@/components/icons';
 
 export interface PlaylistTrack {
   trackId?: string | number;
@@ -58,14 +58,14 @@ export default function PlaylistTrackCard({
         {/* Numéro ou badge de la piste en vintage */}
         <span
           className={`absolute top-1 ${checkboxSide === 'left' ? 'right-1' : 'left-1'
-            } px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-[9px] font-black leading-none z-10 border border-white/20 select-none`}
+            } px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-xs font-black leading-none z-10 border border-white/20 select-none`}
         >
           {badgeText || `#${index + 1}`}
         </span>
 
         {/* Badge "Exclu" si désactivé en mode sélection */}
         {selectable && !isChecked && (
-          <span className="absolute z-20 px-2 py-0.5 rounded bg-accent-red text-white font-mono text-[9px] font-black uppercase border border-black/40 select-none">
+          <span className="absolute z-20 px-2 py-0.5 rounded bg-accent-red text-white font-mono text-xs font-black uppercase border border-black/40 select-none">
             Exclu
           </span>
         )}
@@ -79,7 +79,7 @@ export default function PlaylistTrackCard({
               onToggle?.();
             }}
             className={`absolute top-1 ${checkboxSide === 'left' ? 'left-1' : 'right-1'
-              } z-30 w-5 h-5 rounded border border-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 shadow-none ${isChecked
+              } z-30 w-5 h-5 rounded border-2 border-black flex items-center justify-center cursor-pointer transition-transform active:scale-90 shadow-none ${isChecked
                 ? 'bg-accent-red hover:bg-accent-red text-white'
                 : 'bg-red-600 hover:bg-red-500 text-white'
               }`}
@@ -129,7 +129,7 @@ export default function PlaylistTrackCard({
       {/* 3. Titre en blanc sur la bande noire du dessus */}
       <div className="absolute top-0 left-[14%] right-[14%] h-[21%] z-20 flex items-center justify-center px-1.5 text-center pointer-events-none">
         <h4
-          className={`text-white font-black text-[11px] sm:text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors tracking-tight ${selectable && !isChecked ? 'line-through text-slate-400' : ''
+          className={`text-white font-black text-xs leading-tight truncate w-full group-hover:text-[#FEEC66] transition-colors tracking-tight ${selectable && !isChecked ? 'line-through text-slate-400' : ''
             }`}
           title={track.title}
         >
@@ -140,7 +140,7 @@ export default function PlaylistTrackCard({
       {/* 4. Artiste en blanc sur la bande noire du dessous */}
       <div className="absolute bottom-0 left-[14%] right-[14%] h-[20.5%] z-20 flex items-center justify-center px-1.5 text-center pointer-events-none">
         <p
-          className={`text-white/90 font-bold text-[10px] sm:text-[11px] leading-tight truncate w-full ${selectable && !isChecked ? 'text-slate-400' : ''
+          className={`text-white/90 font-bold text-xs leading-tight truncate w-full ${selectable && !isChecked ? 'text-slate-400' : ''
             }`}
           title={track.artistName || 'Artiste inconnu'}
         >

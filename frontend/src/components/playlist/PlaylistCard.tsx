@@ -9,7 +9,7 @@ import {
   Check,
   X,
   Copy,
-} from 'lucide-react';
+} from '@/components/icons';
 import PlaylistTrackCard, { PlaylistTrack } from './PlaylistTrackCard';
 
 export interface PlaylistData {
@@ -175,7 +175,7 @@ export default function PlaylistCard({
           title={`Dérouler la cassette ${playlist.name}`}
         >
           {/* Indication Dérouler : sur mobile un peu plus bas en haut à droite (-top-1.5 au lieu de -top-3.5), sur desktop au centre en hover */}
-          <span className="pointer-events-none absolute -top-1.5 right-3 sm:top-[-14px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-20 inline-flex items-center gap-1 px-2.5 sm:px-3 py-0.5 rounded-lg bg-play text-black font-black text-[11px] sm:text-[16px] rotate-2 sm:rotate-2 uppercase opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 shadow-none">
+          <span className="pointer-events-none absolute -top-1.5 right-3 sm:top-[-14px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-20 inline-flex items-center gap-1 px-2.5 sm:px-3 py-0.5 rounded-lg bg-play text-black font-black text-xs sm:text-[16px] rotate-2 sm:rotate-2 uppercase opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 shadow-none">
             <span>Dérouler</span>
             <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
           </span>
@@ -209,13 +209,13 @@ export default function PlaylistCard({
               </div>
               {playlist.description ? (
                 <p
-                  className="text-[11px] sm:text-sm font-bold text-slate-700 leading-tight mt-1 line-clamp-2"
+                  className="text-xs sm:text-sm font-bold text-slate-700 leading-tight mt-1 line-clamp-2"
                   title={playlist.description}
                 >
                   {playlist.description}
                 </p>
               ) : (
-                <span className="text-[10px] sm:text-xs font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
+                <span className="text-xs font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
               )}
             </div>
           </div>
@@ -231,7 +231,7 @@ export default function PlaylistCard({
                   return (
                     <span
                       key={cat}
-                      className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-menu text-black font-black text-[9px] sm:text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none truncate max-w-[120px] sm:max-w-none`}
+                      className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-menu text-black font-black text-xs uppercase ${rot} group-hover:rotate-0 transition-transform shadow-none truncate max-w-[120px] sm:max-w-none`}
                     >
                       {cat}
                     </span>
@@ -240,7 +240,7 @@ export default function PlaylistCard({
             </div>
 
             {/* Nombre de vidéos */}
-            <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-[#FAF0CA] font-black text-[9px] sm:text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-[#FAF0CA] font-black text-xs text-black uppercase rotate-[1deg] group-hover:rotate-0 transition-transform shadow-none shrink-0">
               <Film className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
               <span>{playlist.video_count || 0} vidéos</span>
             </span>
@@ -288,13 +288,13 @@ export default function PlaylistCard({
                 </div>
                 {playlist.description ? (
                   <p
-                    className="text-[10px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
+                    className="text-xs font-bold text-slate-800 leading-tight mt-0.5"
                     title={playlist.description}
                   >
                     {playlist.description}
                   </p>
                 ) : (
-                  <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 italic">Rate-it Mixtape</span>
+                  <span className="text-xs font-bold text-slate-500 italic">Rate-it Mixtape</span>
                 )}
               </div>
 
@@ -308,7 +308,7 @@ export default function PlaylistCard({
                       return (
                         <span
                           key={cat}
-                          className={`px-2 py-0.5 rounded-lg bg-menu text-black font-black text-[9px] sm:text-[10px] uppercase ${rot} shadow-none truncate max-w-[110px]`}
+                          className={`px-2 py-0.5 rounded-lg bg-menu text-black font-black text-xs uppercase ${rot} shadow-none truncate max-w-[110px]`}
                         >
                           {cat}
                         </span>
@@ -316,7 +316,7 @@ export default function PlaylistCard({
                     })}
                 </div>
 
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-[9px] sm:text-[10px] text-black uppercase rotate-[1deg] shadow-none">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-xs text-black uppercase rotate-[1deg] shadow-none">
                   <Film className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   <span>{playlist.video_count || 0} vidéos</span>
                 </span>
@@ -354,7 +354,7 @@ export default function PlaylistCard({
                               e.stopPropagation();
                               onToggleAllTracks(true);
                             }}
-                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black cursor-pointer shadow-none transition-colors"
+                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-xs uppercase font-black cursor-pointer shadow-none transition-colors"
                             title="Activer toutes les musiques"
                           >
                             Tout cocher
@@ -365,7 +365,7 @@ export default function PlaylistCard({
                               e.stopPropagation();
                               onToggleAllTracks(false);
                             }}
-                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black cursor-pointer shadow-none transition-colors"
+                            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-xs uppercase font-black cursor-pointer shadow-none transition-colors"
                             title="Désactiver toutes les musiques"
                           >
                             Tout décocher
@@ -472,16 +472,16 @@ export default function PlaylistCard({
                   aria-label={`Copier le code public ${playlist.id}`}
                 >
                   {copiedCode ? (
-                    <span className="flex items-center gap-1 text-emerald-400 font-mono text-[10px] sm:text-xs font-bold tracking-wider">
+                    <span className="flex items-center gap-1 text-emerald-400 font-mono text-xs font-bold tracking-wider">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
                       <span>Copié !</span>
                     </span>
                   ) : (
                     <>
-                      <span className="text-white/45 font-mono text-[9px] sm:text-[11px] font-bold uppercase tracking-widest group-hover/printcode:text-white/70 transition-colors">
+                      <span className="text-white/45 font-mono text-xs font-bold uppercase tracking-widest group-hover/printcode:text-white/70 transition-colors">
                         N°
                       </span>
-                      <span className="text-white/85 font-mono text-[11px] sm:text-[13px] font-black tracking-wider group-hover/printcode:text-white transition-colors">
+                      <span className="text-white/85 font-mono text-xs sm:text-[13px] font-black tracking-wider group-hover/printcode:text-white transition-colors">
                         {playlist.id}
                       </span>
                       <span className="p-1 rounded text-white/40 group-hover/printcode:text-white group-hover/printcode:bg-white/10 transition-all ml-0.5">
@@ -550,17 +550,17 @@ export default function PlaylistCard({
                     </h3>
                   </div>
                   {playlist.description ? (
-                    <p className="text-[11px] font-semibold text-slate-700 leading-snug mt-1 break-words">
+                    <p className="text-xs font-semibold text-slate-700 leading-snug mt-1 break-words">
                       {playlist.description}
                     </p>
                   ) : (
-                    <span className="text-[10px] font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
+                    <span className="text-xs font-bold text-slate-400 italic mt-0.5">Rate-it Mixtape</span>
                   )}
                 </div>
 
                 {/* Badge visuel Replier */}
                 <span
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-play text-black font-black text-[10px] uppercase shadow-none shrink-0"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-play text-black font-black text-xs uppercase shadow-none shrink-0"
                 >
                   <span>Replier</span>
                   <ChevronDown className="w-3.5 h-3.5 rotate-180" />
@@ -574,13 +574,13 @@ export default function PlaylistCard({
                     playlist.categories.slice(0, 2).map((cat: string) => (
                       <span
                         key={cat}
-                        className="px-2 py-0.5 rounded-lg bg-menu text-black font-black text-[9px] uppercase truncate max-w-[120px]"
+                        className="px-2 py-0.5 rounded-lg bg-menu text-black font-black text-xs uppercase truncate max-w-[120px]"
                       >
                         {cat}
                       </span>
                     ))}
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-[9px] text-black uppercase">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF0CA] font-black text-xs text-black uppercase">
                   <Film className="w-2.5 h-2.5" />
                   <span>{playlist.video_count || 0} vidéos</span>
                 </span>
@@ -600,7 +600,7 @@ export default function PlaylistCard({
 
                 {/* Compteur de bande centrale */}
                 <div className="flex flex-col items-center justify-center">
-                  <span className="font-mono text-[8px] tracking-widest text-white/90 font-bold uppercase">
+                  <span className="font-mono text-xs tracking-widest text-white/90 font-bold uppercase">
                     [ MORCEAUX • {isHostLobby ? `${activeTracksCount}/${tracks.length} ACTIFS` : `${tracks.length} TITRES`} ]
                   </span>
                 </div>
@@ -627,7 +627,7 @@ export default function PlaylistCard({
                 <div className="flex flex-col gap-2">
                   {/* Toolbar Host pour mobile */}
                   {isHostLobby && onToggleAllTracks && (
-                    <div className="flex items-center justify-between px-2 py-1 bg-black/50 rounded-lg border border-white/20 text-white text-[10px] font-black">
+                    <div className="flex items-center justify-between px-2 py-1 bg-black/50 rounded-lg border border-white/20 text-white text-xs font-black">
                       <span>{activeTracksCount} actifs</span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -636,7 +636,7 @@ export default function PlaylistCard({
                             e.stopPropagation();
                             onToggleAllTracks(true);
                           }}
-                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-[9px] cursor-pointer"
+                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-xs cursor-pointer"
                         >
                           Tout cocher
                         </button>
@@ -646,7 +646,7 @@ export default function PlaylistCard({
                             e.stopPropagation();
                             onToggleAllTracks(false);
                           }}
-                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-[9px] cursor-pointer"
+                          className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded uppercase text-xs cursor-pointer"
                         >
                           Tout décocher
                         </button>
@@ -751,16 +751,16 @@ export default function PlaylistCard({
                     aria-label={`Copier le code public ${playlist.id}`}
                   >
                     {copiedCode ? (
-                      <span className="flex items-center gap-1 text-emerald-400 font-mono text-[9px] font-bold tracking-wider">
+                      <span className="flex items-center gap-1 text-emerald-400 font-mono text-xs font-bold tracking-wider">
                         <Check className="w-2.5 h-2.5 stroke-[3]" />
                         <span>Copié !</span>
                       </span>
                     ) : (
                       <>
-                        <span className="text-white/40 font-mono text-[8px] font-bold uppercase tracking-wider group-hover/printcode:text-white/70 transition-colors">
+                        <span className="text-white/40 font-mono text-xs font-bold uppercase tracking-wider group-hover/printcode:text-white/70 transition-colors">
                           N°
                         </span>
-                        <span className="text-white/80 font-mono text-[10px] font-bold tracking-wider group-hover/printcode:text-white transition-colors">
+                        <span className="text-white/80 font-mono text-xs font-bold tracking-wider group-hover/printcode:text-white transition-colors">
                           {playlist.id}
                         </span>
                         <Copy className="w-2.5 h-2.5 text-white/40 group-hover/printcode:text-white transition-colors ml-0.5" />

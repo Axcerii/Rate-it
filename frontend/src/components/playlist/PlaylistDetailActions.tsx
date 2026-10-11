@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
-import { Play, Share2, FileEdit, Check, Loader2 } from 'lucide-react';
+import { Play, Share2, FileEdit, Check, Loader2 } from '@/components/icons';
 
 interface PlaylistDetailActionsProps {
   playlistId: string;

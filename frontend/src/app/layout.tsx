@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Exo } from "next/font/google";
+import { Nunito } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SocketProvider } from "@/lib/useSocket";
@@ -7,8 +7,9 @@ import DynamicBackground from "@/components/DynamicBackground";
 import CookieNotice from "@/components/CookieNotice";
 import BannerNotification from "@/components/BannerNotification";
 
-const exo = Exo({
-  variable: "--font-exo",
+// Body font of the whole site (titles use Cherry Bomb One)
+const bodyFont = Nunito({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
@@ -112,7 +113,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${exo.variable} ${cherryBombOne.variable} h-full antialiased`}
+      className={`${bodyFont.variable} ${cherryBombOne.variable} h-full antialiased`}
     >
       <head>
         <script

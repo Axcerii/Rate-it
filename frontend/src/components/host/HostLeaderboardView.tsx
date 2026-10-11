@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
-import { BarChart2, Crown, Home, SkipForward } from 'lucide-react';
+import { BarChart2, Crown, Home, SkipForward } from '@/components/icons';
 import { LeaderboardCard, LeaderboardSortButtons } from '@/components/leaderboard';
+import ShareResultsButton from './ShareResultsButton';
 import type { GameSession } from '../../../../shared/types';
 
 interface HostLeaderboardViewProps {
@@ -26,12 +27,46 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const cardRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
 
+  // Scroll of the reveal: the page glides continuously towards the card being revealed. One
+  // scrollIntoView per card made the page jump from card to card once the reveal speeds up.
+  const scrollFollowRef = useRef<{ position: number; target: number } | null>(null);
+
+  // Kept in a ref: the ticker must be given the very same function to be stopped later
+  const followScrollRef = useRef(() => {
+    const follow = scrollFollowRef.current;
+    if (!follow) return;
+    const distance = follow.target - follow.position;
+    if (Math.abs(distance) < 0.5) return;
+    // Covers a share of the remaining distance on each frame, whatever the frame rate
+    follow.position += distance * (1 - Math.pow(0.9, gsap.ticker.deltaRatio()));
+    window.scrollTo({ top: follow.position, behavior: 'instant' });
+  });
+
+  const scrollTowards = (el: HTMLElement | null | undefined) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    const target = Math.min(Math.max(0, window.scrollY + rect.top - (window.innerHeight - rect.height) / 2), maxScroll);
+    if (!scrollFollowRef.current) {
+      scrollFollowRef.current = { position: window.scrollY, target };
+      gsap.ticker.add(followScrollRef.current);
+    } else {
+      scrollFollowRef.current.target = target;
+    }
+  };
+
+  const stopScrollFollow = () => {
+    gsap.ticker.remove(followScrollRef.current);
+    scrollFollowRef.current = null;
+  };
+
   // Cleanup GSAP timeline on unmount
   useEffect(() => {
     return () => {
       if (timelineRef.current) {
         timelineRef.current.kill();
       }
+      stopScrollFollow();
     };
   }, []);
 
@@ -47,6 +82,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
       timelineRef.current.kill();
     }
 
+    stopScrollFollow();
     setIsRevealing(true);
     setIsDarkAmbianceActive(false);
     setShowSidebars(false);
@@ -74,6 +110,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
 
     const tl = gsap.timeline({
       onComplete: () => {
+        stopScrollFollow();
         setIsRevealing(false);
         setIsDarkAmbianceActive(false);
         setShowSidebars(true);
@@ -90,7 +127,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
     // Start at top of the leaderboard
     if (cardElements.length > 0) {
       tl.call(() => {
-        cardElements[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrollTowards(cardElements[0]);
       });
     }
 
@@ -119,7 +156,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
         tl.to({}, { duration: 0.2 });
 
         tl.call(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          scrollTowards(el);
         });
 
         // Dark ambiance spotlight turns ON
@@ -159,11 +196,11 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
 
         tl.to({}, { duration: 0.3 });
       } else if (isTop2) {
-        // Rank 2: Smooth, brisk slide
-        tl.to({}, { duration: 0.18 });
+        // Rank 2: the pace drops for the podium, each place gets its moment
+        tl.to({}, { duration: 0.5 });
 
         tl.call(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          scrollTowards(el);
         });
 
         tl.call(() => {
@@ -179,18 +216,18 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             y: 0,
             rotation: 0,
             scale: 1,
-            duration: 0.58,
+            duration: 0.75,
             ease: 'power3.out',
           }
         );
 
-        tl.to({}, { duration: 0.15 });
+        tl.to({}, { duration: 0.4 });
       } else if (isTop3) {
-        // Rank 3: Smooth, brisk slide
-        tl.to({}, { duration: 0.15 });
+        // Rank 3: first place of the podium, the rush stops here
+        tl.to({}, { duration: 0.5 });
 
         tl.call(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          scrollTowards(el);
         });
 
         tl.call(() => {
@@ -206,16 +243,16 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             y: 0,
             rotation: 0,
             scale: 1,
-            duration: 0.55,
+            duration: 0.7,
             ease: 'power3.out',
           }
         );
 
-        tl.to({}, { duration: 0.12 });
+        tl.to({}, { duration: 0.35 });
       } else if (isFirstCard) {
         // First card: Keep original comfortable speed so the audience catches the start
         tl.call(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          scrollTowards(el);
         });
 
         tl.call(() => {
@@ -231,30 +268,29 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             y: 0,
             rotation: 0,
             scale: 1,
-            duration: 0.75,
+            duration: 0.55,
             ease: 'back.out(1.35)',
           }
         );
 
-        tl.to({}, { duration: 0.25 });
+        tl.to({}, { duration: 0.15 });
       } else {
-        // Middle cards: Progressive acceleration building up rapid momentum
+        // Middle cards: a slow start that quickly turns into a rush down to the podium
         const nonPodiumTotal = Math.max(1, revealList.length - 4);
         const middleIdx = Math.max(0, idx - 1);
-        const progress = Math.min(1, middleIdx / nonPodiumTotal);
+        // Eased so that most of the list goes by at (almost) full speed
+        const progress = Math.pow(Math.min(1, middleIdx / nonPodiumTotal), 0.5);
 
-        // Progressively accelerates from 0.46s down to 0.26s
-        const cardDuration = 0.46 - (progress * 0.20);
-        // Delay between cards compresses from 0.10s down to 0.04s
-        const cardGap = 0.10 - (progress * 0.06);
-
-        tl.call(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        // From 0.36s down to 0.14s per card, the pause between two cards from 0.07s down to nothing
+        const cardDuration = 0.36 - progress * 0.22;
+        const cardGap = 0.07 * (1 - progress);
+        // At full speed a card starts while the previous one is still landing
+        const overlap = cardDuration * 0.55 * progress;
 
         tl.call(() => {
+          scrollTowards(el);
           gsap.set(el, { visibility: 'visible' });
-        });
+        }, undefined, `-=${overlap}`);
 
         tl.fromTo(
           el,
@@ -266,8 +302,9 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             rotation: 0,
             scale: 1,
             duration: cardDuration,
-            ease: 'back.out(1.2)',
-          }
+            ease: progress < 0.5 ? 'back.out(1.2)' : 'power2.out',
+          },
+          `-=${overlap}`
         );
 
         tl.to({}, { duration: cardGap });
@@ -279,6 +316,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
     if (timelineRef.current) {
       timelineRef.current.kill();
     }
+    stopScrollFollow();
     setIsDarkAmbianceActive(false);
     setIsRevealing(false);
     setShowSidebars(true);
@@ -286,6 +324,14 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
     const cardElements = Object.values(cardRefs.current).filter(Boolean) as HTMLElement[];
     gsap.set(cardElements, { opacity: 1, visibility: 'visible', x: 0, y: 0, rotation: 0, scale: 1, clearProps: 'all' });
   };
+
+  // A click anywhere during the reveal shows everything at once
+  useEffect(() => {
+    if (!isRevealing) return;
+    const skip = () => handleSkipAnimation();
+    window.addEventListener('click', skip);
+    return () => window.removeEventListener('click', skip);
+  }, [isRevealing]);
 
   const handleReplayAnimation = () => {
     setLeaderboardSortDir('asc');
@@ -460,27 +506,27 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             <div className={`flex lg:hidden flex-col gap-2.5 p-3.5 bg-white border-2 border-black rounded-2xl transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
               <div className="flex items-center gap-1.5 border-b border-black/20 pb-1.5">
                 <BarChart2 className="w-3.5 h-3.5 text-host shrink-0" />
-                <span className="text-[11px] font-black uppercase text-black">Moyennes des votes</span>
+                <span className="text-xs font-black uppercase text-black">Moyennes des votes</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col p-2 bg-slate-50 border border-black rounded-xl text-center">
-                  <span className="text-[9px] font-black uppercase text-slate-500">Moyenne Session</span>
+                <div className="flex flex-col p-2 bg-slate-50 border-2 border-black rounded-xl text-center">
+                  <span className="text-xs font-black uppercase text-slate-500">Moyenne Session</span>
                   <span className="text-lg font-black text-black font-mono">
-                    {sessionAvg.toFixed(2)}<span className="text-[10px] text-slate-400 font-bold">/5</span>
+                    {sessionAvg.toFixed(2)}<span className="text-xs text-slate-400 font-bold">/5</span>
                   </span>
                 </div>
                 {session.isHostPlayer !== false ? (
-                  <div className="flex flex-col p-2 bg-amber-50 border border-black rounded-xl text-center">
-                    <span className="text-[9px] font-black uppercase text-amber-900 truncate">Moyenne {hostDisplayName}</span>
+                  <div className="flex flex-col p-2 bg-amber-50 border-2 border-black rounded-xl text-center">
+                    <span className="text-xs font-black uppercase text-amber-900 truncate">Moyenne {hostDisplayName}</span>
                     <span className="text-lg font-black text-amber-950 font-mono">
                       {hostVotesCount > 0 ? `${hostAvg.toFixed(2)}/5` : 'Non voté'}
                     </span>
                   </div>
                 ) : isTwitchLinked && twitchCount > 0 ? (
-                  <div className="flex flex-col p-2 bg-purple-50 border border-black rounded-xl text-center">
-                    <span className="text-[9px] font-black uppercase text-purple-700">Chat Twitch</span>
+                  <div className="flex flex-col p-2 bg-purple-50 border-2 border-black rounded-xl text-center">
+                    <span className="text-xs font-black uppercase text-purple-700">Chat Twitch</span>
                     <span className="text-lg font-black text-purple-950 font-mono">
-                      {twitchAvg.toFixed(2)}<span className="text-[10px] text-purple-400 font-bold">/5</span>
+                      {twitchAvg.toFixed(2)}<span className="text-xs text-purple-400 font-bold">/5</span>
                     </span>
                   </div>
                 ) : null}
@@ -517,7 +563,8 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
             )}
 
             {/* Mobile Back Button */}
-            <div className={`flex lg:hidden justify-center border-t-2 border-black pt-6 mt-2 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`flex lg:hidden flex-wrap justify-center gap-3 border-t-2 border-black pt-6 mt-2 transition-opacity duration-700 ${isSidebarVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+              <ShareResultsButton session={session} hostCustomName={hostCustomName} className="px-6 py-3.5 text-sm" />
               <button
                 onClick={onBackToHome}
                 className="px-8 py-3.5 bg-host border-2 border-black text-black font-black text-sm uppercase rounded-xl btn-action-hover inline-flex items-center gap-2"
@@ -539,11 +586,11 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
 
               {/* Session General Average */}
               <div className="flex flex-col bg-slate-50 border-2 border-black rounded-xl p-2.5">
-                <span className="text-[10px] font-black uppercase text-slate-500">Moyenne Session</span>
+                <span className="text-xs font-black uppercase text-slate-500">Moyenne Session</span>
                 <span className="text-2xl font-black text-black font-mono leading-tight mt-0.5">
                   {sessionAvg.toFixed(2)}<span className="text-xs text-slate-500 font-bold">/5</span>
                 </span>
-                <span className="text-[9px] font-bold text-slate-400">
+                <span className="text-xs font-bold text-slate-400">
                   ({resultsArray.length} {resultsArray.length === 1 ? 'thème' : 'thèmes'})
                 </span>
               </div>
@@ -552,11 +599,11 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
               {session.isHostPlayer !== false && (
                 <div className="flex flex-col bg-amber-50 border-2 border-black rounded-xl p-2.5">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-black uppercase text-amber-950 flex items-center gap-1 truncate">
+                    <span className="text-xs font-black uppercase text-amber-950 flex items-center gap-1 truncate">
                       <Crown className="w-3 h-3 text-amber-600 shrink-0" />
                       <span className="truncate">Moyenne {hostDisplayName}</span>
                     </span>
-                    <span className="text-[9px] font-black bg-amber-200 text-amber-900 border border-black px-1.5 py-0.2 rounded shrink-0">
+                    <span className="text-xs font-black bg-amber-200 text-amber-900 border-2 border-black px-1.5 py-0.2 rounded shrink-0">
                       Host
                     </span>
                   </div>
@@ -567,7 +614,7 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
                       <span className="text-xs text-slate-400 font-sans font-bold">Non voté</span>
                     )}
                   </span>
-                  <span className="text-[9px] font-bold text-amber-800">
+                  <span className="text-xs font-bold text-amber-800">
                     ({hostVotesCount}/{resultsArray.length} notés)
                   </span>
                 </div>
@@ -576,11 +623,11 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
               {/* Twitch Average if linked */}
               {isTwitchLinked && twitchCount > 0 && (
                 <div className="flex flex-col bg-purple-50 border-2 border-black rounded-xl p-2.5">
-                  <span className="text-[10px] font-black uppercase text-purple-700">Chat Twitch</span>
+                  <span className="text-xs font-black uppercase text-purple-700">Chat Twitch</span>
                   <span className="text-xl font-black text-purple-950 font-mono leading-tight mt-0.5">
                     {twitchAvg.toFixed(2)}<span className="text-xs text-purple-400 font-bold">/5</span>
                   </span>
-                  <span className="text-[9px] font-bold text-purple-500">
+                  <span className="text-xs font-bold text-purple-500">
                     ({twitchCount} {twitchCount === 1 ? 'thème noté' : 'thèmes notés'})
                   </span>
                 </div>
@@ -589,12 +636,12 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
               {/* Breakdown by other players */}
               {playersStats.filter(p => !p.isHost).length > 0 && (
                 <div className="flex flex-col gap-1.5 pt-1 border-t border-black/15">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Par joueur :</span>
+                  <span className="text-xs font-black uppercase text-slate-500">Par joueur :</span>
                   <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-0.5">
                     {playersStats
                       .filter(p => !p.isHost)
                       .map(p => (
-                        <div key={p.id} className="flex items-center justify-between p-1.5 bg-slate-50 border border-black rounded-lg text-xs">
+                        <div key={p.id} className="flex items-center justify-between p-1.5 bg-slate-50 border-2 border-black rounded-lg text-xs">
                           <span className="font-bold text-black truncate max-w-[90px]" title={p.name}>{p.name}</span>
                           <span className="font-mono font-black text-black">
                             {p.ratedCount > 0 ? `${p.avg.toFixed(2)}/5` : '—'}
@@ -605,6 +652,8 @@ export default function HostLeaderboardView({ session, hostCustomName, onBackToH
                 </div>
               )}
             </div>
+
+            <ShareResultsButton session={session} hostCustomName={hostCustomName} className="w-full py-3 px-3 text-xs" />
 
             {/* Back to Home Button */}
             <button

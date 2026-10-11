@@ -19,12 +19,19 @@
 :root {
   /* Section Background Palette */
   --bg-menu: #FEEC66;
+  --bg-menu-image: filter: invert(82%) sepia(73%) saturate(353%) hue-rotate(352deg) brightness(101%) contrast(99%);
   --bg-host: #24B3F1;
+  --bg-host-image: filter: invert(60%) sepia(40%) saturate(2386%) hue-rotate(165deg) brightness(98%) contrast(92%);
   --bg-play: #DD4DCC;
+  --bg-play-image: filter: invert(49%) sepia(89%) saturate(2646%) hue-rotate(278deg) brightness(90%) contrast(91%);
   --bg-playlist: #4BD66F;
+  --bg-playlist-image:filter: invert(64%) sepia(79%) saturate(344%) hue-rotate(83deg) brightness(95%) contrast(94%);
   --bg-catalog: #0AC7B5;
+  --bg-catalog-image:filter: invert(66%) sepia(13%) saturate(6054%) hue-rotate(128deg) brightness(94%) contrast(92%);
   --bg-create: #2fc355;
+  --bg-create-image:filter: invert(65%) sepia(68%) saturate(512%) hue-rotate(80deg) brightness(85%) contrast(88%);
   --bg-admin: #1b1b1b;
+  --bg-admin-image: filter: invert(5%) sepia(9%) saturate(2%) hue-rotate(314deg) brightness(98%) contrast(87%);
   --bg-main-color: var(--bg-menu);
 
   /* Shared UI Tokens */
@@ -32,20 +39,28 @@
   --card-border: #000000;
   --accent-blue: #24B3F1;
   --accent-red: #990000;
+  --accent-red-image:filter: invert(8%) sepia(88%) saturate(5321%) hue-rotate(358deg) brightness(103%) contrast(111%);
   --foreground: #171717;
+  --foreground-image:filter: invert(0%) sepia(10%) saturate(2815%) hue-rotate(336deg) brightness(91%) contrast(82%);
 
   /* Podium & Theme Tokens */
   --podium-gold: #DCB253;
+  --podium-gold-image:filter: invert(78%) sepia(54%) saturate(522%) hue-rotate(344deg) brightness(92%) contrast(87%);
   --podium-silver: #C4C4C4;
+  --podium-silver-image:filter: invert(79%) sepia(0%) saturate(20%) hue-rotate(191deg) brightness(99%) contrast(96%);
   --podium-bronze: #CE8946;
+  --podium-bronze-image: filter: invert(62%) sepia(71%) saturate(405%) hue-rotate(344deg) brightness(84%) contrast(92%);
   --brand-twitch: #9146FF;
+  --brand-twitch-image:filter: invert(32%) sepia(49%) saturate(3103%) hue-rotate(247deg) brightness(97%) contrast(109%);
   --bg-cream: #FAF6EB;
+  --bg-cream-image:filter: invert(90%) sepia(14%) saturate(363%) hue-rotate(326deg) brightness(109%) contrast(96%);
   --color-players: var(--bg-host);
 
   /* Font Fallbacks */
   --font-cherry-bomb-one: 'Cherry Bomb One', cherryBombOne;
   --font-dynapuff: 'Cherry Bomb One', cherryBombOne;
 }
+
 
 
 @theme {
@@ -66,9 +81,9 @@
   --color-accent-red: var(--accent-red);
 
   /* Typography Design Tokens */
-  --font-sans: var(--font-exo), sans-serif;
+  --font-sans: var(--font-body), sans-serif;
   --font-title: var(--font-cherry-bomb-one, 'Cherry Bomb One'), 'Cherry Bomb One', cherryBombOne, cursive;
-  --font-mono: var(--font-exo), monospace;
+  --font-mono: var(--font-body), monospace;
 
   /* Custom Animations */
   --animate-unfold-right: unfoldRightToLeft 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -236,7 +251,7 @@ body {
   position: relative;
   background-color: var(--bg-main-color);
   color: var(--foreground);
-  font-family: var(--font-exo), sans-serif;
+  font-family: var(--font-body), sans-serif;
   scrollbar-width: thin;
   scrollbar-color: var(--bg-playlist) var(--color-card-bg);
 }
@@ -294,7 +309,7 @@ button {
 }
 
 .font-sans {
-  font-family: var(--font-exo), sans-serif;
+  font-family: var(--font-body), sans-serif;
 }
 
 @keyframes movePatternTopRight {
@@ -461,4 +476,22 @@ button {
   .group:focus-visible .mode-tag {
     animation: none;
   }
+}
+
+/* Hand-drawn icons (components/icons.tsx): the drawing is a mask over the current text colour.
+   Declared as a Tailwind utility: Tailwind orders the utilities with the most properties first,
+   so any size utility (w-4, h-5...) wins over the default 24px. */
+@utility rate-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }

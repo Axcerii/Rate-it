@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight } from '@/components/icons';
 import HomeButton from '@/components/HomeButton';
 
 export type HostQuizMode = 'playlist' | 'mal';
@@ -85,7 +85,7 @@ export default function HostModeChoice({ onChoose, onBackToHome }: HostModeChoic
               </svg>
 
               <div
-                className="relative flex-1 flex flex-col bg-[#FBF0C9] group-hover:bg-menu group-focus-visible:bg-menu border-[3px] sm:border-4 border-black rounded-2xl sm:rounded-3xl px-4 sm:px-6 lg:px-7 pb-4 sm:pb-6 lg:pb-7 pt-12 sm:pt-13 transition-colors duration-200"
+                className="relative flex-1 flex flex-col bg-[#FBF0C9] group-hover:bg-menu group-focus-visible:bg-menu border-2 border-black rounded-2xl sm:rounded-3xl px-4 sm:px-6 lg:px-7 pb-4 sm:pb-6 lg:pb-7 pt-12 sm:pt-13 transition-colors duration-200"
                 style={{ WebkitMaskImage: HOLE_MASK, maskImage: HOLE_MASK }}
               >
                 {/* Reinforced eyelet around the punched hole */}

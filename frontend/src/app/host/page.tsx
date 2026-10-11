@@ -26,16 +26,17 @@ import {
   Minus,
   Folder,
   Music,
-} from 'lucide-react';
+} from '@/components/icons';
 import gsap from 'gsap';
 import HostLeaderboardView from '@/components/host/HostLeaderboardView';
 import HostPlayingView from '@/components/host/HostPlayingView';
 import HostModeChoice from '@/components/host/HostModeChoice';
+import TwitchConnectionCheck from '@/components/host/TwitchConnectionCheck';
 import { getRoomStats } from '@/components/host/roomStats';
 import HomeButton from '@/components/HomeButton';
 import CloseButton from '@/components/CloseButton';
 import { PlaylistCard, PlaylistFilters, PlaylistTrackCard } from '@/components/playlist';
-import { ANIME_FOLDER_THEMES, extractAnimeUsername, getTrackAnimeTitle, getTrackOpeningBadge } from '@/components/host/animeTracks';
+import { ANIME_FOLDER_THEMES, extractAnimeUsername, getTrackAnimeTitle, getTrackKind, getTrackOpeningBadge, type AnimeTrackKind } from '@/components/host/animeTracks';
 
 const CATEGORIES = [
   'Anime/Manga',
@@ -52,6 +53,8 @@ export default function HostLobby() {
   const {
     session,
     isConnected,
+    isHost,
+    createRoom,
     leaveRoom,
     deleteRoom,
     startGame,
@@ -81,6 +84,8 @@ export default function HostLobby() {
   const [twitchChannel, setTwitchChannel] = useState('');
   const [isTwitchConnecting, setIsTwitchConnecting] = useState(false);
   const [twitchError, setTwitchError] = useState<string | null>(null);
+  const [hideTwitchCheck, setHideTwitchCheck] = useState(false);
+  const [copiedPlaylistLink, setCopiedPlaylistLink] = useState(false);
 
   const handleCopyLink = () => {
     let url = joinUrl;
@@ -145,6 +150,9 @@ export default function HostLobby() {
   const [isPlayersTabCollapsed, setIsPlayersTabCollapsed] = useState(false);
   const [showMobilePlayersModal, setShowMobilePlayersModal] = useState(false);
   const initialUrlLoadedRef = useRef(false);
+  const autoCreateStartedRef = useRef(false);
+  // Playlist the visitor arrived with (?playlistId=...): kept first in the list, whatever the filters
+  const [pinnedPlaylistId, setPinnedPlaylistId] = useState<string | null>(null);
   const playersPanelRef = useRef<HTMLDivElement>(null);
   const cassetteCancelRef = useRef<(() => void) | null>(null);
   const activeCassetteElRef = useRef<HTMLElement | null>(null);
@@ -328,24 +336,34 @@ export default function HostLobby() {
   const animeGroups = useMemo(() => {
     if (!malTracks || malTracks.length === 0) return [];
 
-    const groupsMap = new Map<string, { displayTitle: string; tracks: any[] }>();
+    // One folder per anime and per kind: the endings of an anime are kept apart from its openings
+    const groupsMap = new Map<string, { displayTitle: string; kind: AnimeTrackKind; tracks: any[] }>();
 
     for (const track of malTracks) {
       const rawTitle = getTrackAnimeTitle(track);
-      const key = rawTitle.toLowerCase().trim();
+      const kind = getTrackKind(track);
+      const key = `${rawTitle.toLowerCase().trim()}|${kind}`;
 
       if (!groupsMap.has(key)) {
-        groupsMap.set(key, { displayTitle: rawTitle, tracks: [] });
+        groupsMap.set(key, { displayTitle: rawTitle, kind, tracks: [] });
       }
       groupsMap.get(key)!.tracks.push(track);
     }
 
-    return Array.from(groupsMap.values())
-      .map((g) => ({
+    // Biggest folders first, then alphabetical order, openings before endings
+    return Array.from(groupsMap.entries())
+      .map(([key, g]) => ({
+        key,
         animeTitle: g.displayTitle,
+        kind: g.kind,
         tracks: g.tracks,
       }))
-      .sort((a, b) => a.animeTitle.localeCompare(b.animeTitle, 'fr', { sensitivity: 'base' }));
+      .sort(
+        (a, b) =>
+          b.tracks.length - a.tracks.length ||
+          a.animeTitle.localeCompare(b.animeTitle, 'fr', { sensitivity: 'base' }) ||
+          (a.kind === b.kind ? 0 : a.kind === 'opening' ? -1 : 1)
+      );
   }, [malTracks]);
 
   const filteredAnimeGroups = useMemo(() => {
@@ -368,7 +386,7 @@ export default function HostLobby() {
         }
         return null;
       })
-      .filter(Boolean) as { animeTitle: string; tracks: any[] }[];
+      .filter(Boolean) as typeof animeGroups;
   }, [animeGroups, animeSearchQuery]);
 
   const activeMalTracksCount = useMemo(() => {
@@ -376,10 +394,29 @@ export default function HostLobby() {
     return malTracks.filter((t) => !disabledMap[String(t.id)]).length;
   }, [malTracks, session?.disabledVideoIds]);
 
+  // An anime can have two folders (openings and endings): count it once
+  const animeCount = useMemo(() => new Set(animeGroups.map((g) => g.animeTitle.toLowerCase().trim())).size, [animeGroups]);
+
   const activeAnimeCount = useMemo(() => {
     const disabledMap = session?.disabledVideoIds || {};
-    return animeGroups.filter((g) => g.tracks.some((t) => !disabledMap[String(t.id)])).length;
+    return new Set(
+      animeGroups
+        .filter((g) => g.tracks.some((t) => !disabledMap[String(t.id)]))
+        .map((g) => g.animeTitle.toLowerCase().trim())
+    ).size;
   }, [animeGroups, session?.disabledVideoIds]);
+
+  // How many openings / endings were imported, and how many are still ticked
+  const animeKindStats = useMemo(() => {
+    const disabledMap = session?.disabledVideoIds || {};
+    const stats = { opening: { total: 0, active: 0 }, ending: { total: 0, active: 0 } };
+    for (const track of malTracks) {
+      const entry = stats[getTrackKind(track)];
+      entry.total++;
+      if (!disabledMap[String(track.id)]) entry.active++;
+    }
+    return stats;
+  }, [malTracks, session?.disabledVideoIds]);
 
 
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -445,11 +482,49 @@ export default function HostLobby() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hostSessionId = localStorage.getItem('rate_it_host_session_id');
-      if (!session && isConnected && !hostSessionId) {
+      // A shared playlist link opens its own room instead (see below)
+      const hasPlaylistLink = Boolean(new URLSearchParams(window.location.search).get('playlistId'));
+      if (!session && isConnected && !hostSessionId && !hasPlaylistLink) {
         router.push('/');
       }
     }
   }, [session, isConnected, router]);
+
+  // Shared playlist link (/host?playlistId=...) opened without a room: create one, so that the visitor
+  // lands directly in a lobby with the playlist selected
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isConnected || autoCreateStartedRef.current) return;
+    if (!new URLSearchParams(window.location.search).get('playlistId')) return;
+
+    if (session) {
+      // Restored as a player of another room: this page is for hosting, leave it first
+      if (!isHost) leaveRoom();
+      // This page has its room: never open another one. Closing the room (back to home) empties the
+      // session while the playlist is still in the address bar, which must not count as a new arrival.
+      else autoCreateStartedRef.current = true;
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let tries = 0;
+    const attempt = () => {
+      // A previous room of this host is being restored: wait for it, or for the server to say it is gone
+      if (localStorage.getItem('rate_it_host_session_id') && ++tries < 20) {
+        timer = setTimeout(attempt, 300);
+        return;
+      }
+      autoCreateStartedRef.current = true;
+      createRoom().catch((err: any) => {
+        showBanner(err.message || 'Impossible de créer la salle.', 'error');
+        router.push('/');
+      });
+    };
+    attempt();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [session, isConnected, isHost, createRoom, leaveRoom, showBanner, router]);
 
   // Intercept back navigation (browser back button or swipe-back gesture) to confirm room deletion
   useEffect(() => {
@@ -528,12 +603,6 @@ export default function HostLobby() {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('rate_it_host_mode_chosen', 'true');
         }
-        // Clean URL so the query param doesn't lock playlist selection or re-trigger on refresh
-        const url = new URL(window.location.href);
-        url.searchParams.delete('playlistId');
-        url.searchParams.delete('playlistName');
-        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-
         setQuizMode('playlist');
         setLoadingTracks((prev) => ({ ...prev, [preselectedId]: true }));
 
@@ -562,13 +631,15 @@ export default function HostLobby() {
               return prev;
             });
 
+            const loadedId = res?.playlist?.id || preselectedId;
             setTracksCache((prev) => ({
               ...prev,
-              [preselectedId]: vids,
+              [loadedId]: vids,
             }));
             setSelectedPlaylistTracks(vids);
-            setSelectedPlaylistId(preselectedId);
-            setExpandedIds(new Set([preselectedId]));
+            setSelectedPlaylistId(loadedId);
+            setPinnedPlaylistId(loadedId);
+            setExpandedIds(new Set([loadedId]));
             showBanner(`Playlist "${playlistName}" chargée correctement.`, 'success');
           })
           .catch((err: any) => {
@@ -576,6 +647,8 @@ export default function HostLobby() {
             showBanner(err.message || 'Impossible de trouver la playlist sélectionnée.', 'error');
             setSelectedPlaylistId(null);
             setExpandedIds(new Set());
+            // Dead link: do not keep it in the address bar
+            window.history.replaceState(null, '', window.location.pathname);
           })
           .finally(() => {
             setLoadingTracks((prev) => ({ ...prev, [preselectedId]: false }));
@@ -583,6 +656,31 @@ export default function HostLobby() {
       }
     }
   }, [session?.status, getPlaylistDetails, showBanner]);
+
+  // Keep the selected playlist in the address bar: the URL of the lobby is a link that can be shared
+  // as is, and a refresh comes back to the same playlist
+  useEffect(() => {
+    if (typeof window === 'undefined' || session?.status !== 'LOBBY') return;
+    // Nothing selected yet, or the playlist of the link is still loading: leave the URL alone
+    if (quizMode === 'playlist' && !selectedPlaylistId) return;
+
+    const url = new URL(window.location.href);
+    const wanted = quizMode === 'playlist' ? selectedPlaylistId : null;
+    if (url.searchParams.get('playlistId') === wanted && !url.searchParams.has('playlistName')) return;
+
+    if (wanted) url.searchParams.set('playlistId', wanted);
+    else url.searchParams.delete('playlistId');
+    url.searchParams.delete('playlistName');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  }, [session?.status, quizMode, selectedPlaylistId]);
+
+  const handleCopyPlaylistLink = () => {
+    if (!selectedPlaylistId || typeof window === 'undefined') return;
+    navigator.clipboard.writeText(`${window.location.origin}/host?playlistId=${encodeURIComponent(selectedPlaylistId)}`);
+    setCopiedPlaylistLink(true);
+    showBanner('Lien copié : il ouvre directement une salle avec cette playlist prête à jouer.', 'success', 5000);
+    setTimeout(() => setCopiedPlaylistLink(false), 2500);
+  };
 
   const handleStartGame = async () => {
     setSearchPlaylistError(null);
@@ -995,6 +1093,7 @@ export default function HostLobby() {
     setTwitchError(null);
     try {
       await connectTwitch(twitchChannel.trim());
+      setHideTwitchCheck(false);
       showBanner(`Compte Twitch connecté : #${twitchChannel.trim()}`, 'success');
     } catch (err: any) {
       setTwitchError(err.message || 'Connexion avec Twitch échouée. Vérifiez que le compte existe bien.');
@@ -1064,8 +1163,11 @@ export default function HostLobby() {
 
   const displayedPlaylists = React.useMemo(() => {
     const list = playlistTab === 'validated' ? playlists.validated : playlists.community;
+    const pinned = pinnedPlaylistId
+      ? [...playlists.validated, ...playlists.community].find((p) => p.id === pinnedPlaylistId)
+      : null;
 
-    return list
+    const filtered = list
       .filter((pl) => {
         if (activeCategory !== 'all') {
           if (!pl.categories || !Array.isArray(pl.categories) || !pl.categories.includes(activeCategory)) {
@@ -1082,7 +1184,9 @@ export default function HostLobby() {
         return true;
       })
       .sort((a, b) => (b.played_count || 0) - (a.played_count || 0));
-  }, [playlists, playlistTab, activeCategory, playlistSearchQuery]);
+
+    return pinned ? [pinned, ...filtered.filter((p) => p.id !== pinned.id)] : filtered;
+  }, [playlists, playlistTab, activeCategory, playlistSearchQuery, pinnedPlaylistId]);
 
   const handleAnimeInputChange = (val: string, platform: 'mal' | 'anilist') => {
     if (platform === 'mal' && /anilist\.co/i.test(val)) {
@@ -1159,6 +1263,9 @@ export default function HostLobby() {
       console.error('Failed to toggle anime group:', err);
     }
   };
+
+  const handleToggleTracksOfKind = (kind: AnimeTrackKind, enable: boolean) =>
+    handleToggleAnimeGroup(malTracks.filter((t) => getTrackKind(t) === kind), enable);
 
   const handleToggleAllMalTracks = async (enable: boolean) => {
     if (malTracks.length === 0) return;
@@ -1259,6 +1366,14 @@ export default function HostLobby() {
 
   const { playersList, activeConnectedPlayers } = getRoomStats(session);
 
+  // Why the PLAY button is greyed out, written under it: a disabled button alone does not say what is missing
+  const startBlockedReason =
+    quizMode === 'playlist' && !selectedPlaylistId
+      ? 'Choisissez une playlist pour lancer la partie'
+      : activeConnectedPlayers.length === 0
+        ? "En attente d'un joueur (ou cochez « Host joueur »)"
+        : null;
+
   // 1. LOBBY VIEW
   if (session.status === 'LOBBY') {
     return (
@@ -1321,7 +1436,7 @@ export default function HostLobby() {
                 {/* 1. Salle & Invitation (Code + Copier + QR Code) */}
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl px-2.5 py-1.5 shadow-none">
-                    <span className="text-[11px] font-black uppercase text-slate-600">Salle :</span>
+                    <span className="text-xs font-black uppercase text-slate-600">Salle :</span>
                     <span className="font-mono font-black text-sm sm:text-base text-black select-all">
                       {showRoomCode ? session.sessionId : '••••••'}
                     </span>
@@ -1382,11 +1497,11 @@ export default function HostLobby() {
                     <div className="group relative inline-flex items-center justify-center">
                       <span
                         tabIndex={0}
-                        className="h-4 w-4 rounded-full bg-slate-200 border border-black text-slate-800 text-[10px] font-black flex items-center justify-center cursor-help"
+                        className="h-4 w-4 rounded-full bg-slate-200 border-2 border-black text-slate-800 text-xs font-black flex items-center justify-center cursor-help"
                       >
                         ?
                       </span>
-                      <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:flex flex-col w-56 p-2.5 bg-black text-white text-[11px] font-bold rounded-xl text-center leading-snug z-50 shadow-none">
+                      <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:flex flex-col w-56 p-2.5 bg-black text-white text-xs font-bold rounded-xl text-center leading-snug z-50 shadow-none">
                         Permet au Host de voter. À décocher si vous jouez avec vos amis sur votre téléphone IRL.
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-black" />
                       </div>
@@ -1439,7 +1554,7 @@ export default function HostLobby() {
 
                 {/* 3. Twitch */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-black uppercase text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                  <span className="text-xs font-black uppercase text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-[#9146FF]" />
                     <span>Twitch</span>
                   </span>
@@ -1451,7 +1566,7 @@ export default function HostLobby() {
                       </span>
                       <button
                         onClick={handleDisconnectTwitch}
-                        className="text-[10px] text-accent-red hover:underline font-black cursor-pointer"
+                        className="text-xs text-accent-red hover:underline font-black cursor-pointer"
                       >
                         Déconnexion
                       </button>
@@ -1491,7 +1606,7 @@ export default function HostLobby() {
                     <p className="text-xs font-bold text-slate-700 text-center leading-relaxed">
                       Scannez le QR Code avec votre téléphone :
                       <br />
-                      <span className="font-mono text-black font-bold break-all bg-white px-2 py-0.5 rounded border border-black inline-block mt-1">{joinUrl}</span>
+                      <span className="font-mono text-black font-bold break-all bg-white px-2 py-0.5 rounded border-2 border-black inline-block mt-1">{joinUrl}</span>
                     </p>
                     <button
                       type="button"
@@ -1557,7 +1672,7 @@ export default function HostLobby() {
                     </button>
                   </div>
                   {searchPlaylistError && (
-                    <p className="text-[10px] text-accent-red font-black mt-0.5">
+                    <p className="text-xs text-accent-red font-black mt-0.5">
                       {searchPlaylistError}
                     </p>
                   )}
@@ -1726,11 +1841,16 @@ export default function HostLobby() {
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 shrink-0 text-xs font-black">
                       <span className="bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-lg border border-emerald-400">
-                        {animeGroups.length} animé{animeGroups.length > 1 ? 's' : ''} ({activeAnimeCount} actif{activeAnimeCount > 1 ? 's' : ''})
+                        {animeCount} animé{animeCount > 1 ? 's' : ''} ({activeAnimeCount} actif{activeAnimeCount > 1 ? 's' : ''})
                       </span>
                       <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-lg">
-                        {activeMalTracksCount} / {malTracks.length} OP actif{activeMalTracksCount > 1 ? 's' : ''}
+                        {animeKindStats.opening.active} / {animeKindStats.opening.total} OP actif{animeKindStats.opening.active > 1 ? 's' : ''}
                       </span>
+                      {animeKindStats.ending.total > 0 && (
+                        <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-lg">
+                          {animeKindStats.ending.active} / {animeKindStats.ending.total} ED actif{animeKindStats.ending.active > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1758,20 +1878,42 @@ export default function HostLobby() {
                     </div>
 
                     {/* Quick Bulk Actions */}
-                    <div className="flex items-center gap-1.5 shrink-0 justify-end">
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0 justify-end">
+                      {/* Per kind: unticks everything, or ticks it all back once nothing is left */}
+                      {(['opening', 'ending'] as const).map((kind) => {
+                        const { total, active } = animeKindStats[kind];
+                        const enable = total > 0 && active === 0;
+                        const label = kind === 'opening' ? 'openings' : 'endings';
+                        return (
+                          <button
+                            key={kind}
+                            type="button"
+                            onClick={() => handleToggleTracksOfKind(kind, enable)}
+                            disabled={total === 0}
+                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border-2 border-black rounded-lg text-xs font-black uppercase text-slate-700 cursor-pointer transition shadow-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
+                            title={
+                              total === 0
+                                ? `Aucun ${kind === 'opening' ? 'opening' : 'ending'} dans cette liste`
+                                : `${enable ? 'Activer' : 'Désactiver'} tous les ${label} de tous les animés`
+                            }
+                          >
+                            {enable ? 'Cocher' : 'Décocher'} tous les {label}
+                          </button>
+                        );
+                      })}
                       <button
                         type="button"
                         onClick={() => handleToggleAllMalTracks(true)}
-                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-black rounded-lg text-[11px] font-black uppercase text-black cursor-pointer transition shadow-none"
-                        title="Activer tous les openings de tous les animés"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border-2 border-black rounded-lg text-xs font-black uppercase text-black cursor-pointer transition shadow-none"
+                        title="Activer tous les titres de tous les animés"
                       >
                         Tout cocher
                       </button>
                       <button
                         type="button"
                         onClick={() => handleToggleAllMalTracks(false)}
-                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-black rounded-lg text-[11px] font-black uppercase text-slate-700 cursor-pointer transition shadow-none"
-                        title="Désactiver tous les openings de tous les animés"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border-2 border-black rounded-lg text-xs font-black uppercase text-slate-700 cursor-pointer transition shadow-none"
+                        title="Désactiver tous les titres de tous les animés"
                       >
                         Tout décocher
                       </button>
@@ -1792,6 +1934,7 @@ export default function HostLobby() {
                         {filteredAnimeGroups.map((group, groupIdx) => {
                           const theme = ANIME_FOLDER_THEMES[groupIdx % ANIME_FOLDER_THEMES.length];
                           const totalGroupTracks = group.tracks.length;
+                          const kindLabel = group.kind === 'ending' ? 'ED' : 'OP';
                           const disabledMap = session?.disabledVideoIds || {};
                           const disabledInGroup = group.tracks.filter((t) => disabledMap[String(t.id)]).length;
                           const activeInGroup = totalGroupTracks - disabledInGroup;
@@ -1815,7 +1958,7 @@ export default function HostLobby() {
 
                           return (
                             <div
-                              key={group.animeTitle}
+                              key={group.key}
                               style={
                                 isAllDisabled
                                   ? {
@@ -1849,7 +1992,7 @@ export default function HostLobby() {
                                       handleToggleAnimeGroup(group.tracks, !isAllActive);
                                     }}
                                     title={isAllActive ? "Désactiver tout cet animé" : "Activer tout cet animé"}
-                                    className={`w-4.5 h-4.5 rounded border border-black flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-none ${isAllActive
+                                    className={`w-4.5 h-4.5 rounded border-2 border-black flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-none ${isAllActive
                                       ? 'bg-accent-red text-white'
                                       : isPartial
                                         ? 'bg-[#FEEC66] text-black'
@@ -1863,7 +2006,7 @@ export default function HostLobby() {
                                   <Folder className={`w-3.5 h-3.5 shrink-0 ${isAllDisabled ? 'text-slate-500' : theme.folderIconClass}`} />
 
                                   <span
-                                    className={`font-black text-[11px] sm:text-xs uppercase tracking-tight truncate leading-tight ${isAllDisabled ? 'line-through text-slate-500' : theme.headerText
+                                    className={`font-black text-xs uppercase tracking-tight truncate leading-tight ${isAllDisabled ? 'line-through text-slate-500' : theme.headerText
                                       }`}
                                     title={group.animeTitle}
                                   >
@@ -1873,14 +2016,14 @@ export default function HostLobby() {
 
                                 {/* Right: Count Badge */}
                                 <span
-                                  className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded border shrink-0 ${isAllActive
+                                  className={`text-xs font-mono font-black px-1.5 py-0.5 rounded border shrink-0 ${isAllActive
                                     ? 'bg-black text-white border-black'
                                     : isAllDisabled
                                       ? 'bg-slate-200 text-slate-500 border-slate-300'
                                       : 'bg-white text-black border-black'
                                     }`}
                                 >
-                                  {totalGroupTracks === 1 ? '1 OP' : `${activeInGroup}/${totalGroupTracks} OP`}
+                                  {totalGroupTracks === 1 ? `1 ${kindLabel}` : `${activeInGroup}/${totalGroupTracks} ${kindLabel}`}
                                 </span>
                               </div>
 
@@ -1937,6 +2080,16 @@ export default function HostLobby() {
                   zIndex: 50,
                 }}
               >
+                {/* Twitch chat check, stacked above the players panel */}
+                {session.twitchChannel && !hideTwitchCheck && (
+                  <TwitchConnectionCheck
+                    channel={session.twitchChannel}
+                    votes={session.twitchVotes || {}}
+                    onClose={() => setHideTwitchCheck(true)}
+                    className="relative z-10 pointer-events-auto w-72 sm:w-80 mb-2"
+                  />
+                )}
+
                 {/* Vinyl Record Disk (Desktop) */}
                 <div
                   ref={desktopDiskContainerRef}
@@ -1989,13 +2142,24 @@ export default function HostLobby() {
 
                   {/* Currently Selected Playlist / Mode Title */}
                   <div className={`px-3.5 py-2 bg-[#FAF9F5] flex flex-col gap-0.5 ${!isPlayersTabCollapsed ? 'border-b border-black/10' : ''}`}>
-                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <span>Playlist sélectionnée</span>
+                    <div className="flex items-center justify-between gap-2 text-xs font-black uppercase text-slate-500">
+                      <span className="flex items-center gap-1 whitespace-nowrap">
+                        <span>Playlist</span>
                       </span>
                       {quizMode === 'playlist' && currentSelectedPlaylist && (
-                        <span className="text-[10px] font-bold text-slate-500 font-mono">
-                          {currentSelectedPlaylist.video_count || (tracksCache[currentSelectedPlaylist.id] || []).length} titres
+                        <span className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500 font-mono whitespace-nowrap">
+                            {currentSelectedPlaylist.video_count || (tracksCache[currentSelectedPlaylist.id] || []).length} titres
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyPlaylistLink}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white hover:bg-slate-100 border-2 border-black rounded-md text-xs font-black uppercase text-black cursor-pointer"
+                            title="Copier un lien qui ouvre une salle avec cette playlist prête à jouer"
+                          >
+                            {copiedPlaylistLink ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
+                            <span>{copiedPlaylistLink ? 'Copié' : 'Partager'}</span>
+                          </button>
                         </span>
                       )}
                     </div>
@@ -2028,11 +2192,11 @@ export default function HostLobby() {
                         {playersList.length === 0 ? (
                           <div className="py-4 text-center flex flex-col items-center gap-1.5">
                             <UserX className="w-6 h-6 text-slate-500 animate-pulse" />
-                            <p className="text-[11px] font-bold text-slate-700 leading-tight">
+                            <p className="text-xs font-bold text-slate-700 leading-tight">
                               En attente de joueurs...
                             </p>
                             {session.isHostPlayer === false && (
-                              <p className="text-[10px] text-slate-500 font-bold">
+                              <p className="text-xs text-slate-500 font-bold">
                                 Cochez &quot;Host joueur&quot; en haut si vous jouez seul.
                               </p>
                             )}
@@ -2049,7 +2213,7 @@ export default function HostLobby() {
                                 <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
                                   <span
                                     className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected
-                                      ? 'bg-emerald-500 border border-black'
+                                      ? 'bg-emerald-500 border-2 border-black'
                                       : 'bg-slate-400'
                                       }`}
                                   />
@@ -2102,14 +2266,14 @@ export default function HostLobby() {
                             <img
                               src="/JOIN/PlayText.png"
                               alt="PLAY"
-                              className="h-10 sm:h-11 w-auto max-w-[85%] object-contain drop-shadow-md pointer-events-none select-none"
+                              className="h-14 sm:h-16 w-auto max-w-[90%] object-contain drop-shadow-md pointer-events-none select-none"
                               draggable={false}
                             />
                           )}
                         </button>
-                        {quizMode === 'playlist' && !selectedPlaylistId && (
-                          <p className="text-[10px] font-bold text-slate-500 text-center leading-tight">
-                            Cliquez sur une playlist pour la choisir
+                        {startBlockedReason && (
+                          <p className="text-xs font-black text-slate-700 text-center leading-tight">
+                            {startBlockedReason}
                           </p>
                         )}
                       </div>
@@ -2120,7 +2284,7 @@ export default function HostLobby() {
 
               {/* MOBILE RESPONSIVE FLOATING TAB (< sm) */}
               <div
-                className="sm:hidden !fixed bottom-3 right-4 !z-50 pointer-events-none"
+                className="sm:hidden !fixed bottom-3 right-4 !z-50 pointer-events-none flex flex-col items-end"
                 style={{
                   position: 'fixed',
                   bottom: '0.75rem',
@@ -2128,6 +2292,16 @@ export default function HostLobby() {
                   zIndex: 50,
                 }}
               >
+                {session.twitchChannel && !hideTwitchCheck && (
+                  <TwitchConnectionCheck
+                    channel={session.twitchChannel}
+                    votes={session.twitchVotes || {}}
+                    onClose={() => setHideTwitchCheck(true)}
+                    compact
+                    className="relative z-10 pointer-events-auto w-56 mb-2"
+                  />
+                )}
+
                 {/* Vinyl Record Disk (Mobile) */}
                 <div
                   ref={mobileDiskContainerRef}
@@ -2184,9 +2358,19 @@ export default function HostLobby() {
 
                     {/* Playlist sélectionnée sur mobile */}
                     <div className="px-3 py-2 bg-[#FAF9F5] border border-black/10 rounded-xl flex flex-col gap-0.5">
-                      <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                      <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1">
                         <Music className="w-3 h-3 text-host shrink-0" />
                         <span>Playlist sélectionnée :</span>
+                        {quizMode === 'playlist' && currentSelectedPlaylist && (
+                          <button
+                            type="button"
+                            onClick={handleCopyPlaylistLink}
+                            className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 bg-white border-2 border-black rounded-md text-xs font-black uppercase text-black cursor-pointer"
+                          >
+                            {copiedPlaylistLink ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
+                            <span>{copiedPlaylistLink ? 'Copié' : 'Partager'}</span>
+                          </button>
+                        )}
                       </span>
                       <p className={`text-xs font-black truncate ${currentSelectedPlaylist ? 'text-black' : 'text-slate-400 italic'}`}>
                         {quizMode === 'mal'
@@ -2206,7 +2390,7 @@ export default function HostLobby() {
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
                             <span
-                              className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border border-black' : 'bg-slate-400'
+                              className={`h-2.5 w-2.5 rounded-full shrink-0 ${player.isConnected ? 'bg-emerald-500 border-2 border-black' : 'bg-slate-400'
                                 }`}
                             />
                             <span className="font-black text-xs text-black truncate">{player.name}</span>
@@ -2256,11 +2440,16 @@ export default function HostLobby() {
                         <img
                           src="/JOIN/PlayText.png"
                           alt="PLAY"
-                          className="h-10 sm:h-11 w-auto max-w-[85%] object-contain drop-shadow-md pointer-events-none select-none"
+                          className="h-14 sm:h-16 w-auto max-w-[90%] object-contain drop-shadow-md pointer-events-none select-none"
                           draggable={false}
                         />
                       )}
                     </button>
+                    {startBlockedReason && (
+                      <p className="text-xs font-black text-slate-700 text-center leading-tight">
+                        {startBlockedReason}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

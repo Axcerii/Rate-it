@@ -113,6 +113,27 @@ test('server-only and host-only data never reach the players', async () => {
   assert.equal(players[0].lastUpdate().results['1'].twitchVotesCount, 1);
 });
 
+test('chat votes sent in the lobby reach the host as a connection check, and never count in the game', async () => {
+  const { io, host, players, sessionId } = await createRoom({ playerCount: 1 });
+  await host.send('twitch:connect', { channelName: 'chan' });
+  await twitchSocket.chat('viewer1', '5');
+  await twitchSocket.chat('viewer2', '3');
+  await sleep(700);
+
+  assert.deepEqual(host.lastUpdate().twitchVotes, { viewer1: 5, viewer2: 3 });
+  assert.equal(JSON.stringify(players[0].received).includes('viewer1'), false, 'per-viewer Twitch votes sent to a player');
+
+  // A vote still buffered when the game starts must not be counted for the first video either
+  await twitchSocket.chat('viewer3', '1');
+  await host.send('game:start', { playlistId: 'pl', shuffle: false });
+  await sleep(700);
+  assert.deepEqual(storedSession(sessionId).twitchVotes, {});
+
+  await host.send('game:show_results');
+  assert.equal(host.lastUpdate().results['1'].twitchVotesCount, 0);
+  disconnectFromTwitchChat(sessionId);
+});
+
 test('light updates applied by the client always add up to the full state', async () => {
   const { io, host, players, sessionId } = await createRoom({ playerCount: 5, isHostPlayer: true });
   const everyone = [host, ...players];

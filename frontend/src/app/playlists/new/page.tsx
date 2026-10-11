@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/useSocket';
-import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from 'lucide-react';
+import { Wand2, Loader2, FolderX, AlertTriangle, Sparkles, Sliders, X, Check, ChevronLeft, Key, Copy, CheckCircle2, ShieldAlert, FileEdit } from '@/components/icons';
 import HomeButton from '@/components/HomeButton';
 import CloseButton from '@/components/CloseButton';
 
@@ -536,7 +536,7 @@ export default function NewPlaylist() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                <span className="text-[11px] font-black uppercase bg-black text-white px-2.5 py-0.5 rounded-lg">
+                <span className="text-xs font-black uppercase bg-black text-white px-2.5 py-0.5 rounded-lg">
                   Mode Édition Actif
                 </span>
                 <span className="font-mono text-xs font-black bg-white px-2.5 py-0.5 rounded-lg border-2 border-white">
@@ -612,7 +612,7 @@ export default function NewPlaylist() {
                         Par {result.artistName || 'Artiste inconnu'} {result.description ? `— ${result.description}` : ''}
                       </div>
                     </div>
-                    <span className="bg-[#4BD66F] text-black border border-black px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0">
+                    <span className="bg-[#4BD66F] text-black border-2 border-black px-2 py-0.5 rounded text-xs font-black uppercase shrink-0">
                       + Ajouter
                     </span>
                   </button>
@@ -623,7 +623,7 @@ export default function NewPlaylist() {
 
           <div className="relative flex items-center justify-center my-4">
             <hr className="border-black w-full" />
-            <span className="absolute px-3 bg-[#FEEC67] border border-black rounded text-[10px] font-black text-slate-800 uppercase text-center">
+            <span className="absolute px-3 bg-[#FEEC67] border-2 border-black rounded text-xs font-black text-slate-800 uppercase text-center">
               Ajouter une nouvelle vidéo
             </span>
           </div>
@@ -704,7 +704,7 @@ export default function NewPlaylist() {
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-12 text-center">
               <FolderX className="w-10 h-10 text-slate-400 mb-2" />
               <p className="mt-2 text-xs font-bold text-slate-600">La playlist est vide.</p>
-              <p className="text-[10px] text-slate-500 mt-1">Ajoutez des vidéos depuis la colonne de gauche !</p>
+              <p className="text-xs text-slate-500 mt-1">Ajoutez des vidéos depuis la colonne de gauche !</p>
             </div>
           ) : (
             <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[380px] pr-1 mb-6">
@@ -719,7 +719,7 @@ export default function NewPlaylist() {
                     </span>
                     <div className="min-w-0 flex-1 truncate">
                       <div className="font-black text-xs text-black truncate">{video.title}</div>
-                      <div className="text-[10px] text-slate-600 truncate mt-0.5">
+                      <div className="text-xs text-slate-600 truncate mt-0.5">
                         Par {video.artistName || 'Artiste inconnu'} {video.description ? `— ${video.description}` : ''}
                         {video.malTitle && <span className="ml-1 text-purple-700 font-black">[MAL: {video.malTitle}]</span>}
                       </div>
@@ -796,7 +796,7 @@ export default function NewPlaylist() {
           type="button"
           onClick={() => setIsInfoDrawerOpen(!isInfoDrawerOpen)}
           title={isInfoDrawerOpen ? 'Fermer le menu' : 'Ouvrir les infos & config'}
-          className="absolute top-1/3 left-full -mt-8 bg-[#FEEC67] border-4 border-l-0 border-white rounded-r-2xl py-4 px-2.5 shadow-none flex flex-col items-center justify-center gap-2 text-black font-black uppercase text-[10px] sm:text-xs btn-action-hover cursor-pointer z-50 select-none"
+          className="absolute top-1/3 left-full -mt-8 bg-[#FEEC67] border-4 border-l-0 border-white rounded-r-2xl py-4 px-2.5 shadow-none flex flex-col items-center justify-center gap-2 text-black font-black uppercase text-xs btn-action-hover cursor-pointer z-50 select-none"
         >
           <ChevronLeft
             className={`w-5 h-5 stroke-[3] transition-transform duration-300 ${isInfoDrawerOpen ? '' : 'rotate-180'}`}
@@ -834,12 +834,12 @@ export default function NewPlaylist() {
                 <span>Éditer une playlist</span>
               </div>
               {isEditMode && (
-                <span className="text-[10px] font-black uppercase bg-black text-white px-2 py-0.5 rounded-md shadow-none">
+                <span className="text-xs font-black uppercase bg-black text-white px-2 py-0.5 rounded-md shadow-none">
                   Mode Édition Actif
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-800 font-bold leading-relaxed">
+            <p className="text-xs text-slate-800 font-bold leading-relaxed">
               {isEditMode
                 ? `Vous modifiez actuellement la playlist "${playlistName || editingPlaylistId}". Vous pouvez entrer un autre code secret pour en charger une autre.`
                 : "Vous avez déjà créé une playlist et possédez son code secret ? Chargez toutes ses vidéos pour la modifier."}
@@ -866,7 +866,7 @@ export default function NewPlaylist() {
                 <button
                   type="button"
                   onClick={handleConfirmClearDraft}
-                  className="text-[10px] font-black uppercase text-[#990000] underline hover:text-red-700 focus:text-red-700 focus-visible:text-red-700"
+                  className="text-xs font-black uppercase text-[#990000] underline hover:text-red-700 focus:text-red-700 focus-visible:text-red-700"
                 >
                   Effacer le brouillon
                 </button>
@@ -909,7 +909,7 @@ export default function NewPlaylist() {
                           isSelected ? prev.filter((c) => c !== cat) : [...prev, cat]
                         );
                       }}
-                      className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase transition-all ${
+                      className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase transition-all ${
                         isSelected
                           ? 'bg-black text-white border-black'
                           : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
@@ -933,7 +933,7 @@ export default function NewPlaylist() {
             <div className="border-b border-dashed border-white/60 pb-4 flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil MyAnimeList</label>
-                <p className="text-[10px] text-slate-700 font-bold mb-2">
+                <p className="text-xs text-slate-700 font-bold mb-2">
                   Importez directement les vidéos correspondantes à un pseudo MAL.
                 </p>
                 <form onSubmit={handleImportMal} className="flex flex-col sm:flex-row gap-2">
@@ -956,7 +956,7 @@ export default function NewPlaylist() {
 
               <div>
                 <label className="block text-xs font-black uppercase mb-1">Importer depuis un profil AniList</label>
-                <p className="text-[10px] text-slate-700 font-bold mb-2">
+                <p className="text-xs text-slate-700 font-bold mb-2">
                   Importez directement les vidéos correspondantes à un pseudo AniList.
                 </p>
                 <form onSubmit={handleImportAnilist} className="flex flex-col sm:flex-row gap-2">
@@ -981,7 +981,7 @@ export default function NewPlaylist() {
             {/* Clone existing playlist */}
             <div>
               <label className="block text-xs font-black uppercase mb-1">Cloner une playlist existante</label>
-              <p className="text-[10px] text-slate-700 font-bold mb-2">
+              <p className="text-xs text-slate-700 font-bold mb-2">
                 Copier le nom, la description et les vidéos à partir d'un code de partage.
               </p>
               <form onSubmit={handleClonePlaylist} className="flex flex-col sm:flex-row gap-2">
@@ -1051,11 +1051,11 @@ export default function NewPlaylist() {
                 <label className="text-xs font-black uppercase text-slate-800">
                   Code de Partage de la Playlist
                 </label>
-                <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border-2 border-white shadow-none">
+                <span className="text-xs font-bold text-slate-600 bg-white px-2 py-0.5 rounded border-2 border-white shadow-none">
                   Public
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600 font-bold">
+              <p className="text-xs text-slate-600 font-bold">
                 Partagez ce code avec vos amis pour qu'ils puissent jouer à votre playlist dans une room !
               </p>
               <div className="flex items-center gap-2 mt-1">
@@ -1089,14 +1089,14 @@ export default function NewPlaylist() {
                   <ShieldAlert className="w-4 h-4 text-[#990000] shrink-0" />
                   <span>Code Secret d'Édition</span>
                 </div>
-                <span className="text-[10px] font-black text-white bg-[#990000] px-2 py-0.5 rounded border-2 border-white shadow-none uppercase">
+                <span className="text-xs font-black text-white bg-[#990000] px-2 py-0.5 rounded border-2 border-white shadow-none uppercase">
                   Confidentiel
                 </span>
               </div>
 
               <div className="p-3 bg-red-100/90 border-2 border-white rounded-xl text-xs font-black text-red-950 leading-relaxed shadow-none">
                 <strong>ATTENTION : Conservez bien votre code secret d'édition !</strong>
-                <p className="font-bold text-red-900 mt-1 text-[11px]">
+                <p className="font-bold text-red-900 mt-1 text-xs">
                   Cliquez sur le bouton ci-dessous pour le copier et conservez-le en lieu sûr. Le code reste masqué pour éviter toute fuite (stream, partage d'écran). Si vous le perdez, seul un administrateur pourra le retrouver.
                 </p>
               </div>
@@ -1171,7 +1171,7 @@ export default function NewPlaylist() {
 
             <form onSubmit={handleVerifySecretCode} className="flex flex-col gap-3.5">
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-800 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-800 mb-1">
                   Code Secret (ex: sec_...)
                 </label>
                 <input

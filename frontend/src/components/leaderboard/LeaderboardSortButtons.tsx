@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Users, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { Users, ArrowDown, ArrowUp, ArrowUpDown } from '@/components/icons';
 
 export interface LeaderboardSortButtonsProps {
   layout: 'vertical' | 'horizontal';
@@ -75,14 +75,14 @@ export function LeaderboardSortButtons({
             <Users className="w-3.5 h-3.5 shrink-0" />
             <span>Votes des Joueurs</span>
           </div>
-          <p className="text-[11px] font-bold text-slate-200 mt-1">
+          <p className="text-xs font-bold text-slate-200 mt-1">
             {sortType === 'players'
               ? sortDir === 'desc'
                 ? 'Ordre : Meilleur au Pire'
                 : 'Ordre : Pire au Meilleur'
               : 'Cliquer pour trier par les joueurs'}
           </p>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">
             {sortType === 'players' ? "Cliquer pour inverser l'ordre" : 'Pire au Meilleur'}
           </p>
           <div className={`absolute ${tooltipArrowClasses}`} />
@@ -138,14 +138,14 @@ export function LeaderboardSortButtons({
               </svg>
               <span>Votes Twitch</span>
             </div>
-            <p className="text-[11px] font-bold text-slate-200 mt-1">
+            <p className="text-xs font-bold text-slate-200 mt-1">
               {sortType === 'twitch'
                 ? sortDir === 'desc'
                   ? 'Ordre : Meilleur au Pire'
                   : 'Ordre : Pire au Meilleur'
                 : 'Cliquer pour trier par Twitch'}
             </p>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">
               {sortType === 'twitch' ? "Cliquer pour inverser l'ordre" : 'Pire au Meilleur'}
             </p>
             <div className={`absolute ${tooltipArrowClasses}`} />

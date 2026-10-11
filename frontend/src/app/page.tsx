@@ -8,7 +8,7 @@ import HostButton from '@/components/HostButton';
 import JoinCard from '@/components/JoinCard';
 import PlaylistsButton from '@/components/PlaylistsButton';
 import CreatePlaylistButton from '@/components/CreatePlaylistButton';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/icons';
 
 export default function Home() {
   const router = useRouter();
