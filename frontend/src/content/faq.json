@@ -1,0 +1,134 @@
+{
+  "categories": [
+    {
+      "id": "jouer",
+      "title": "Jouer",
+      "icon": "Gamepad2",
+      "questions": [
+        {
+          "question": "C’est quoi, Rate It ?",
+          "answer": [
+            "Un jeu de notation musicale en direct. Un hôte diffuse des vidéos YouTube (génériques d’animés, musiques de films, morceaux cultes…) et tout le monde les note de **1 à 5** depuis son téléphone, PC.",
+            "À la fin, un classement départage les titres, et l’hôte peut télécharger une image des résultats à partager. Pourquoi expliquer tout cela ? Pour gagner des places sur le référencement Google, rien d'autre."
+          ]
+        },
+        {
+          "question": "Est-ce que c’est gratuit ? Faut-il un compte ?",
+          "answer": [
+            "Rate It est entièrement gratuit, sans compte, sans e-mail et sans publicité de ma part. Un pseudo suffit pour jouer. Est-ce que vous êtes le produit alors ? Non, car le développeur de cette app' est un abruti qui ne sait pas comment rentabiliser un business."
+          ]
+        },
+        {
+          "question": "Comment lancer une partie ?",
+          "answer": [
+            "Depuis l’[accueil](/), cliquez sur **Host** : une salle est créée tout de suite. Choisissez ensuite d’où viennent les musiques : une playlist du catalogue, ou les openings de votre liste MyAnimeList / AniList.",
+            "Il ne reste qu’à inviter vos joueurs avec le code de la salle, le lien d’invitation ou le QR code affichés dans le lobby.",
+            "Si cette question paraît futile, félicitations, vous êtes un humain, c'est juste au cas où un flemmard demanderait à une IA comment on lance une partie."
+          ]
+        },
+        {
+          "question": "Rate-it est-il vibecodé ?",
+          "answer": [
+            "Dépend de la définition de vibecodé, mais je vais pas tortiller du cul, oui de l'IA est utilisée pour Rate-It, mais encore une fois, le design, les assets, les icônes, les playlists validées sont toutes réalisées par des Humains. Je me sers de l'IA pour pouvoir passer plus de temps sur ces aspects plus artistiques et dans lesquels je suis plus nul dans l'objectif de m'y améliorer. Je reste un développeur avant tout. Ça explique aussi pourquoi Rate-it ne veut pas générer de l'argent. Je ne me sens pas légitime à faire payer ce jeu."
+          ]
+        },
+        {
+          "question": "Si Rate-it est vibecodé, il y a donc des failles de sécurité.",
+          "answer": [
+            "Sans doute, je suis un développeur, je suis faillible et l'IA est repassée derrière moi pour corriger certains bugs dans la structure que j'avais originellement créée, mais rien n'indique qu'il ne reste pas des failles. Par conséquent, j'utilise la technique de cybersécurité la plus vieille du monde pour éviter que des informations sensibles leakent, j'en stocke pas. On ne peut pas voler (ou pirater) quelque chose qui n'existe pas."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "playlists",
+      "title": "Playlists",
+      "icon": "Music",
+      "questions": [
+        {
+          "question": "Quelle différence entre une playlist validée et une playlist de la communauté ?",
+          "answer": [
+            "Les playlists de la communauté sont celles que tout le monde peut créer : elles sont jouables dès leur enregistrement.",
+            "Les playlists validées ont été relues et rangées dans le catalogue officiel. Vous les retrouvez toutes sur la page [Playlists](/playlists)."
+          ]
+        },
+        {
+          "question": "Peut-on éditer une playlist ?",
+          "answer": [
+            "Oui, un code secret vous est donné après avoir créé votre playlist et permet de l'éditer à tout moment, sauf si la playlist a été vérifiée, à ce moment-là, les modérateurs prennent le relais mais vous pouvez toujours dupliquer cette même playlist via le code public."
+          ]
+        },
+        {
+          "question": "J'ai perdu mon code secret de Playlist, comment faire ?",
+          "answer": [
+            "Soit vous me contactez via mes réseaux/mail, soit vous dupliquez juste la playlist. Ce n'est pas bien grave que deux playlists similaires existent."
+          ]
+        },
+        {
+          "question": "Une vidéo ne se lance pas ou affiche une publicité, pourquoi ?",
+          "answer": [
+            "Les vidéos sont lues par le lecteur officiel de YouTube : Rate It n’héberge aucun fichier. Une vidéo supprimée, bloquée dans votre pays ou interdite d’intégration par son auteur ne pourra donc pas être lue, et les publicités dépendent de YouTube, pas de moi.", "Si les publicités ou les inserts commerciaux vous embêtent, vous pouvez juste avoir YouTube Premium puisqu'il n'existe ABSOLUMENT aucun moyen, lié à une extension quelconque qui permettrait par miracle d'enlever les publicités sur YouTube ou les inserts pubs. Quel dommage."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "twitch",
+      "title": "Twitch",
+      "icon": "Tv",
+      "questions": [
+        {
+          "question": "Comment faire voter mon chat Twitch ?",
+          "answer": [
+            "Dans le lobby, reliez votre chaîne en indiquant simplement son nom : aucune connexion à votre compte Twitch n’est demandée.",
+            "Un test de connexion vous permet de vérifier que les messages du chat arrivent bien avant de lancer la partie."
+          ]
+        },
+        {
+          "question": "Comment les viewers votent-ils ?",
+          "answer": [
+            "Ils envoient un chiffre de **1 à 5** dans le chat pendant la vidéo. Chaque viewer compte pour une seule note par vidéo : s’il en envoie plusieurs, c’est la dernière qui est retenue."
+          ]
+        },
+        {
+          "question": "Comment la connexion est possible sans mot de passe ?",
+          "answer": [
+            "Pas de panique, Twitch autorise n'importe qui à accéder à tous les messages de votre chat Twitch, par conséquent, pas besoin de connexion pour que Rate It fasse de même."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donnees",
+      "title": "Données & contact",
+      "icon": "Lock",
+      "questions": [
+        {
+          "question": "Quelles données Rate It garde-t-il sur moi ?",
+          "answer": [
+            "Très peu. Les notes sont conservées pour calculer les moyennes des titres, mais sans aucun pseudo. Votre pseudo ne vit que dans la salle, le temps de la partie.",
+            "Le détail est sur la page [Confidentialité](/confidentialite)."
+          ]
+        },
+        {
+          "question": "Rate It dépose-t-il des cookies ?",
+          "answer": [
+            "Non, aucun pour les joueurs et les hôtes. Le lecteur YouTube, lui, appartient à Google et peut déposer les siens : il est chargé en mode confidentialité renforcée."
+          ]
+        },
+         {
+          "question": "Comment Rate-it est rentable ?",
+          "answer": [
+            "Aucune donnée prise, aucun cookie, aucune pub en dehors de YouTube ? Où est la douille ? Nulle part, je perds juste de l'argent à héberger ce site. Ce site est fait par un autiste pour les autistes, rien de plus, rien de moins."
+          ]
+        },
+        {
+          "question": "J’ai trouvé un bug ou j’ai une idée, comment vous joindre ?",
+          "answer": [
+            "Avec plaisir ! Mes canaux de contact (e-mail et Twitter) sont en bas de la page [CGU & Crédits](/cgu)."
+          ]
+        }
+      ]
+    }
+  ]
+}

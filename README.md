@@ -67,5 +67,6 @@ Les variables `NEXT_PUBLIC_*` sont lues à la construction du frontend : il faut
 ## Personnalisation
 
 - Textes de la page des joueurs (libellés des notes, réactions) : `frontend/src/content/playTexts.ts`
+- Questions de la FAQ : `frontend/src/content/faq.json` (catégories, questions, réponses en paragraphes ; `**gras**` et `[texte](/lien)` sont acceptés dans les réponses)
 - Icônes dessinées à la main : `frontend/public/Icons/`, branchées dans `frontend/src/components/icons.tsx`
 - E-mail et compte Twitter de contact : variables `NEXT_PUBLIC_CONTACT_EMAIL` et `NEXT_PUBLIC_TWITTER_HANDLE`

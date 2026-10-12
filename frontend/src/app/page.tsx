@@ -174,6 +174,13 @@ export default function Home() {
         {/* Footer Link: CGU & Crédits */}
         <footer className="mt-6 mb-2 flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-slate-800 select-none">
           <Link
+            href="/faq"
+            className="hover:text-black focus:text-black underline underline-offset-4 decoration-slate-400 hover:decoration-black transition-colors"
+          >
+            FAQ
+          </Link>
+          <span className="text-slate-400">•</span>
+          <Link
             href="/cgu"
             className="hover:text-black focus:text-black underline underline-offset-4 decoration-slate-400 hover:decoration-black transition-colors"
           >
